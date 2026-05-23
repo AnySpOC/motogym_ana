@@ -1,0 +1,356 @@
+const G = 9.80665;
+const START_G = 0.18;
+const STOP_SPEED = 0.65;
+const STOP_HOLD_MS = 950;
+const TURN_RATE = 35;
+const BANK_ANGLE = 18;
+
+const text = {
+  idle: "\u5f85\u6a5f\u4e2d",
+  sensorReady: "\u30bb\u30f3\u30b5\u63a5\u7d9a",
+  needPermission: "\u8a31\u53ef\u304c\u5fc5\u8981",
+  armed: "\u767a\u9032\u5f85\u3061",
+  running: "\u8d70\u884c\u4e2d",
+  stopped: "\u505c\u6b62",
+  armDetail: "\u8a08\u6e2c\u5f85\u6a5f",
+  startDetail: "\u767a\u9032\u3092\u691c\u51fa",
+  stopDetail: "\u505c\u6b62\u3092\u691c\u51fa",
+  stopHold: "\u505c\u6b62\u4fdd\u6301\u3092\u691c\u51fa",
+  accel: "\u52a0\u901f",
+  brake: "\u6e1b\u901f",
+  rightTurn: "\u53f3\u65cb\u56de",
+  leftTurn: "\u5de6\u65cb\u56de",
+  rightBank: "\u53f3\u30d0\u30f3\u30af",
+  leftBank: "\u5de6\u30d0\u30f3\u30af",
+  sensorGranted: "\u30bb\u30f3\u30b5\u8a31\u53ef\u6e08\u307f",
+  unsupported: "\u3053\u306e\u74b0\u5883\u3067\u306f\u30bb\u30f3\u30b5API\u304c\u4f7f\u3048\u307e\u305b\u3093",
+  sensorError: "iOS\u8a2d\u5b9a\u307e\u305f\u306fSafari\u306e\u30bb\u30f3\u30b5\u8a31\u53ef\u3092\u78ba\u8a8d",
+  demoStop: "\u30c7\u30e2\u505c\u6b62",
+  manualStop: "\u624b\u52d5\u505c\u6b62",
+};
+
+const elements = {
+  sensorStatus: document.querySelector("#sensorStatus"),
+  rideState: document.querySelector("#rideState"),
+  timer: document.querySelector("#timer"),
+  permissionButton: document.querySelector("#permissionButton"),
+  armButton: document.querySelector("#armButton"),
+  stopButton: document.querySelector("#stopButton"),
+  demoButton: document.querySelector("#demoButton"),
+  clearButton: document.querySelector("#clearButton"),
+  exportButton: document.querySelector("#exportButton"),
+  longG: document.querySelector("#longG"),
+  latG: document.querySelector("#latG"),
+  speed: document.querySelector("#speed"),
+  bank: document.querySelector("#bank"),
+  yaw: document.querySelector("#yaw"),
+  confidence: document.querySelector("#confidence"),
+  eventLog: document.querySelector("#eventLog"),
+  canvas: document.querySelector("#traceCanvas"),
+};
+
+const ctx = elements.canvas.getContext("2d");
+
+const state = {
+  mode: "idle",
+  startedAt: 0,
+  stoppedAt: 0,
+  lastSampleAt: 0,
+  lastStopCandidateAt: 0,
+  speedMs: 0,
+  bankDeg: 0,
+  yawRate: 0,
+  longG: 0,
+  latG: 0,
+  confidence: 0,
+  samples: [],
+  events: [],
+  demoTimer: null,
+};
+
+class Kalman1D {
+  constructor(processNoise = 0.018, measurementNoise = 0.18) {
+    this.q = processNoise;
+    this.r = measurementNoise;
+    this.x = 0;
+    this.p = 1;
+  }
+
+  update(measurement) {
+    this.p += this.q;
+    const k = this.p / (this.p + this.r);
+    this.x += k * (measurement - this.x);
+    this.p *= 1 - k;
+    return this.x;
+  }
+}
+
+const filters = {
+  longG: new Kalman1D(),
+  latG: new Kalman1D(),
+  yaw: new Kalman1D(0.03, 0.28),
+  bank: new Kalman1D(0.025, 0.22),
+};
+
+function setMode(mode, label) {
+  state.mode = mode;
+  elements.rideState.textContent = label;
+  elements.sensorStatus.className = `status-dot ${mode}`;
+}
+
+function nowMs() {
+  return performance.now();
+}
+
+function formatTime(ms) {
+  const seconds = Math.max(0, ms) / 1000;
+  return seconds.toFixed(3).padStart(6, "0");
+}
+
+function addEvent(type, detail = "") {
+  const t = state.startedAt ? nowMs() - state.startedAt : 0;
+  const event = {
+    timeMs: Math.round(t),
+    type,
+    detail,
+    longG: state.longG,
+    latG: state.latG,
+    speedKmh: state.speedMs * 3.6,
+    bankDeg: state.bankDeg,
+    yawRate: state.yawRate,
+  };
+  state.events.unshift(event);
+  renderEvents();
+}
+
+function armTimer() {
+  state.startedAt = 0;
+  state.stoppedAt = 0;
+  state.speedMs = 0;
+  state.lastStopCandidateAt = 0;
+  setMode("armed", text.armed);
+  addEvent("ARM", text.armDetail);
+}
+
+function startRun() {
+  state.startedAt = nowMs();
+  state.stoppedAt = 0;
+  state.samples = [];
+  setMode("running", text.running);
+  addEvent("START", text.startDetail);
+}
+
+function stopRun(reason = text.stopDetail) {
+  if (state.mode !== "running") return;
+  state.stoppedAt = nowMs();
+  setMode("stopped", text.stopped);
+  addEvent("STOP", reason);
+}
+
+function handleMotionSample(sample) {
+  const t = sample.time ?? nowMs();
+  const dt = state.lastSampleAt ? Math.min(0.12, Math.max(0.005, (t - state.lastSampleAt) / 1000)) : 0.016;
+  state.lastSampleAt = t;
+
+  state.longG = filters.longG.update(sample.longG);
+  state.latG = filters.latG.update(sample.latG);
+  state.yawRate = filters.yaw.update(sample.yawRate);
+  state.bankDeg = filters.bank.update(sample.bankDeg);
+
+  const drag = Math.min(0.15, state.speedMs * 0.025);
+  state.speedMs = Math.max(0, state.speedMs + (state.longG * G - drag) * dt);
+  state.confidence = estimateConfidence(sample, dt);
+
+  detectEvents(t);
+  storeSample(t);
+  render();
+}
+
+function estimateConfidence(sample, dt) {
+  const hasMotion = Number.isFinite(sample.longG) && Number.isFinite(sample.latG);
+  const cadence = dt > 0.006 && dt < 0.08;
+  const attitude = Number.isFinite(sample.bankDeg);
+  return Math.round(((hasMotion ? 0.45 : 0) + (cadence ? 0.3 : 0) + (attitude ? 0.25 : 0)) * 100);
+}
+
+function detectEvents(t) {
+  if (state.mode === "armed" && state.longG > START_G) {
+    startRun();
+  }
+
+  if (state.mode !== "running") return;
+
+  if (state.longG > 0.22) addEdgeEvent("ACCEL", text.accel);
+  if (state.longG < -0.25) addEdgeEvent("BRAKE", text.brake);
+  if (Math.abs(state.yawRate) > TURN_RATE) addEdgeEvent("TURN", state.yawRate > 0 ? text.rightTurn : text.leftTurn);
+  if (Math.abs(state.bankDeg) > BANK_ANGLE) addEdgeEvent("BANK", state.bankDeg > 0 ? text.rightBank : text.leftBank);
+
+  const nearStopped = state.speedMs < STOP_SPEED && Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06;
+  if (nearStopped) {
+    state.lastStopCandidateAt ||= t;
+    if (t - state.lastStopCandidateAt > STOP_HOLD_MS && nowMs() - state.startedAt > 1500) {
+      stopRun(text.stopHold);
+    }
+  } else {
+    state.lastStopCandidateAt = 0;
+  }
+}
+
+function addEdgeEvent(type, detail) {
+  const recent = state.events.find((event) => event.type === type);
+  if (recent && Math.abs(recent.timeMs - (nowMs() - state.startedAt)) < 900) return;
+  addEvent(type, detail);
+}
+
+function storeSample(t) {
+  state.samples.push({
+    t,
+    elapsed: state.startedAt ? t - state.startedAt : 0,
+    longG: state.longG,
+    latG: state.latG,
+    speed: state.speedMs,
+  });
+  if (state.samples.length > 420) state.samples.shift();
+}
+
+function onDeviceMotion(event) {
+  const acc = event.accelerationIncludingGravity || event.acceleration || {};
+  const rotation = event.rotationRate || {};
+  handleMotionSample({
+    time: nowMs(),
+    longG: (acc.y || 0) / G,
+    latG: (acc.x || 0) / G,
+    yawRate: rotation.alpha || 0,
+    bankDeg: state.bankDeg,
+  });
+}
+
+function onDeviceOrientation(event) {
+  if (Number.isFinite(event.gamma)) {
+    state.bankDeg = filters.bank.update(event.gamma);
+  }
+}
+
+async function requestSensors() {
+  try {
+    if (typeof DeviceMotionEvent === "undefined") {
+      setMode("idle", text.needPermission);
+      addEvent("ERROR", text.unsupported);
+      return;
+    }
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      const motionPermission = await DeviceMotionEvent.requestPermission();
+      if (motionPermission !== "granted") throw new Error("motion denied");
+    }
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      await DeviceOrientationEvent.requestPermission();
+    }
+    window.addEventListener("devicemotion", onDeviceMotion);
+    window.addEventListener("deviceorientation", onDeviceOrientation);
+    setMode("idle", text.sensorReady);
+    addEvent("SENSOR", text.sensorGranted);
+  } catch {
+    setMode("idle", text.needPermission);
+    addEvent("ERROR", text.sensorError);
+  }
+}
+
+function runDemo() {
+  clearInterval(state.demoTimer);
+  armTimer();
+  const start = nowMs();
+  state.demoTimer = setInterval(() => {
+    const elapsed = (nowMs() - start) / 1000;
+    if (elapsed > 12) {
+      clearInterval(state.demoTimer);
+      stopRun(text.demoStop);
+      return;
+    }
+    const longG = elapsed < 1 ? 0.03 : elapsed < 3.2 ? 0.34 : elapsed < 7.4 ? 0.05 : elapsed < 9.6 ? -0.3 : 0;
+    const latG = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 3) * 0.25 : 0.02;
+    const yawRate = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 2) * 70 : 0;
+    const bankDeg = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 2) * 28 : 0;
+    handleMotionSample({ time: nowMs(), longG, latG, yawRate, bankDeg });
+  }, 33);
+}
+
+function render() {
+  const runMs = state.startedAt ? (state.stoppedAt || nowMs()) - state.startedAt : 0;
+  elements.timer.textContent = formatTime(runMs);
+  elements.longG.textContent = `${state.longG.toFixed(2)} g`;
+  elements.latG.textContent = `${state.latG.toFixed(2)} g`;
+  elements.speed.textContent = `${(state.speedMs * 3.6).toFixed(1)} km/h`;
+  elements.bank.textContent = `${state.bankDeg.toFixed(0)} deg`;
+  elements.yaw.textContent = `${state.yawRate.toFixed(0)} deg/s`;
+  elements.confidence.textContent = `${state.confidence}%`;
+  drawTrace();
+  if (state.mode === "running") requestAnimationFrame(render);
+}
+
+function drawTrace() {
+  const { width, height } = elements.canvas;
+  ctx.clearRect(0, 0, width, height);
+  ctx.strokeStyle = "#263035";
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 5; i += 1) {
+    const y = (height / 5) * i;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  drawLine("longG", "#42d392", 0.6);
+  drawLine("latG", "#69d2e7", 0.6);
+}
+
+function drawLine(key, color, scale) {
+  if (state.samples.length < 2) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  state.samples.forEach((sample, index) => {
+    const x = (index / Math.max(1, state.samples.length - 1)) * elements.canvas.width;
+    const y = elements.canvas.height / 2 - (sample[key] / scale) * (elements.canvas.height / 2 - 24);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+function renderEvents() {
+  elements.eventLog.innerHTML = state.events
+    .map((event) => `<li><strong>${event.type} ${formatTime(event.timeMs)}</strong><small>${event.detail} / ${event.speedKmh.toFixed(1)} km/h / ${event.bankDeg.toFixed(0)} deg</small></li>`)
+    .join("");
+}
+
+function exportCsv() {
+  const header = "time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate\n";
+  const rows = state.events
+    .slice()
+    .reverse()
+    .map((event) => [event.timeMs, event.type, event.detail, event.longG.toFixed(3), event.latG.toFixed(3), event.speedKmh.toFixed(2), event.bankDeg.toFixed(1), event.yawRate.toFixed(1)].join(","));
+  const blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `gym-ana-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+elements.permissionButton.addEventListener("click", requestSensors);
+elements.armButton.addEventListener("click", armTimer);
+elements.stopButton.addEventListener("click", () => stopRun(text.manualStop));
+elements.demoButton.addEventListener("click", runDemo);
+elements.clearButton.addEventListener("click", () => {
+  state.samples = [];
+  state.events = [];
+  state.speedMs = 0;
+  state.startedAt = 0;
+  state.stoppedAt = 0;
+  setMode("idle", text.idle);
+  renderEvents();
+  render();
+});
+elements.exportButton.addEventListener("click", exportCsv);
+
+render();

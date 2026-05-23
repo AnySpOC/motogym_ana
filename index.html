@@ -1,84 +1,86 @@
 <!doctype html>
 <html lang="ja">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Moto Gymkhana 3D</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Gym Ana - &#12472;&#12512;&#12459;&#12540;&#12490;&#35336;&#28204;</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main id="app">
-      <canvas id="game"></canvas>
-
-      <section class="race-hud" aria-label="race status">
-        <div class="session-card">
-        <div class="session-top">
-          <span>Moto Gymkhana</span>
-          <strong id="runState">READY</strong>
+    <main class="app-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">iPhone sensor timing</p>
+          <h1>Gym Ana</h1>
+          <p class="lead">iPhone&#20869;&#34101;&#12475;&#12531;&#12469;&#12384;&#12369;&#12391;&#30330;&#36914;&#12289;&#20572;&#27490;&#12289;&#21152;&#28187;&#36895;&#12289;&#12496;&#12531;&#12463;&#12289;&#26059;&#22238;&#12434;&#26908;&#30693;&#12375;&#12289;1&#26412;&#12372;&#12392;&#12398;&#36208;&#34892;&#12525;&#12464;&#12395;&#12414;&#12392;&#12417;&#12414;&#12377;&#12290;</p>
         </div>
-        <div class="cone-legend">
-          <span><i class="red"></i>赤 右回り</span>
-          <span><i class="green"></i>緑 左回り</span>
-        </div>
-        <ol class="ranking">
-            <li><span>1</span> H. Sato <b>58.842</b></li>
-            <li><span>2</span> Rider Pro <b>+0.614</b></li>
-            <li class="is-player"><span>3</span> You <b id="rankDelta">--.---</b></li>
-          </ol>
-        </div>
-
-        <div class="time-card">
-          <span>BEST 59.657</span>
-          <strong id="time">00.00</strong>
-          <em id="penalty">PEN 0</em>
+        <div class="status-card">
+          <span id="sensorStatus" class="status-dot idle"></span>
+          <div>
+            <p class="status-label">&#29366;&#24907;</p>
+            <strong id="rideState">&#24453;&#27231;&#20013;</strong>
+          </div>
         </div>
       </section>
 
-      <section class="ride-panel" aria-label="ride controls">
-        <div class="mode-row">
-          <button class="mode is-active" data-mode="with">リーンウィズ</button>
-          <button class="mode" data-mode="in">リーンイン</button>
-          <button class="mode" data-mode="out">リーンアウト</button>
+      <section class="timer-panel" aria-label="timer">
+        <div class="timer-readout">
+          <span>RUN TIME</span>
+          <strong id="timer">00.000</strong>
         </div>
-        <div class="inputs">
-          <div data-key="w"><kbd>W</kbd><span>加速</span></div>
-          <div data-key="s"><kbd>S</kbd><span>減速</span></div>
-          <div data-key="a"><kbd>A</kbd><span>左バンク</span></div>
-          <div data-key="d"><kbd>D</kbd><span>右バンク</span></div>
-          <div data-key="q"><kbd>Q</kbd><span>リーン左</span></div>
-          <div data-key="e"><kbd>E</kbd><span>リーン右</span></div>
-          <div data-key=" "><kbd>SP</kbd><span>リアブレーキ</span></div>
-          <div data-key="r"><kbd>R</kbd><span>復帰</span></div>
+        <div class="controls">
+          <button id="permissionButton" class="primary" type="button">&#12475;&#12531;&#12469;&#35377;&#21487;</button>
+          <button id="armButton" type="button">&#35336;&#28204;&#24453;&#27231;</button>
+          <button id="stopButton" type="button">&#25163;&#21205;&#20572;&#27490;</button>
+          <button id="demoButton" type="button">&#12487;&#12514;&#20877;&#29983;</button>
         </div>
       </section>
 
-      <section class="mini-map" aria-label="course map">
-        <svg viewBox="0 0 120 160" role="img">
-          <path class="map-road" d="M21 57 C18 34 42 23 63 25 C91 28 67 52 40 52 C18 53 22 75 31 92 C14 118 36 139 52 128 C59 112 63 82 82 66 C108 43 106 89 86 102 C111 120 100 144 80 132 C99 96 107 51 88 28 C66 17 38 25 21 57" />
-          <g id="mapCones"></g>
-          <circle id="mapBike" r="4" cx="60" cy="142" />
-        </svg>
-        <span>コース</span>
+      <section class="metrics-grid" aria-label="sensor metrics">
+        <article>
+          <span>&#21069;&#24460;G</span>
+          <strong id="longG">0.00 g</strong>
+        </article>
+        <article>
+          <span>&#24038;&#21491;G</span>
+          <strong id="latG">0.00 g</strong>
+        </article>
+        <article>
+          <span>&#25512;&#23450;&#36895;&#24230;</span>
+          <strong id="speed">0.0 km/h</strong>
+        </article>
+        <article>
+          <span>&#12496;&#12531;&#12463;&#35282;</span>
+          <strong id="bank">0 deg</strong>
+        </article>
+        <article>
+          <span>&#12520;&#12540;&#12524;&#12540;&#12488;</span>
+          <strong id="yaw">0 deg/s</strong>
+        </article>
+        <article>
+          <span>&#20449;&#38972;&#24230;</span>
+          <strong id="confidence">0%</strong>
+        </article>
       </section>
 
-      <section class="speedo" aria-label="speedometer">
-        <div class="dial">
-          <i class="needle" id="needle"></i>
-          <div class="dial-center"></div>
-          <span class="n n0">0</span>
-          <span class="n n1">30</span>
-          <span class="n n2">60</span>
-          <span class="n n3">90</span>
-          <span class="n n4">120</span>
+      <section class="workbench">
+        <div class="trace-panel">
+          <div class="panel-title">
+            <h2>&#36208;&#34892;&#12488;&#12524;&#12540;&#12473;</h2>
+            <button id="clearButton" type="button">&#12463;&#12522;&#12450;</button>
+          </div>
+          <canvas id="traceCanvas" width="960" height="320" aria-label="trace"></canvas>
         </div>
-        <strong id="speed">0</strong>
-        <span>km/h</span>
-        <small id="bank">BANK 0</small>
+        <div class="event-panel">
+          <div class="panel-title">
+            <h2>&#12452;&#12505;&#12531;&#12488;&#12525;&#12464;</h2>
+            <button id="exportButton" type="button">CSV</button>
+          </div>
+          <ol id="eventLog" class="event-log"></ol>
+        </div>
       </section>
-
-      <div class="toast is-visible" id="toast">白線からスタート</div>
     </main>
 
-    <script type="module" src="./game.js"></script>
+    <script src="./app.js"></script>
   </body>
 </html>

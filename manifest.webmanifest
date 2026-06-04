@@ -1,0 +1,19 @@
+{
+  "name": "Moto Gym Ana",
+  "short_name": "Gym Ana",
+  "description": "iPhone sensor timing prototype for moto gymkhana practice.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101214",
+  "theme_color": "#101214",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

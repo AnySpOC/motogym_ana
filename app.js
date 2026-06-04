@@ -353,4 +353,12 @@ elements.clearButton.addEventListener("click", () => {
 });
 elements.exportButton.addEventListener("click", exportCsv);
 
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {
+      addEvent("CACHE", "Offline cache unavailable");
+    });
+  });
+}
+
 render();

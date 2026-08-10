@@ -99,7 +99,8 @@ h1 {
 .timer-panel,
 .metrics-grid article,
 .trace-panel,
-.event-panel {
+.event-panel,
+.history-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: color-mix(in srgb, var(--panel) 90%, transparent);
@@ -187,6 +188,11 @@ h1 {
   padding: 14px;
 }
 
+.history-panel {
+  margin-top: 10px;
+  padding: 14px;
+}
+
 .panel-title {
   display: flex;
   align-items: center;
@@ -225,6 +231,49 @@ canvas {
   display: block;
 }
 
+.storage-status {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.history-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 76px;
+  border-top: 1px solid var(--line);
+  padding: 12px 0 4px;
+}
+
+.history-card strong {
+  display: block;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-card small {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.history-actions button {
+  min-height: 38px;
+}
+
 @media (max-width: 820px) {
   .hero,
   .timer-panel,
@@ -239,5 +288,13 @@ canvas {
 
   .metrics-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .history-card {
+    grid-template-columns: 1fr;
+  }
+
+  .history-actions {
+    justify-content: start;
   }
 }

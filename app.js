@@ -4,6 +4,10 @@ const STOP_SPEED = 0.65;
 const STOP_HOLD_MS = 950;
 const TURN_RATE = 35;
 const BANK_ANGLE = 18;
+const DB_NAME = "moto-gym-ana";
+const DB_VERSION = 1;
+const RUN_STORE = "runs";
+const RAW_SAMPLE_LIMIT = 20000;
 
 const text = {
   idle: "\u5f85\u6a5f\u4e2d",
@@ -27,6 +31,9 @@ const text = {
   sensorError: "iOS\u8a2d\u5b9a\u307e\u305f\u306fSafari\u306e\u30bb\u30f3\u30b5\u8a31\u53ef\u3092\u78ba\u8a8d",
   demoStop: "\u30c7\u30e2\u505c\u6b62",
   manualStop: "\u624b\u52d5\u505c\u6b62",
+  saved: "\u81ea\u52d5\u4fdd\u5b58\u6e08\u307f",
+  storageReady: "\u81ea\u52d5\u4fdd\u5b58\u6709\u52b9",
+  storageUnavailable: "\u81ea\u52d5\u4fdd\u5b58\u4e0d\u53ef",
 };
 
 const elements = {
@@ -39,6 +46,7 @@ const elements = {
   demoButton: document.querySelector("#demoButton"),
   clearButton: document.querySelector("#clearButton"),
   exportButton: document.querySelector("#exportButton"),
+  exportAllButton: document.querySelector("#exportAllButton"),
   longG: document.querySelector("#longG"),
   latG: document.querySelector("#latG"),
   speed: document.querySelector("#speed"),
@@ -46,6 +54,8 @@ const elements = {
   yaw: document.querySelector("#yaw"),
   confidence: document.querySelector("#confidence"),
   eventLog: document.querySelector("#eventLog"),
+  historyList: document.querySelector("#historyList"),
+  storageStatus: document.querySelector("#storageStatus"),
   canvas: document.querySelector("#traceCanvas"),
 };
 
@@ -64,9 +74,14 @@ const state = {
   latG: 0,
   confidence: 0,
   samples: [],
+  rawSamples: [],
   events: [],
+  savedRuns: [],
+  currentRunId: "",
   demoTimer: null,
 };
+
+let dbPromise = null;
 
 class Kalman1D {
   constructor(processNoise = 0.018, measurementNoise = 0.18) {
@@ -127,7 +142,9 @@ function armTimer() {
   state.startedAt = 0;
   state.stoppedAt = 0;
   state.speedMs = 0;
+  state.rawSamples = [];
   state.lastStopCandidateAt = 0;
+  state.currentRunId = "";
   setMode("armed", text.armed);
   addEvent("ARM", text.armDetail);
 }
@@ -136,6 +153,9 @@ function startRun() {
   state.startedAt = nowMs();
   state.stoppedAt = 0;
   state.samples = [];
+  state.rawSamples = [];
+  state.events = state.events.filter((event) => event.type === "ARM");
+  state.currentRunId = makeRunId();
   setMode("running", text.running);
   addEvent("START", text.startDetail);
 }
@@ -145,6 +165,7 @@ function stopRun(reason = text.stopDetail) {
   state.stoppedAt = nowMs();
   setMode("stopped", text.stopped);
   addEvent("STOP", reason);
+  saveCurrentRun();
 }
 
 function handleMotionSample(sample) {
@@ -163,6 +184,7 @@ function handleMotionSample(sample) {
 
   detectEvents(t);
   storeSample(t);
+  storeRawSample(t);
   render();
 }
 
@@ -211,6 +233,20 @@ function storeSample(t) {
     speed: state.speedMs,
   });
   if (state.samples.length > 420) state.samples.shift();
+}
+
+function storeRawSample(t) {
+  if (!state.startedAt || state.stoppedAt) return;
+  state.rawSamples.push({
+    timeMs: Math.round(t - state.startedAt),
+    longG: round(state.longG, 4),
+    latG: round(state.latG, 4),
+    speedKmh: round(state.speedMs * 3.6, 3),
+    bankDeg: round(state.bankDeg, 2),
+    yawRate: round(state.yawRate, 2),
+    confidence: state.confidence,
+  });
+  if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
 }
 
 function onDeviceMotion(event) {
@@ -324,17 +360,210 @@ function renderEvents() {
 }
 
 function exportCsv() {
-  const header = "time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate\n";
-  const rows = state.events
-    .slice()
-    .reverse()
-    .map((event) => [event.timeMs, event.type, event.detail, event.longG.toFixed(3), event.latG.toFixed(3), event.speedKmh.toFixed(2), event.bankDeg.toFixed(1), event.yawRate.toFixed(1)].join(","));
-  const blob = new Blob([header + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+  const run = buildCurrentRun();
+  downloadText(runToCsv(run), `gym-ana-${run.id || "current"}.csv`, "text/csv;charset=utf-8");
+}
+
+function makeRunId() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function round(value, digits) {
+  const base = 10 ** digits;
+  return Math.round(value * base) / base;
+}
+
+function openDb() {
+  if (!("indexedDB" in window)) return Promise.reject(new Error("indexedDB unavailable"));
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(RUN_STORE)) {
+        const store = db.createObjectStore(RUN_STORE, { keyPath: "id" });
+        store.createIndex("startedAtIso", "startedAtIso");
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return dbPromise;
+}
+
+function dbPut(storeName, value) {
+  return openDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    tx.objectStore(storeName).put(value);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function dbGetAll(storeName) {
+  return openDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const request = tx.objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  }));
+}
+
+function buildCurrentRun() {
+  return buildRun({
+    id: state.currentRunId || makeRunId(),
+    startedAtIso: state.currentRunId ? new Date(Date.now() - ((state.stoppedAt || nowMs()) - state.startedAt)).toISOString() : new Date().toISOString(),
+    endedAtIso: new Date().toISOString(),
+    durationMs: Math.round(state.startedAt ? (state.stoppedAt || nowMs()) - state.startedAt : 0),
+    events: state.events.slice().reverse(),
+    samples: state.rawSamples.slice(),
+  });
+}
+
+function buildRun(run) {
+  const samples = run.samples || [];
+  const events = run.events || [];
+  const maxByAbs = (key) => samples.reduce((max, sample) => Math.max(max, Math.abs(sample[key] || 0)), 0);
+  return {
+    id: run.id,
+    startedAtIso: run.startedAtIso,
+    endedAtIso: run.endedAtIso,
+    durationMs: run.durationMs,
+    summary: {
+      maxSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
+      maxLongG: round(samples.reduce((max, sample) => Math.max(max, sample.longG || 0), 0), 3),
+      minLongG: round(samples.reduce((min, sample) => Math.min(min, sample.longG || 0), 0), 3),
+      maxLatGAbs: round(maxByAbs("latG"), 3),
+      maxBankDegAbs: round(maxByAbs("bankDeg"), 1),
+      maxYawRateAbs: round(maxByAbs("yawRate"), 1),
+      sampleCount: samples.length,
+      eventCount: events.length,
+    },
+    events,
+    samples,
+  };
+}
+
+function saveCurrentRun() {
+  addEvent("SAVE", text.saved);
+  const run = buildCurrentRun();
+  if (!run.samples.length && !run.events.length) return;
+  dbPut(RUN_STORE, run)
+    .then(() => {
+      return loadRuns();
+    })
+    .catch(() => {
+      addEvent("SAVE", text.storageUnavailable);
+      setStorageStatus(text.storageUnavailable);
+    });
+}
+
+function loadRuns() {
+  return dbGetAll(RUN_STORE)
+    .then((runs) => {
+      state.savedRuns = runs.sort((a, b) => b.startedAtIso.localeCompare(a.startedAtIso));
+      setStorageStatus(`${text.storageReady} / ${state.savedRuns.length} runs`);
+      renderHistory();
+    })
+    .catch(() => {
+      setStorageStatus(text.storageUnavailable);
+      renderHistory();
+    });
+}
+
+function setStorageStatus(message) {
+  elements.storageStatus.textContent = message;
+}
+
+function renderHistory() {
+  if (!state.savedRuns.length) {
+    elements.historyList.innerHTML = `<div class="history-card"><small>No saved runs yet</small></div>`;
+    return;
+  }
+  elements.historyList.innerHTML = state.savedRuns
+    .map((run) => {
+      const date = new Date(run.startedAtIso).toLocaleString();
+      return `<article class="history-card">
+        <div>
+          <strong>${formatTime(run.durationMs)}</strong>
+          <small>${escapeHtml(date)} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
+        </div>
+        <div class="history-actions">
+          <button type="button" data-action="csv" data-run="${escapeHtml(run.id)}">CSV</button>
+          <button type="button" data-action="json" data-run="${escapeHtml(run.id)}">JSON</button>
+        </div>
+      </article>`;
+    })
+    .join("");
+}
+
+function runToCsv(run) {
+  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate,confidence\n";
+  const eventRows = run.events.map((event) => [
+    "event",
+    event.timeMs,
+    event.type,
+    event.detail,
+    fixed(event.longG, 3),
+    fixed(event.latG, 3),
+    fixed(event.speedKmh, 2),
+    fixed(event.bankDeg, 1),
+    fixed(event.yawRate, 1),
+    "",
+  ].map(csvCell).join(","));
+  const sampleRows = run.samples.map((sample) => [
+    "sample",
+    sample.timeMs,
+    "",
+    "",
+    fixed(sample.longG, 4),
+    fixed(sample.latG, 4),
+    fixed(sample.speedKmh, 3),
+    fixed(sample.bankDeg, 2),
+    fixed(sample.yawRate, 2),
+    sample.confidence,
+  ].map(csvCell).join(","));
+  return eventHeader + eventRows.concat(sampleRows).join("\n");
+}
+
+function fixed(value, digits) {
+  return Number.isFinite(value) ? value.toFixed(digits) : "";
+}
+
+function csvCell(value) {
+  const textValue = String(value ?? "");
+  return /[",\n]/.test(textValue) ? `"${textValue.replaceAll("\"", "\"\"")}"` : textValue;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
+}
+
+function downloadText(content, filename, type) {
+  const blob = new Blob([content], { type });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `gym-ana-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+function exportAllJson() {
+  downloadText(JSON.stringify({ exportedAt: new Date().toISOString(), runs: state.savedRuns }, null, 2), `gym-ana-all-${makeRunId()}.json`, "application/json;charset=utf-8");
+}
+
+function exportStoredRun(runId, format) {
+  const run = state.savedRuns.find((item) => item.id === runId);
+  if (!run) return;
+  if (format === "csv") {
+    downloadText(runToCsv(run), `gym-ana-${run.id}.csv`, "text/csv;charset=utf-8");
+  } else {
+    downloadText(JSON.stringify(run, null, 2), `gym-ana-${run.id}.json`, "application/json;charset=utf-8");
+  }
 }
 
 elements.permissionButton.addEventListener("click", requestSensors);
@@ -343,15 +572,23 @@ elements.stopButton.addEventListener("click", () => stopRun(text.manualStop));
 elements.demoButton.addEventListener("click", runDemo);
 elements.clearButton.addEventListener("click", () => {
   state.samples = [];
+  state.rawSamples = [];
   state.events = [];
   state.speedMs = 0;
   state.startedAt = 0;
   state.stoppedAt = 0;
+  state.currentRunId = "";
   setMode("idle", text.idle);
   renderEvents();
   render();
 });
 elements.exportButton.addEventListener("click", exportCsv);
+elements.exportAllButton.addEventListener("click", exportAllJson);
+elements.historyList.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action][data-run]");
+  if (!button) return;
+  exportStoredRun(button.dataset.run, button.dataset.action);
+});
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -362,3 +599,4 @@ if ("serviceWorker" in navigator) {
 }
 
 render();
+loadRuns();

@@ -67,6 +67,32 @@ permission may still need to be granted from the installed app screen.
 This is not an App Store install. It is a PWA-style home-screen install, which is
 the fastest way to test this prototype on your own iPhone.
 
+## Data storage
+
+Runs are saved automatically on the iPhone with IndexedDB when STOP is detected.
+The app stores both event data and raw sensor time series for each run.
+
+Saved per run:
+
+- summary: duration, max speed, max / min G, max bank, max yaw, sample count
+- events: START, STOP, ACCEL, BRAKE, TURN, BANK, SENSOR, ERROR, SAVE
+- samples: time, longitudinal G, lateral G, estimated speed, bank, yaw rate, confidence
+
+The in-memory trace graph still keeps only the latest visible samples, but saved
+runs keep up to 20,000 raw samples per run. At around 30 Hz this is roughly 11
+minutes, which is much longer than a normal moto gymkhana run.
+
+Use:
+
+1. Tap "Arm timer".
+2. Ride or replay demo data.
+3. STOP saves the run automatically.
+4. Use the saved run cards to export CSV or JSON.
+5. Use "All JSON" to back up every saved run.
+
+IndexedDB is practical for field testing, but iOS can remove browser storage
+when storage pressure is high. Export important data after practice.
+
 ## HTTPS option for iPhone sensors
 
 One quick option is ngrok:

@@ -6,6 +6,8 @@ const DB_VERSION = 1;
 const RUN_STORE = "runs";
 const RAW_SAMPLE_LIMIT = 20000;
 const VARIANCE_WINDOW = 90;
+const RAD_TO_DEG = 180 / Math.PI;
+const DRAG_COEFF = 0.025;
 
 const sensitivityProfiles = {
   calm: { startG: 0.26, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
@@ -86,6 +88,10 @@ const state = {
   yawRate: 0,
   longG: 0,
   latG: 0,
+  observedBankDeg: 0,
+  longBias: 0,
+  latBias: 0,
+  yawBias: 0,
   confidence: 0,
   sensorEnabled: false,
   sensorListenersAttached: false,
@@ -105,34 +111,101 @@ const state = {
 
 let dbPromise = null;
 
-class Kalman1D {
-  constructor(processNoise = 0.018, measurementNoise = 0.18) {
-    this.q = processNoise;
-    this.r = measurementNoise;
-    this.x = 0;
-    this.p = 1;
+class MotionEkf {
+  constructor() {
+    this.n = 8;
+    this.x = [0, 0, 0, 0, 0, 0, 0, 0];
+    this.p = identity(this.n, 0.6);
   }
 
-  update(measurement) {
-    this.p += this.q;
-    const k = this.p / (this.p + this.r);
-    this.x += k * (measurement - this.x);
-    this.p *= 1 - k;
-    return this.x;
+  reset() {
+    this.x = [0, 0, 0, 0, 0, 0, 0, 0];
+    this.p = identity(this.n, 0.6);
   }
 
-  reset(value = 0) {
-    this.x = value;
-    this.p = 1;
+  update(measurement, dt) {
+    this.predict(dt);
+    this.correct(measurement);
+    return this.value();
+  }
+
+  predict(dt) {
+    const [v, longG, latG, yawRate, bankDeg, longBias, latBias, yawBias] = this.x;
+    const accelDecay = Math.exp(-dt / 0.7);
+    const yawDecay = Math.exp(-dt / 0.5);
+    const rollBlend = Math.min(0.35, dt / 0.45);
+    const rollEqDeg = Math.atan(latG) * RAD_TO_DEG;
+
+    const next = [
+      Math.max(0, v + ((longG - longBias) * G - DRAG_COEFF * v) * dt),
+      longG * accelDecay,
+      latG * accelDecay,
+      yawRate * yawDecay,
+      bankDeg + (rollEqDeg - bankDeg) * rollBlend,
+      longBias,
+      latBias,
+      yawBias,
+    ];
+
+    const f = identity(this.n);
+    f[0][0] = Math.max(0, 1 - DRAG_COEFF * dt);
+    f[0][1] = G * dt;
+    f[0][5] = -G * dt;
+    f[1][1] = accelDecay;
+    f[2][2] = accelDecay;
+    f[3][3] = yawDecay;
+    f[4][2] = rollBlend * RAD_TO_DEG / (1 + latG * latG);
+    f[4][4] = 1 - rollBlend;
+
+    const q = diag([
+      0.03 * dt,
+      0.09 * dt,
+      0.09 * dt,
+      18 * dt,
+      6 * dt,
+      0.00008 * dt,
+      0.00008 * dt,
+      0.015 * dt,
+    ]);
+
+    this.x = next;
+    this.p = add(mul(mul(f, this.p), transpose(f)), q);
+  }
+
+  correct(measurement) {
+    const h = [
+      [0, 1, 0, 0, 0, 1, 0, 0],
+      [0, 0, 1, 0, 0, 0, 1, 0],
+      [0, 0, 0, 1, 0, 0, 0, 1],
+      [0, 0, 0, 0, 1, 0, 0, 0],
+    ];
+    const z = [measurement.longG, measurement.latG, measurement.yawRate, measurement.bankDeg];
+    const r = diag([0.13, 0.13, 24, 18]);
+    const hx = matVec(h, this.x);
+    const residual = z.map((value, index) => value - hx[index]);
+    const s = add(mul(mul(h, this.p), transpose(h)), r);
+    const k = mul(mul(this.p, transpose(h)), inverse4(s));
+    this.x = addVec(this.x, matVec(k, residual));
+    this.x[0] = Math.max(0, this.x[0]);
+    this.p = mul(sub(identity(this.n), mul(k, h)), this.p);
+  }
+
+  value() {
+    return {
+      speedMs: this.x[0],
+      longG: this.x[1] - this.x[5],
+      latG: this.x[2] - this.x[6],
+      yawRate: this.x[3] - this.x[7],
+      bankDeg: this.x[4],
+      longBias: this.x[5],
+      latBias: this.x[6],
+      yawBias: this.x[7],
+      covariance: (this.p[1][1] + this.p[2][2] + this.p[3][3] + this.p[4][4]) / 4,
+    };
   }
 }
 
-const filters = {
-  longG: new Kalman1D(),
-  latG: new Kalman1D(),
-  yaw: new Kalman1D(0.03, 0.28),
-  bank: new Kalman1D(0.025, 0.22),
-};
+const motionModel = new MotionEkf();
 
 function setMode(mode, label) {
   state.mode = mode;
@@ -210,14 +283,23 @@ function handleMotionSample(sample) {
   const profile = currentProfile();
   const cleanedLongG = applyDeadband(sample.longG, profile.deadbandG);
   const cleanedLatG = applyDeadband(sample.latG, profile.deadbandG);
-  state.longG = filters.longG.update(cleanedLongG);
-  state.latG = filters.latG.update(cleanedLatG);
-  state.yawRate = filters.yaw.update(sample.yawRate);
-  state.bankDeg = filters.bank.update(sample.bankDeg);
+  const estimate = motionModel.update({
+    longG: cleanedLongG,
+    latG: cleanedLatG,
+    yawRate: sample.yawRate,
+    bankDeg: sample.bankDeg,
+  }, dt);
+  state.longG = estimate.longG;
+  state.latG = estimate.latG;
+  state.yawRate = estimate.yawRate;
+  state.bankDeg = estimate.bankDeg;
+  state.speedMs = estimate.speedMs;
+  state.longBias = estimate.longBias;
+  state.latBias = estimate.latBias;
+  state.yawBias = estimate.yawBias;
+  state.kalmanVariance = estimate.covariance;
   updateVariance(cleanedLongG, cleanedLatG);
 
-  const drag = Math.min(0.15, state.speedMs * 0.025);
-  state.speedMs = Math.max(0, state.speedMs + (state.longG * G - drag) * dt);
   state.confidence = estimateConfidence(sample, dt);
 
   detectEvents(t);
@@ -287,27 +369,30 @@ function storeRawSample(t) {
     longGVariance: round(state.longGVariance, 6),
     latGVariance: round(state.latGVariance, 6),
     kalmanVariance: round(state.kalmanVariance, 6),
+    longBias: round(state.longBias, 5),
+    latBias: round(state.latBias, 5),
+    yawBias: round(state.yawBias, 3),
     confidence: state.confidence,
   });
   if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
 }
 
 function onDeviceMotion(event) {
-  const acc = event.accelerationIncludingGravity || event.acceleration || {};
+  const acc = event.acceleration || event.accelerationIncludingGravity || {};
   const rotation = event.rotationRate || {};
   handleMotionSample({
     time: nowMs(),
     longG: (acc.y || 0) / G,
     latG: (acc.x || 0) / G,
     yawRate: rotation.alpha || 0,
-    bankDeg: state.bankDeg,
+    bankDeg: state.observedBankDeg,
   });
 }
 
 function onDeviceOrientation(event) {
   if (!state.sensorEnabled) return;
   if (Number.isFinite(event.gamma)) {
-    state.bankDeg = filters.bank.update(event.gamma);
+    state.observedBankDeg = event.gamma;
   }
 }
 
@@ -402,15 +487,16 @@ function resetLiveSensorValues() {
   state.latG = 0;
   state.yawRate = 0;
   state.bankDeg = 0;
+  state.observedBankDeg = 0;
+  state.longBias = 0;
+  state.latBias = 0;
+  state.yawBias = 0;
   state.confidence = 0;
   state.longGVariance = 0;
   state.latGVariance = 0;
   state.kalmanVariance = 0;
   state.varianceSamples = [];
-  filters.longG.reset();
-  filters.latG.reset();
-  filters.yaw.reset();
-  filters.bank.reset();
+  motionModel.reset();
 }
 
 function render() {
@@ -473,13 +559,78 @@ function updateVariance(longG, latG) {
   if (state.varianceSamples.length > VARIANCE_WINDOW) state.varianceSamples.shift();
   state.longGVariance = rollingVariance(state.varianceSamples.map((sample) => sample.longG));
   state.latGVariance = rollingVariance(state.varianceSamples.map((sample) => sample.latG));
-  state.kalmanVariance = (filters.longG.p + filters.latG.p) / 2;
 }
 
 function rollingVariance(values) {
   if (values.length < 2) return 0;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   return values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (values.length - 1);
+}
+
+function identity(size, value = 1) {
+  return Array.from({ length: size }, (_, row) =>
+    Array.from({ length: size }, (_, col) => (row === col ? value : 0))
+  );
+}
+
+function diag(values) {
+  return Array.from({ length: values.length }, (_, row) =>
+    Array.from({ length: values.length }, (_, col) => (row === col ? values[row] : 0))
+  );
+}
+
+function transpose(matrix) {
+  return matrix[0].map((_, col) => matrix.map((row) => row[col]));
+}
+
+function add(a, b) {
+  return a.map((row, rowIndex) => row.map((value, colIndex) => value + b[rowIndex][colIndex]));
+}
+
+function sub(a, b) {
+  return a.map((row, rowIndex) => row.map((value, colIndex) => value - b[rowIndex][colIndex]));
+}
+
+function mul(a, b) {
+  return a.map((row) =>
+    b[0].map((_, colIndex) =>
+      row.reduce((sum, value, innerIndex) => sum + value * b[innerIndex][colIndex], 0)
+    )
+  );
+}
+
+function matVec(matrix, vector) {
+  return matrix.map((row) => row.reduce((sum, value, index) => sum + value * vector[index], 0));
+}
+
+function addVec(a, b) {
+  return a.map((value, index) => value + b[index]);
+}
+
+function inverse4(matrix) {
+  const size = 4;
+  const work = matrix.map((row, rowIndex) => row.concat(identity(size)[rowIndex]));
+
+  for (let col = 0; col < size; col += 1) {
+    let pivotRow = col;
+    for (let row = col + 1; row < size; row += 1) {
+      if (Math.abs(work[row][col]) > Math.abs(work[pivotRow][col])) pivotRow = row;
+    }
+    if (pivotRow !== col) [work[col], work[pivotRow]] = [work[pivotRow], work[col]];
+
+    const pivot = Math.abs(work[col][col]) < 1e-9 ? 1e-9 : work[col][col];
+    for (let j = 0; j < size * 2; j += 1) work[col][j] /= pivot;
+
+    for (let row = 0; row < size; row += 1) {
+      if (row === col) continue;
+      const factor = work[row][col];
+      for (let j = 0; j < size * 2; j += 1) {
+        work[row][j] -= factor * work[col][j];
+      }
+    }
+  }
+
+  return work.map((row) => row.slice(size));
 }
 
 function renderEvents() {
@@ -627,7 +778,7 @@ function renderHistory() {
 }
 
 function runToCsv(run) {
-  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate,long_g_variance,lat_g_variance,kalman_variance,confidence\n";
+  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n";
   const eventRows = run.events.map((event) => [
     "event",
     event.timeMs,
@@ -638,6 +789,9 @@ function runToCsv(run) {
     fixed(event.speedKmh, 2),
     fixed(event.bankDeg, 1),
     fixed(event.yawRate, 1),
+    "",
+    "",
+    "",
     "",
     "",
     "",
@@ -656,6 +810,9 @@ function runToCsv(run) {
     fixed(sample.longGVariance, 6),
     fixed(sample.latGVariance, 6),
     fixed(sample.kalmanVariance, 6),
+    fixed(sample.longBias, 5),
+    fixed(sample.latBias, 5),
+    fixed(sample.yawBias, 3),
     sample.confidence,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");

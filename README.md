@@ -117,6 +117,39 @@ The trace graph shows:
 while the bike is stopped, the mount or sensor noise is influencing the reading.
 `Kalman P` is the current internal covariance estimate of the G filters.
 
+## Motion model
+
+The app uses a lightweight extended Kalman filter rather than independent
+one-dimensional filters. The state vector is:
+
+```text
+[speed, longitudinal_g, lateral_g, yaw_rate, bank_deg, longitudinal_bias, lateral_bias, yaw_bias]
+```
+
+Prediction model:
+
+```text
+speed_k = speed_{k-1} + ((longitudinal_g - bias) * g - drag * speed) * dt
+longitudinal_g, lateral_g, yaw_rate = decayed random walk
+bank_deg = blended toward atan(lateral_g)
+bias terms = slow random walk
+```
+
+Observation model:
+
+```text
+z = [
+  measured_longitudinal_g,
+  measured_lateral_g,
+  measured_yaw_rate,
+  measured_bank_deg
+]
+```
+
+The model is intentionally small enough to run in iPhone Safari. It is not a
+full motorcycle multibody model; it is a sensor-fusion model for stable event
+detection and field calibration.
+
 ## HTTPS option for iPhone sensors
 
 One quick option is ngrok:

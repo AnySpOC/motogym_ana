@@ -1,13 +1,17 @@
 const G = 9.80665;
-const START_G = 0.18;
 const STOP_SPEED = 0.65;
 const STOP_HOLD_MS = 950;
-const TURN_RATE = 35;
-const BANK_ANGLE = 18;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
 const RUN_STORE = "runs";
 const RAW_SAMPLE_LIMIT = 20000;
+const VARIANCE_WINDOW = 90;
+
+const sensitivityProfiles = {
+  calm: { startG: 0.26, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
+  normal: { startG: 0.2, accelG: 0.26, brakeG: -0.3, turnRate: 40, bankAngle: 20, deadbandG: 0.025 },
+  sharp: { startG: 0.14, accelG: 0.19, brakeG: -0.22, turnRate: 30, bankAngle: 15, deadbandG: 0.014 },
+};
 
 const text = {
   idle: "\u5f85\u6a5f\u4e2d",
@@ -34,6 +38,9 @@ const text = {
   saved: "\u81ea\u52d5\u4fdd\u5b58\u6e08\u307f",
   storageReady: "\u81ea\u52d5\u4fdd\u5b58\u6709\u52b9",
   storageUnavailable: "\u81ea\u52d5\u4fdd\u5b58\u4e0d\u53ef",
+  sensorOff: "\u30bb\u30f3\u30b5OFF",
+  sensorOn: "\u30bb\u30f3\u30b5ON",
+  sensorDisabled: "\u30bb\u30f3\u30b5\u505c\u6b62",
 };
 
 const elements = {
@@ -41,6 +48,8 @@ const elements = {
   rideState: document.querySelector("#rideState"),
   timer: document.querySelector("#timer"),
   permissionButton: document.querySelector("#permissionButton"),
+  sensorOffButton: document.querySelector("#sensorOffButton"),
+  sensitivitySelect: document.querySelector("#sensitivitySelect"),
   armButton: document.querySelector("#armButton"),
   stopButton: document.querySelector("#stopButton"),
   demoButton: document.querySelector("#demoButton"),
@@ -53,6 +62,8 @@ const elements = {
   bank: document.querySelector("#bank"),
   yaw: document.querySelector("#yaw"),
   confidence: document.querySelector("#confidence"),
+  gVariance: document.querySelector("#gVariance"),
+  kalmanVariance: document.querySelector("#kalmanVariance"),
   eventLog: document.querySelector("#eventLog"),
   historyList: document.querySelector("#historyList"),
   storageStatus: document.querySelector("#storageStatus"),
@@ -73,7 +84,14 @@ const state = {
   longG: 0,
   latG: 0,
   confidence: 0,
+  sensorEnabled: false,
+  sensorListenersAttached: false,
+  sensitivity: "normal",
+  longGVariance: 0,
+  latGVariance: 0,
+  kalmanVariance: 0,
   samples: [],
+  varianceSamples: [],
   rawSamples: [],
   events: [],
   savedRuns: [],
@@ -97,6 +115,11 @@ class Kalman1D {
     this.x += k * (measurement - this.x);
     this.p *= 1 - k;
     return this.x;
+  }
+
+  reset(value = 0) {
+    this.x = value;
+    this.p = 1;
   }
 }
 
@@ -141,7 +164,7 @@ function addEvent(type, detail = "") {
 function armTimer() {
   state.startedAt = 0;
   state.stoppedAt = 0;
-  state.speedMs = 0;
+  resetLiveSensorValues();
   state.rawSamples = [];
   state.lastStopCandidateAt = 0;
   state.currentRunId = "";
@@ -169,14 +192,19 @@ function stopRun(reason = text.stopDetail) {
 }
 
 function handleMotionSample(sample) {
+  if (!state.sensorEnabled && !sample.demo) return;
   const t = sample.time ?? nowMs();
   const dt = state.lastSampleAt ? Math.min(0.12, Math.max(0.005, (t - state.lastSampleAt) / 1000)) : 0.016;
   state.lastSampleAt = t;
 
-  state.longG = filters.longG.update(sample.longG);
-  state.latG = filters.latG.update(sample.latG);
+  const profile = currentProfile();
+  const cleanedLongG = applyDeadband(sample.longG, profile.deadbandG);
+  const cleanedLatG = applyDeadband(sample.latG, profile.deadbandG);
+  state.longG = filters.longG.update(cleanedLongG);
+  state.latG = filters.latG.update(cleanedLatG);
   state.yawRate = filters.yaw.update(sample.yawRate);
   state.bankDeg = filters.bank.update(sample.bankDeg);
+  updateVariance(cleanedLongG, cleanedLatG);
 
   const drag = Math.min(0.15, state.speedMs * 0.025);
   state.speedMs = Math.max(0, state.speedMs + (state.longG * G - drag) * dt);
@@ -196,16 +224,17 @@ function estimateConfidence(sample, dt) {
 }
 
 function detectEvents(t) {
-  if (state.mode === "armed" && state.longG > START_G) {
+  const profile = currentProfile();
+  if (state.mode === "armed" && state.longG > profile.startG) {
     startRun();
   }
 
   if (state.mode !== "running") return;
 
-  if (state.longG > 0.22) addEdgeEvent("ACCEL", text.accel);
-  if (state.longG < -0.25) addEdgeEvent("BRAKE", text.brake);
-  if (Math.abs(state.yawRate) > TURN_RATE) addEdgeEvent("TURN", state.yawRate > 0 ? text.rightTurn : text.leftTurn);
-  if (Math.abs(state.bankDeg) > BANK_ANGLE) addEdgeEvent("BANK", state.bankDeg > 0 ? text.rightBank : text.leftBank);
+  if (state.longG > profile.accelG) addEdgeEvent("ACCEL", text.accel);
+  if (state.longG < profile.brakeG) addEdgeEvent("BRAKE", text.brake);
+  if (Math.abs(state.yawRate) > profile.turnRate) addEdgeEvent("TURN", state.yawRate > 0 ? text.rightTurn : text.leftTurn);
+  if (Math.abs(state.bankDeg) > profile.bankAngle) addEdgeEvent("BANK", state.bankDeg > 0 ? text.rightBank : text.leftBank);
 
   const nearStopped = state.speedMs < STOP_SPEED && Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06;
   if (nearStopped) {
@@ -231,6 +260,7 @@ function storeSample(t) {
     longG: state.longG,
     latG: state.latG,
     speed: state.speedMs,
+    variance: state.longGVariance + state.latGVariance,
   });
   if (state.samples.length > 420) state.samples.shift();
 }
@@ -244,6 +274,9 @@ function storeRawSample(t) {
     speedKmh: round(state.speedMs * 3.6, 3),
     bankDeg: round(state.bankDeg, 2),
     yawRate: round(state.yawRate, 2),
+    longGVariance: round(state.longGVariance, 6),
+    latGVariance: round(state.latGVariance, 6),
+    kalmanVariance: round(state.kalmanVariance, 6),
     confidence: state.confidence,
   });
   if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
@@ -262,6 +295,7 @@ function onDeviceMotion(event) {
 }
 
 function onDeviceOrientation(event) {
+  if (!state.sensorEnabled) return;
   if (Number.isFinite(event.gamma)) {
     state.bankDeg = filters.bank.update(event.gamma);
   }
@@ -281,14 +315,59 @@ async function requestSensors() {
     if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
       await DeviceOrientationEvent.requestPermission();
     }
-    window.addEventListener("devicemotion", onDeviceMotion);
-    window.addEventListener("deviceorientation", onDeviceOrientation);
-    setMode("idle", text.sensorReady);
+    enableSensors();
+    setMode("sensor-on", text.sensorOn);
     addEvent("SENSOR", text.sensorGranted);
   } catch {
     setMode("idle", text.needPermission);
     addEvent("ERROR", text.sensorError);
   }
+}
+
+function enableSensors() {
+  if (!state.sensorListenersAttached) {
+    window.addEventListener("devicemotion", onDeviceMotion);
+    window.addEventListener("deviceorientation", onDeviceOrientation);
+    state.sensorListenersAttached = true;
+  }
+  state.sensorEnabled = true;
+  elements.permissionButton.classList.add("primary");
+}
+
+function disableSensors() {
+  if (state.mode === "running") {
+    stopRun(text.sensorDisabled);
+  }
+  if (state.sensorListenersAttached) {
+    window.removeEventListener("devicemotion", onDeviceMotion);
+    window.removeEventListener("deviceorientation", onDeviceOrientation);
+    state.sensorListenersAttached = false;
+  }
+  state.sensorEnabled = false;
+  clearInterval(state.demoTimer);
+  resetLiveSensorValues();
+  setMode("sensor-off", text.sensorOff);
+  addEvent("SENSOR", text.sensorDisabled);
+  render();
+}
+
+function resetLiveSensorValues() {
+  state.lastSampleAt = 0;
+  state.lastStopCandidateAt = 0;
+  state.speedMs = 0;
+  state.longG = 0;
+  state.latG = 0;
+  state.yawRate = 0;
+  state.bankDeg = 0;
+  state.confidence = 0;
+  state.longGVariance = 0;
+  state.latGVariance = 0;
+  state.kalmanVariance = 0;
+  state.varianceSamples = [];
+  filters.longG.reset();
+  filters.latG.reset();
+  filters.yaw.reset();
+  filters.bank.reset();
 }
 
 function runDemo() {
@@ -306,7 +385,7 @@ function runDemo() {
     const latG = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 3) * 0.25 : 0.02;
     const yawRate = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 2) * 70 : 0;
     const bankDeg = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 2) * 28 : 0;
-    handleMotionSample({ time: nowMs(), longG, latG, yawRate, bankDeg });
+    handleMotionSample({ time: nowMs(), longG, latG, yawRate, bankDeg, demo: true });
   }, 33);
 }
 
@@ -319,6 +398,8 @@ function render() {
   elements.bank.textContent = `${state.bankDeg.toFixed(0)} deg`;
   elements.yaw.textContent = `${state.yawRate.toFixed(0)} deg/s`;
   elements.confidence.textContent = `${state.confidence}%`;
+  elements.gVariance.textContent = `${state.longGVariance.toFixed(4)} / ${state.latGVariance.toFixed(4)}`;
+  elements.kalmanVariance.textContent = state.kalmanVariance.toFixed(4);
   drawTrace();
   if (state.mode === "running") requestAnimationFrame(render);
 }
@@ -337,6 +418,7 @@ function drawTrace() {
   }
   drawLine("longG", "#42d392", 0.6);
   drawLine("latG", "#69d2e7", 0.6);
+  drawLine("variance", "#f0ba4a", 0.08);
 }
 
 function drawLine(key, color, scale) {
@@ -351,6 +433,29 @@ function drawLine(key, color, scale) {
     else ctx.lineTo(x, y);
   });
   ctx.stroke();
+}
+
+function currentProfile() {
+  return sensitivityProfiles[state.sensitivity] || sensitivityProfiles.normal;
+}
+
+function applyDeadband(value, deadband) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.abs(value) < deadband ? 0 : value;
+}
+
+function updateVariance(longG, latG) {
+  state.varianceSamples.push({ longG, latG });
+  if (state.varianceSamples.length > VARIANCE_WINDOW) state.varianceSamples.shift();
+  state.longGVariance = rollingVariance(state.varianceSamples.map((sample) => sample.longG));
+  state.latGVariance = rollingVariance(state.varianceSamples.map((sample) => sample.latG));
+  state.kalmanVariance = (filters.longG.p + filters.latG.p) / 2;
+}
+
+function rollingVariance(values) {
+  if (values.length < 2) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (values.length - 1);
 }
 
 function renderEvents() {
@@ -498,7 +603,7 @@ function renderHistory() {
 }
 
 function runToCsv(run) {
-  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate,confidence\n";
+  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate,long_g_variance,lat_g_variance,kalman_variance,confidence\n";
   const eventRows = run.events.map((event) => [
     "event",
     event.timeMs,
@@ -509,6 +614,9 @@ function runToCsv(run) {
     fixed(event.speedKmh, 2),
     fixed(event.bankDeg, 1),
     fixed(event.yawRate, 1),
+    "",
+    "",
+    "",
     "",
   ].map(csvCell).join(","));
   const sampleRows = run.samples.map((sample) => [
@@ -521,6 +629,9 @@ function runToCsv(run) {
     fixed(sample.speedKmh, 3),
     fixed(sample.bankDeg, 2),
     fixed(sample.yawRate, 2),
+    fixed(sample.longGVariance, 6),
+    fixed(sample.latGVariance, 6),
+    fixed(sample.kalmanVariance, 6),
     sample.confidence,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
@@ -567,6 +678,13 @@ function exportStoredRun(runId, format) {
 }
 
 elements.permissionButton.addEventListener("click", requestSensors);
+elements.sensorOffButton.addEventListener("click", disableSensors);
+elements.sensitivitySelect.addEventListener("change", () => {
+  state.sensitivity = elements.sensitivitySelect.value;
+  if (state.mode !== "running") resetLiveSensorValues();
+  addEvent("SENSE", elements.sensitivitySelect.value);
+  render();
+});
 elements.armButton.addEventListener("click", armTimer);
 elements.stopButton.addEventListener("click", () => stopRun(text.manualStop));
 elements.demoButton.addEventListener("click", runDemo);
@@ -578,6 +696,7 @@ elements.clearButton.addEventListener("click", () => {
   state.startedAt = 0;
   state.stoppedAt = 0;
   state.currentRunId = "";
+  resetLiveSensorValues();
   setMode("idle", text.idle);
   renderEvents();
   render();

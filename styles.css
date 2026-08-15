@@ -45,6 +45,18 @@ button.primary {
   color: #07120d;
 }
 
+select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  padding: 0 10px;
+}
+
 .app-shell {
   width: min(1180px, 100%);
   margin: 0 auto;
@@ -121,12 +133,14 @@ h1 {
 }
 
 .status-dot.armed,
-.status-dot.running {
+.status-dot.running,
+.status-dot.sensor-on {
   background: var(--green);
   box-shadow: 0 0 18px color-mix(in srgb, var(--green), transparent 45%);
 }
 
-.status-dot.stopped {
+.status-dot.stopped,
+.status-dot.sensor-off {
   background: var(--amber);
 }
 
@@ -157,9 +171,21 @@ h1 {
   min-width: 250px;
 }
 
+.select-control {
+  display: grid;
+  grid-column: span 2;
+  gap: 5px;
+}
+
+.select-control span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   gap: 10px;
   margin: 10px 0;
 }
@@ -284,6 +310,10 @@ canvas {
   .controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     min-width: 0;
+  }
+
+  .select-control {
+    grid-column: span 2;
   }
 
   .metrics-grid {

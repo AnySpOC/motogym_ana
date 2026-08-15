@@ -93,6 +93,25 @@ Use:
 IndexedDB is practical for field testing, but iOS can remove browser storage
 when storage pressure is high. Export important data after practice.
 
+## Sensor controls and graph
+
+- `Sensor ON` requests permission and starts reading iPhone motion sensors.
+- `Sensor OFF` removes sensor listeners and resets live G / speed / variance values.
+- Sensitivity changes detection thresholds and a small G deadband.
+  - Low: fewer false detections, better for vibration tests.
+  - Normal: default.
+  - High: reacts earlier, but can false-trigger more easily.
+
+The trace graph shows:
+
+- green: longitudinal G
+- cyan: lateral G
+- amber: rolling G variance
+
+`G Var` is rolling variance for longitudinal / lateral G. If this value rises
+while the bike is stopped, the mount or sensor noise is influencing the reading.
+`Kalman P` is the current internal covariance estimate of the G filters.
+
 ## HTTPS option for iPhone sensors
 
 One quick option is ngrok:

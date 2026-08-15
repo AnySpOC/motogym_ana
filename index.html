@@ -34,10 +34,19 @@
           <strong id="timer">00.000</strong>
         </div>
         <div class="controls">
-          <button id="permissionButton" class="primary" type="button">&#12475;&#12531;&#12469;&#35377;&#21487;</button>
+          <button id="permissionButton" class="primary" type="button">Sensor ON</button>
+          <button id="sensorOffButton" type="button">Sensor OFF</button>
           <button id="armButton" type="button">&#35336;&#28204;&#24453;&#27231;</button>
           <button id="stopButton" type="button">&#25163;&#21205;&#20572;&#27490;</button>
           <button id="demoButton" type="button">&#12487;&#12514;&#20877;&#29983;</button>
+          <label class="select-control">
+            <span>&#24863;&#24230;</span>
+            <select id="sensitivitySelect">
+              <option value="calm">&#20302;</option>
+              <option value="normal" selected>&#27161;&#28310;</option>
+              <option value="sharp">&#39640;</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -65,6 +74,14 @@
         <article>
           <span>&#20449;&#38972;&#24230;</span>
           <strong id="confidence">0%</strong>
+        </article>
+        <article>
+          <span>G Var</span>
+          <strong id="gVariance">0.0000</strong>
+        </article>
+        <article>
+          <span>Kalman P</span>
+          <strong id="kalmanVariance">0.0000</strong>
         </article>
       </section>
 

@@ -26,8 +26,8 @@ Open:
 http://127.0.0.1:4173
 ```
 
-Use the demo button first. It replays synthetic riding data and should create
-START, ACCEL, TURN, BANK, BRAKE, and STOP events.
+Use this only for desktop layout checks. iPhone sensor checks need Safari on
+iPhone.
 
 ## iPhone check
 
@@ -58,7 +58,7 @@ URL once, and install it to the iPhone home screen.
 2. Tap the Safari share button.
 3. Tap "Add to Home Screen".
 4. Launch "Gym Ana" from the home screen once while online.
-5. Tap the demo button and sensor permission button to confirm the app is ready.
+5. Tap `Sensor ON` and confirm that G values react to iPhone movement.
 
 After that first online launch, the service worker caches the app shell. The app
 can then open again from the home screen even with weak or no network. Sensor
@@ -84,11 +84,12 @@ minutes, which is much longer than a normal moto gymkhana run.
 
 Use:
 
-1. Tap "Arm timer".
-2. Ride or replay demo data.
-3. STOP saves the run automatically.
-4. Use the saved run cards to export CSV or JSON.
-5. Use "All JSON" to back up every saved run.
+1. Tap `Sensor ON`.
+2. Tap `Auto ON` for automatic start / stop detection, or `Manual ON` for manual timing.
+3. Ride or move the mounted iPhone.
+4. `STOP` saves the run automatically.
+5. Use the saved run cards to export CSV or JSON.
+6. Use `All JSON` to back up every saved run.
 
 IndexedDB is practical for field testing, but iOS can remove browser storage
 when storage pressure is high. Export important data after practice.
@@ -96,7 +97,11 @@ when storage pressure is high. Export important data after practice.
 ## Sensor controls and graph
 
 - `Sensor ON` requests permission and starts reading iPhone motion sensors.
-- `Sensor OFF` removes sensor listeners and resets live G / speed / variance values.
+- `Sensor OFF` removes sensor listeners and resets live G / speed / variance values to zero.
+- `Auto ON` arms automatic start / stop detection from sensor movement.
+- `Auto OFF` stops automatic detection without stopping an already running manual timer.
+- `Manual ON` starts timing immediately.
+- `Manual OFF` stops timing and saves the run.
 - Sensitivity changes detection thresholds and a small G deadband.
   - Low: fewer false detections, better for vibration tests.
   - Normal: default.
@@ -124,8 +129,8 @@ ngrok http 4173
 
 Open the generated `https://...ngrok-free.app` URL on iPhone Safari, then tap:
 
-1. Sensor permission
-2. Arm timer
+1. `Sensor ON`
+2. `Auto ON`
 3. Move the iPhone forward to trigger START
 4. Keep it still to trigger STOP
 5. Export CSV after the run

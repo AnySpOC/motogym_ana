@@ -33,8 +33,10 @@ const text = {
   sensorGranted: "\u30bb\u30f3\u30b5\u8a31\u53ef\u6e08\u307f",
   unsupported: "\u3053\u306e\u74b0\u5883\u3067\u306f\u30bb\u30f3\u30b5API\u304c\u4f7f\u3048\u307e\u305b\u3093",
   sensorError: "iOS\u8a2d\u5b9a\u307e\u305f\u306fSafari\u306e\u30bb\u30f3\u30b5\u8a31\u53ef\u3092\u78ba\u8a8d",
-  demoStop: "\u30c7\u30e2\u505c\u6b62",
   manualStop: "\u624b\u52d5\u505c\u6b62",
+  manualStart: "\u624b\u52d5\u958b\u59cb",
+  autoOn: "\u81ea\u52d5\u8a08\u6e2cON",
+  autoOff: "\u81ea\u52d5\u8a08\u6e2cOFF",
   saved: "\u81ea\u52d5\u4fdd\u5b58\u6e08\u307f",
   storageReady: "\u81ea\u52d5\u4fdd\u5b58\u6709\u52b9",
   storageUnavailable: "\u81ea\u52d5\u4fdd\u5b58\u4e0d\u53ef",
@@ -50,9 +52,10 @@ const elements = {
   permissionButton: document.querySelector("#permissionButton"),
   sensorOffButton: document.querySelector("#sensorOffButton"),
   sensitivitySelect: document.querySelector("#sensitivitySelect"),
-  armButton: document.querySelector("#armButton"),
-  stopButton: document.querySelector("#stopButton"),
-  demoButton: document.querySelector("#demoButton"),
+  autoOnButton: document.querySelector("#autoOnButton"),
+  autoOffButton: document.querySelector("#autoOffButton"),
+  manualOnButton: document.querySelector("#manualOnButton"),
+  manualOffButton: document.querySelector("#manualOffButton"),
   clearButton: document.querySelector("#clearButton"),
   exportButton: document.querySelector("#exportButton"),
   exportAllButton: document.querySelector("#exportAllButton"),
@@ -86,6 +89,8 @@ const state = {
   confidence: 0,
   sensorEnabled: false,
   sensorListenersAttached: false,
+  autoMeasurementEnabled: false,
+  measurementMode: "none",
   sensitivity: "normal",
   longGVariance: 0,
   latGVariance: 0,
@@ -96,7 +101,6 @@ const state = {
   events: [],
   savedRuns: [],
   currentRunId: "",
-  demoTimer: null,
 };
 
 let dbPromise = null;
@@ -146,7 +150,7 @@ function formatTime(ms) {
 }
 
 function addEvent(type, detail = "") {
-  const t = state.startedAt ? nowMs() - state.startedAt : 0;
+  const t = state.currentRunId ? nowMs() - state.startedAt : 0;
   const event = {
     timeMs: Math.round(t),
     type,
@@ -168,19 +172,22 @@ function armTimer() {
   state.rawSamples = [];
   state.lastStopCandidateAt = 0;
   state.currentRunId = "";
+  state.measurementMode = "auto";
   setMode("armed", text.armed);
   addEvent("ARM", text.armDetail);
 }
 
-function startRun() {
+function startRun(mode = "auto", detail = text.startDetail) {
   state.startedAt = nowMs();
   state.stoppedAt = 0;
   state.samples = [];
   state.rawSamples = [];
   state.events = state.events.filter((event) => event.type === "ARM");
   state.currentRunId = makeRunId();
+  state.measurementMode = mode;
   setMode("running", text.running);
-  addEvent("START", text.startDetail);
+  addEvent("START", detail);
+  render();
 }
 
 function stopRun(reason = text.stopDetail) {
@@ -188,11 +195,14 @@ function stopRun(reason = text.stopDetail) {
   state.stoppedAt = nowMs();
   setMode("stopped", text.stopped);
   addEvent("STOP", reason);
+  elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
   saveCurrentRun();
+  state.measurementMode = "none";
+  render();
 }
 
 function handleMotionSample(sample) {
-  if (!state.sensorEnabled && !sample.demo) return;
+  if (!state.sensorEnabled) return;
   const t = sample.time ?? nowMs();
   const dt = state.lastSampleAt ? Math.min(0.12, Math.max(0.005, (t - state.lastSampleAt) / 1000)) : 0.016;
   state.lastSampleAt = t;
@@ -225,8 +235,8 @@ function estimateConfidence(sample, dt) {
 
 function detectEvents(t) {
   const profile = currentProfile();
-  if (state.mode === "armed" && state.longG > profile.startG) {
-    startRun();
+  if (state.autoMeasurementEnabled && state.mode === "armed" && state.longG > profile.startG) {
+    startRun("auto", text.startDetail);
   }
 
   if (state.mode !== "running") return;
@@ -239,7 +249,7 @@ function detectEvents(t) {
   const nearStopped = state.speedMs < STOP_SPEED && Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06;
   if (nearStopped) {
     state.lastStopCandidateAt ||= t;
-    if (t - state.lastStopCandidateAt > STOP_HOLD_MS && nowMs() - state.startedAt > 1500) {
+    if (state.autoMeasurementEnabled && state.measurementMode === "auto" && t - state.lastStopCandidateAt > STOP_HOLD_MS && nowMs() - state.startedAt > 1500) {
       stopRun(text.stopHold);
     }
   } else {
@@ -256,7 +266,7 @@ function addEdgeEvent(type, detail) {
 function storeSample(t) {
   state.samples.push({
     t,
-    elapsed: state.startedAt ? t - state.startedAt : 0,
+    elapsed: state.currentRunId ? t - state.startedAt : 0,
     longG: state.longG,
     latG: state.latG,
     speed: state.speedMs,
@@ -266,7 +276,7 @@ function storeSample(t) {
 }
 
 function storeRawSample(t) {
-  if (!state.startedAt || state.stoppedAt) return;
+  if (!state.currentRunId || state.stoppedAt) return;
   state.rawSamples.push({
     timeMs: Math.round(t - state.startedAt),
     longG: round(state.longG, 4),
@@ -332,6 +342,7 @@ function enableSensors() {
   }
   state.sensorEnabled = true;
   elements.permissionButton.classList.add("primary");
+  elements.sensorOffButton.classList.remove("primary");
 }
 
 function disableSensors() {
@@ -344,11 +355,43 @@ function disableSensors() {
     state.sensorListenersAttached = false;
   }
   state.sensorEnabled = false;
-  clearInterval(state.demoTimer);
+  state.autoMeasurementEnabled = false;
+  state.measurementMode = "none";
+  state.samples = [];
+  state.rawSamples = [];
   resetLiveSensorValues();
+  elements.permissionButton.classList.remove("primary");
+  elements.sensorOffButton.classList.add("primary");
   setMode("sensor-off", text.sensorOff);
   addEvent("SENSOR", text.sensorDisabled);
   render();
+}
+
+function enableAutoMeasurement() {
+  if (state.mode === "running") return;
+  state.autoMeasurementEnabled = true;
+  armTimer();
+  addEvent("AUTO", text.autoOn);
+}
+
+function disableAutoMeasurement() {
+  state.autoMeasurementEnabled = false;
+  if (state.mode === "armed") {
+    state.measurementMode = "none";
+    setMode(state.sensorEnabled ? "sensor-on" : "idle", state.sensorEnabled ? text.sensorOn : text.idle);
+  }
+  addEvent("AUTO", text.autoOff);
+  render();
+}
+
+function startManualMeasurement() {
+  if (state.mode === "running") return;
+  state.autoMeasurementEnabled = false;
+  startRun("manual", text.manualStart);
+}
+
+function stopManualMeasurement() {
+  stopRun(text.manualStop);
 }
 
 function resetLiveSensorValues() {
@@ -370,27 +413,8 @@ function resetLiveSensorValues() {
   filters.bank.reset();
 }
 
-function runDemo() {
-  clearInterval(state.demoTimer);
-  armTimer();
-  const start = nowMs();
-  state.demoTimer = setInterval(() => {
-    const elapsed = (nowMs() - start) / 1000;
-    if (elapsed > 12) {
-      clearInterval(state.demoTimer);
-      stopRun(text.demoStop);
-      return;
-    }
-    const longG = elapsed < 1 ? 0.03 : elapsed < 3.2 ? 0.34 : elapsed < 7.4 ? 0.05 : elapsed < 9.6 ? -0.3 : 0;
-    const latG = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 3) * 0.25 : 0.02;
-    const yawRate = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 2) * 70 : 0;
-    const bankDeg = elapsed > 3.2 && elapsed < 7.3 ? Math.sin(elapsed * 2) * 28 : 0;
-    handleMotionSample({ time: nowMs(), longG, latG, yawRate, bankDeg, demo: true });
-  }, 33);
-}
-
 function render() {
-  const runMs = state.startedAt ? (state.stoppedAt || nowMs()) - state.startedAt : 0;
+  const runMs = state.currentRunId ? (state.stoppedAt || nowMs()) - state.startedAt : 0;
   elements.timer.textContent = formatTime(runMs);
   elements.longG.textContent = `${state.longG.toFixed(2)} g`;
   elements.latG.textContent = `${state.latG.toFixed(2)} g`;
@@ -519,7 +543,7 @@ function buildCurrentRun() {
     id: state.currentRunId || makeRunId(),
     startedAtIso: state.currentRunId ? new Date(Date.now() - ((state.stoppedAt || nowMs()) - state.startedAt)).toISOString() : new Date().toISOString(),
     endedAtIso: new Date().toISOString(),
-    durationMs: Math.round(state.startedAt ? (state.stoppedAt || nowMs()) - state.startedAt : 0),
+    durationMs: Math.round(state.currentRunId ? (state.stoppedAt || nowMs()) - state.startedAt : 0),
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),
   });
@@ -685,9 +709,10 @@ elements.sensitivitySelect.addEventListener("change", () => {
   addEvent("SENSE", elements.sensitivitySelect.value);
   render();
 });
-elements.armButton.addEventListener("click", armTimer);
-elements.stopButton.addEventListener("click", () => stopRun(text.manualStop));
-elements.demoButton.addEventListener("click", runDemo);
+elements.autoOnButton.addEventListener("click", enableAutoMeasurement);
+elements.autoOffButton.addEventListener("click", disableAutoMeasurement);
+elements.manualOnButton.addEventListener("click", startManualMeasurement);
+elements.manualOffButton.addEventListener("click", stopManualMeasurement);
 elements.clearButton.addEventListener("click", () => {
   state.samples = [];
   state.rawSamples = [];
@@ -696,6 +721,8 @@ elements.clearButton.addEventListener("click", () => {
   state.startedAt = 0;
   state.stoppedAt = 0;
   state.currentRunId = "";
+  state.autoMeasurementEnabled = false;
+  state.measurementMode = "none";
   resetLiveSensorValues();
   setMode("idle", text.idle);
   renderEvents();

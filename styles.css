@@ -134,7 +134,8 @@ h1 {
 
 .status-dot.armed,
 .status-dot.running,
-.status-dot.sensor-on {
+.status-dot.sensor-on,
+.status-dot.calibrating {
   background: var(--green);
   box-shadow: 0 0 18px color-mix(in srgb, var(--green), transparent 45%);
 }

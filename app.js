@@ -8,6 +8,9 @@ const RAW_SAMPLE_LIMIT = 20000;
 const VARIANCE_WINDOW = 90;
 const RAD_TO_DEG = 180 / Math.PI;
 const DRAG_COEFF = 0.025;
+const CALIBRATION_MS = 2000;
+const AXIS_LOCK_G = 0.08;
+const ZERO_SPEED_HOLD_MS = 450;
 
 const sensitivityProfiles = {
   calm: { startG: 0.26, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
@@ -45,6 +48,9 @@ const text = {
   sensorOff: "\u30bb\u30f3\u30b5OFF",
   sensorOn: "\u30bb\u30f3\u30b5ON",
   sensorDisabled: "\u30bb\u30f3\u30b5\u505c\u6b62",
+  calibrating: "\u9759\u6b62\u88dc\u6b63\u4e2d",
+  calibrated: "\u9759\u6b62\u88dc\u6b63\u5b8c\u4e86",
+  axisLocked: "\u524d\u5f8c\u8ef8\u3092\u691c\u51fa",
 };
 
 const elements = {
@@ -92,6 +98,15 @@ const state = {
   longBias: 0,
   latBias: 0,
   yawBias: 0,
+  deviceOffsetX: 0,
+  deviceOffsetY: 0,
+  yawOffset: 0,
+  forwardAxis: "",
+  forwardSign: 1,
+  calibrationActive: false,
+  calibrationStartedAt: 0,
+  calibrationSamples: [],
+  zeroSpeedCandidateAt: 0,
   confidence: 0,
   sensorEnabled: false,
   sensorListenersAttached: false,
@@ -123,6 +138,11 @@ class MotionEkf {
     this.p = identity(this.n, 0.6);
   }
 
+  zeroSpeed() {
+    this.x[0] = 0;
+    this.p[0][0] = Math.min(this.p[0][0], 0.03);
+  }
+
   update(measurement, dt) {
     this.predict(dt);
     this.correct(measurement);
@@ -137,7 +157,7 @@ class MotionEkf {
     const rollEqDeg = Math.atan(latG) * RAD_TO_DEG;
 
     const next = [
-      Math.max(0, v + ((longG - longBias) * G - DRAG_COEFF * v) * dt),
+      Math.max(0, v + (longG * G - DRAG_COEFF * v) * dt),
       longG * accelDecay,
       latG * accelDecay,
       yawRate * yawDecay,
@@ -174,9 +194,9 @@ class MotionEkf {
 
   correct(measurement) {
     const h = [
-      [0, 1, 0, 0, 0, 1, 0, 0],
-      [0, 0, 1, 0, 0, 0, 1, 0],
-      [0, 0, 0, 1, 0, 0, 0, 1],
+      [0, 1, 0, 0, 0, 0, 0, 0],
+      [0, 0, 1, 0, 0, 0, 0, 0],
+      [0, 0, 0, 1, 0, 0, 0, 0],
       [0, 0, 0, 0, 1, 0, 0, 0],
     ];
     const z = [measurement.longG, measurement.latG, measurement.yawRate, measurement.bankDeg];
@@ -193,9 +213,9 @@ class MotionEkf {
   value() {
     return {
       speedMs: this.x[0],
-      longG: this.x[1] - this.x[5],
-      latG: this.x[2] - this.x[6],
-      yawRate: this.x[3] - this.x[7],
+      longG: this.x[1],
+      latG: this.x[2],
+      yawRate: this.x[3],
       bankDeg: this.x[4],
       longBias: this.x[5],
       latBias: this.x[6],
@@ -280,13 +300,19 @@ function handleMotionSample(sample) {
   const dt = state.lastSampleAt ? Math.min(0.12, Math.max(0.005, (t - state.lastSampleAt) / 1000)) : 0.016;
   state.lastSampleAt = t;
 
+  if (collectCalibrationSample(sample, t)) {
+    render();
+    return;
+  }
+
   const profile = currentProfile();
-  const cleanedLongG = applyDeadband(sample.longG, profile.deadbandG);
-  const cleanedLatG = applyDeadband(sample.latG, profile.deadbandG);
+  const calibrated = calibrateAndProjectSample(sample, t);
+  const cleanedLongG = applyDeadband(calibrated.longG, profile.deadbandG);
+  const cleanedLatG = applyDeadband(calibrated.latG, profile.deadbandG);
   const estimate = motionModel.update({
     longG: cleanedLongG,
     latG: cleanedLatG,
-    yawRate: sample.yawRate,
+    yawRate: calibrated.yawRate,
     bankDeg: sample.bankDeg,
   }, dt);
   state.longG = estimate.longG;
@@ -299,13 +325,103 @@ function handleMotionSample(sample) {
   state.yawBias = estimate.yawBias;
   state.kalmanVariance = estimate.covariance;
   updateVariance(cleanedLongG, cleanedLatG);
+  applyZeroSpeedUpdate(t);
 
-  state.confidence = estimateConfidence(sample, dt);
+  state.confidence = estimateConfidence({ ...sample, longG: calibrated.longG, latG: calibrated.latG, yawRate: calibrated.yawRate }, dt);
 
   detectEvents(t);
   storeSample(t);
   storeRawSample(t);
   render();
+}
+
+function calibrateAndProjectSample(sample, t) {
+  const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
+  const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
+  const rawYaw = Number.isFinite(sample.yawRate) ? sample.yawRate : 0;
+
+  const x = rawX - state.deviceOffsetX;
+  const y = rawY - state.deviceOffsetY;
+  const yawRate = rawYaw - state.yawOffset;
+
+  maybeLockForwardAxis(x, y);
+
+  if (state.forwardAxis === "x") {
+    return { longG: state.forwardSign * x, latG: y, yawRate };
+  }
+  if (state.forwardAxis === "y") {
+    return { longG: state.forwardSign * y, latG: x, yawRate };
+  }
+
+  if (Math.abs(y) >= Math.abs(x)) {
+    return { longG: y, latG: x, yawRate };
+  }
+  return { longG: x, latG: y, yawRate };
+}
+
+function collectCalibrationSample(sample, t) {
+  if (!state.calibrationActive) return false;
+  const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
+  const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
+  const rawYaw = Number.isFinite(sample.yawRate) ? sample.yawRate : 0;
+  state.calibrationSamples.push({ x: rawX, y: rawY, yaw: rawYaw });
+  if (t - state.calibrationStartedAt >= CALIBRATION_MS && state.calibrationSamples.length >= 10) {
+    finishCalibration();
+  }
+  return true;
+}
+
+function maybeLockForwardAxis(x, y) {
+  if (state.forwardAxis) return;
+  if (state.mode !== "armed" && state.mode !== "running") return;
+  const axis = Math.abs(x) > Math.abs(y) ? "x" : "y";
+  const value = axis === "x" ? x : y;
+  if (Math.abs(value) < AXIS_LOCK_G) return;
+  state.forwardAxis = axis;
+  state.forwardSign = value >= 0 ? 1 : -1;
+  addEvent("AXIS", `${text.axisLocked} ${axis}${state.forwardSign > 0 ? "+" : "-"}`);
+}
+
+function startCalibration() {
+  resetLiveSensorValues();
+  state.calibrationActive = true;
+  state.calibrationStartedAt = nowMs();
+  state.calibrationSamples = [];
+  state.deviceOffsetX = 0;
+  state.deviceOffsetY = 0;
+  state.yawOffset = 0;
+  state.forwardAxis = "";
+  state.forwardSign = 1;
+  setMode("calibrating", text.calibrating);
+}
+
+function finishCalibration() {
+  const count = Math.max(1, state.calibrationSamples.length);
+  state.deviceOffsetX = state.calibrationSamples.reduce((sum, sample) => sum + sample.x, 0) / count;
+  state.deviceOffsetY = state.calibrationSamples.reduce((sum, sample) => sum + sample.y, 0) / count;
+  state.yawOffset = state.calibrationSamples.reduce((sum, sample) => sum + sample.yaw, 0) / count;
+  state.calibrationActive = false;
+  state.calibrationSamples = [];
+  resetLiveSensorValues(false);
+  if (state.autoMeasurementEnabled && state.measurementMode === "auto" && !state.currentRunId) {
+    setMode("armed", text.armed);
+  } else {
+    setMode("sensor-on", text.sensorOn);
+  }
+  addEvent("CAL", text.calibrated);
+}
+
+function applyZeroSpeedUpdate(t) {
+  const stationary = Math.abs(state.longG) < 0.035 && Math.abs(state.latG) < 0.04 && Math.abs(state.yawRate) < 3.5;
+  if (stationary) {
+    state.zeroSpeedCandidateAt ||= t;
+    if (t - state.zeroSpeedCandidateAt > ZERO_SPEED_HOLD_MS) {
+      state.speedMs = 0;
+      motionModel.zeroSpeed();
+    }
+  } else {
+    state.zeroSpeedCandidateAt = 0;
+  }
 }
 
 function estimateConfidence(sample, dt) {
@@ -380,10 +496,14 @@ function storeRawSample(t) {
 function onDeviceMotion(event) {
   const acc = event.acceleration || event.accelerationIncludingGravity || {};
   const rotation = event.rotationRate || {};
+  const rawX = (acc.x || 0) / G;
+  const rawY = (acc.y || 0) / G;
   handleMotionSample({
     time: nowMs(),
-    longG: (acc.y || 0) / G,
-    latG: (acc.x || 0) / G,
+    rawX,
+    rawY,
+    longG: rawY,
+    latG: rawX,
     yawRate: rotation.alpha || 0,
     bankDeg: state.observedBankDeg,
   });
@@ -411,7 +531,7 @@ async function requestSensors() {
       await DeviceOrientationEvent.requestPermission();
     }
     enableSensors();
-    setMode("sensor-on", text.sensorOn);
+    startCalibration();
     addEvent("SENSOR", text.sensorGranted);
   } catch {
     setMode("idle", text.needPermission);
@@ -442,6 +562,10 @@ function disableSensors() {
   state.sensorEnabled = false;
   state.autoMeasurementEnabled = false;
   state.measurementMode = "none";
+  state.calibrationActive = false;
+  state.calibrationSamples = [];
+  state.forwardAxis = "";
+  state.forwardSign = 1;
   state.samples = [];
   state.rawSamples = [];
   resetLiveSensorValues();
@@ -482,6 +606,7 @@ function stopManualMeasurement() {
 function resetLiveSensorValues() {
   state.lastSampleAt = 0;
   state.lastStopCandidateAt = 0;
+  state.zeroSpeedCandidateAt = 0;
   state.speedMs = 0;
   state.longG = 0;
   state.latG = 0;
@@ -695,6 +820,13 @@ function buildCurrentRun() {
     startedAtIso: state.currentRunId ? new Date(Date.now() - ((state.stoppedAt || nowMs()) - state.startedAt)).toISOString() : new Date().toISOString(),
     endedAtIso: new Date().toISOString(),
     durationMs: Math.round(state.currentRunId ? (state.stoppedAt || nowMs()) - state.startedAt : 0),
+    calibration: {
+      deviceOffsetX: round(state.deviceOffsetX, 5),
+      deviceOffsetY: round(state.deviceOffsetY, 5),
+      yawOffset: round(state.yawOffset, 3),
+      forwardAxis: state.forwardAxis || "auto",
+      forwardSign: state.forwardSign,
+    },
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),
   });
@@ -709,6 +841,7 @@ function buildRun(run) {
     startedAtIso: run.startedAtIso,
     endedAtIso: run.endedAtIso,
     durationMs: run.durationMs,
+    calibration: run.calibration || null,
     summary: {
       maxSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
       maxLongG: round(samples.reduce((max, sample) => Math.max(max, sample.longG || 0), 0), 3),

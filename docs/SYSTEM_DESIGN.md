@@ -55,6 +55,8 @@ Gym Anaは、車体へ固定したiPhoneの内蔵センサーだけを利用し�
 
 ## 4. システム構成
 
+![システム構成図](assets/architecture_diagram.png)
+
 ```text
 iPhone sensors
   DeviceMotion: acceleration, accelerationIncludingGravity, rotationRate
@@ -86,6 +88,8 @@ iPhone sensors
 
 ## 5. 動作状態
 
+![状態遷移図](assets/state_transition_diagram.png)
+
 | 状態 | 内容 | 主な遷移 |
 | --- | --- | --- |
 | `idle` | 初期待機 | Sensor ONで`calibrating` |
@@ -97,6 +101,20 @@ iPhone sensors
 | `sensor-off` | センサー停止 | Sensor ONで`calibrating` |
 
 Manual ONはキャリブレーション完了前には開始しない。Auto ONは補正中に押しても補正完了後に発進待ちとなる。
+
+### 5.1 ユースケース図
+
+![ユースケース図](assets/use_case_diagram.png)
+
+### 5.2 自動計測アクティビティ図
+
+![自動計測アクティビティ図](assets/activity_diagram.png)
+
+### 5.3 論理クラス図
+
+![論理クラス図](assets/class_diagram.png)
+
+実装は単一の`app.js`を中心とするが、クラス図では保守時の責務を明確にするため、状態、推定、センサー、GPS、保存、走行データの論理クラスへ分解している。`MotionEkf`だけが実クラスで、その他は状態オブジェクトと関数群で構成される。
 
 ## 6. センサーと座標系
 
@@ -322,4 +340,3 @@ run
 - GPS位置は端末のIndexedDBと出力ファイルに保存される。
 - アプリ自身はログをサーバーへ送信しない。
 - CSV、JSONを共有する場合は位置情報を含むことを確認する。
-

@@ -14,6 +14,10 @@ stop, acceleration, braking, banking, and turning events.
 - `server.mjs` - local static server
 - `docs/SYSTEM_DESIGN.md` - current system and filter design
 - `docs/DATA_ANALYSIS_2026-09-13.md` - analysis of the supplied ride log
+- `docs/generated/Gym_Ana_System_Design.docx` - illustrated Japanese system design document
+- `docs/generated/Gym_Ana_Data_Analysis_Report.docx` - illustrated Japanese ride-data analysis report
+- `docs/assets/` - use-case, architecture, activity, class, state, and analysis charts
+- `scripts/build_design_documents.py` - reproducible document and chart generator
 
 ## Local check on PC
 

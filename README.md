@@ -12,6 +12,8 @@ stop, acceleration, braking, banking, and turning events.
 - `manifest.webmanifest` - install metadata for iPhone home screen
 - `sw.js` - offline cache for installed / revisited use
 - `server.mjs` - local static server
+- `docs/SYSTEM_DESIGN.md` - current system and filter design
+- `docs/DATA_ANALYSIS_2026-09-13.md` - analysis of the supplied ride log
 
 ## Local check on PC
 

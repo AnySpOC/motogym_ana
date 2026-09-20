@@ -8,9 +8,11 @@ const RAW_SAMPLE_LIMIT = 20000;
 const VARIANCE_WINDOW = 90;
 const RAD_TO_DEG = 180 / Math.PI;
 const DRAG_COEFF = 0.025;
-const CALIBRATION_MS = 2000;
+const CALIBRATION_MS = 4000;
 const AXIS_LOCK_G = 0.08;
 const ZERO_SPEED_HOLD_MS = 450;
+const GPS_MAX_ACCURACY_M = 50;
+const GPS_MAX_SPEED_MS = 90;
 
 const sensitivityProfiles = {
   calm: { startG: 0.26, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
@@ -51,6 +53,8 @@ const text = {
   calibrating: "\u9759\u6b62\u88dc\u6b63\u4e2d",
   calibrated: "\u9759\u6b62\u88dc\u6b63\u5b8c\u4e86",
   axisLocked: "\u524d\u5f8c\u8ef8\u3092\u691c\u51fa",
+  gpsReady: "GPS\u53d6\u5f97",
+  gpsUnavailable: "GPS\u672a\u53d6\u5f97",
 };
 
 const elements = {
@@ -75,6 +79,9 @@ const elements = {
   confidence: document.querySelector("#confidence"),
   gVariance: document.querySelector("#gVariance"),
   kalmanVariance: document.querySelector("#kalmanVariance"),
+  gpsSpeed: document.querySelector("#gpsSpeed"),
+  gpsStatus: document.querySelector("#gpsStatus"),
+  calibrationStatus: document.querySelector("#calibrationStatus"),
   eventLog: document.querySelector("#eventLog"),
   historyList: document.querySelector("#historyList"),
   storageStatus: document.querySelector("#storageStatus"),
@@ -100,16 +107,30 @@ const state = {
   yawBias: 0,
   deviceOffsetX: 0,
   deviceOffsetY: 0,
+  deviceOffsetZ: 0,
   yawOffset: 0,
   forwardAxis: "",
   forwardSign: 1,
+  gravityVector: [0, 0, 1],
+  forwardVector: null,
+  lateralVector: null,
   calibrationActive: false,
+  calibrationCompleted: false,
   calibrationStartedAt: 0,
   calibrationSamples: [],
   zeroSpeedCandidateAt: 0,
   confidence: 0,
   sensorEnabled: false,
   sensorListenersAttached: false,
+  gpsWatchId: null,
+  gpsSpeedMs: null,
+  gpsAccuracyM: null,
+  gpsSource: "none",
+  gpsLatitude: null,
+  gpsLongitude: null,
+  gpsHeadingDeg: null,
+  gpsLastPosition: null,
+  gpsLastAt: 0,
   autoMeasurementEnabled: false,
   measurementMode: "none",
   sensitivity: "normal",
@@ -125,22 +146,27 @@ const state = {
 };
 
 let dbPromise = null;
+let timerFrameId = null;
 
 class MotionEkf {
   constructor() {
-    this.n = 8;
-    this.x = [0, 0, 0, 0, 0, 0, 0, 0];
-    this.p = identity(this.n, 0.6);
+    this.n = 5;
+    this.x = [0, 0, 0, 0, 0];
+    this.p = diag([0.04, 0.08, 0.08, 12, 12]);
   }
 
   reset() {
-    this.x = [0, 0, 0, 0, 0, 0, 0, 0];
-    this.p = identity(this.n, 0.6);
+    this.x = [0, 0, 0, 0, 0];
+    this.p = diag([0.04, 0.08, 0.08, 12, 12]);
   }
 
   zeroSpeed() {
     this.x[0] = 0;
     this.p[0][0] = Math.min(this.p[0][0], 0.03);
+    for (let i = 1; i < this.n; i += 1) {
+      this.p[0][i] = 0;
+      this.p[i][0] = 0;
+    }
   }
 
   update(measurement, dt) {
@@ -150,7 +176,7 @@ class MotionEkf {
   }
 
   predict(dt) {
-    const [v, longG, latG, yawRate, bankDeg, longBias, latBias, yawBias] = this.x;
+    const [v, longG, latG, yawRate, bankDeg] = this.x;
     const accelDecay = Math.exp(-dt / 0.7);
     const yawDecay = Math.exp(-dt / 0.5);
     const rollBlend = Math.min(0.35, dt / 0.45);
@@ -162,15 +188,11 @@ class MotionEkf {
       latG * accelDecay,
       yawRate * yawDecay,
       bankDeg + (rollEqDeg - bankDeg) * rollBlend,
-      longBias,
-      latBias,
-      yawBias,
     ];
 
     const f = identity(this.n);
     f[0][0] = Math.max(0, 1 - DRAG_COEFF * dt);
     f[0][1] = G * dt;
-    f[0][5] = -G * dt;
     f[1][1] = accelDecay;
     f[2][2] = accelDecay;
     f[3][3] = yawDecay;
@@ -183,9 +205,6 @@ class MotionEkf {
       0.09 * dt,
       18 * dt,
       6 * dt,
-      0.00008 * dt,
-      0.00008 * dt,
-      0.015 * dt,
     ]);
 
     this.x = next;
@@ -194,13 +213,13 @@ class MotionEkf {
 
   correct(measurement) {
     const h = [
-      [0, 1, 0, 0, 0, 0, 0, 0],
-      [0, 0, 1, 0, 0, 0, 0, 0],
-      [0, 0, 0, 1, 0, 0, 0, 0],
-      [0, 0, 0, 0, 1, 0, 0, 0],
+      [0, 1, 0, 0, 0],
+      [0, 0, 1, 0, 0],
+      [0, 0, 0, 1, 0],
+      [0, 0, 0, 0, 1],
     ];
     const z = [measurement.longG, measurement.latG, measurement.yawRate, measurement.bankDeg];
-    const r = diag([0.13, 0.13, 24, 18]);
+    const r = diag([0.012, 0.012, 9, 12]);
     const hx = matVec(h, this.x);
     const residual = z.map((value, index) => value - hx[index]);
     const s = add(mul(mul(h, this.p), transpose(h)), r);
@@ -210,6 +229,22 @@ class MotionEkf {
     this.p = mul(sub(identity(this.n), mul(k, h)), this.p);
   }
 
+  updateGpsSpeed(speedMs, accuracyM, derived = false) {
+    const sigma = derived
+      ? Math.min(5, Math.max(1.2, accuracyM * 0.25))
+      : Math.min(3, Math.max(0.4, accuracyM * 0.06));
+    const innovationVariance = this.p[0][0] + sigma * sigma;
+    const gains = this.p.map((row) => row[0] / innovationVariance);
+    const residual = speedMs - this.x[0];
+    const speedRow = this.p[0].slice();
+    this.x = this.x.map((value, index) => value + gains[index] * residual);
+    this.x[0] = Math.max(0, this.x[0]);
+    this.p = this.p.map((row, rowIndex) =>
+      row.map((value, colIndex) => value - gains[rowIndex] * speedRow[colIndex])
+    );
+    return this.value();
+  }
+
   value() {
     return {
       speedMs: this.x[0],
@@ -217,9 +252,9 @@ class MotionEkf {
       latG: this.x[2],
       yawRate: this.x[3],
       bankDeg: this.x[4],
-      longBias: this.x[5],
-      latBias: this.x[6],
-      yawBias: this.x[7],
+      longBias: 0,
+      latBias: 0,
+      yawBias: 0,
       covariance: (this.p[1][1] + this.p[2][2] + this.p[3][3] + this.p[4][4]) / 4,
     };
   }
@@ -278,9 +313,12 @@ function startRun(mode = "auto", detail = text.startDetail) {
   state.events = state.events.filter((event) => event.type === "ARM");
   state.currentRunId = makeRunId();
   state.measurementMode = mode;
+  state.speedMs = 0;
+  motionModel.zeroSpeed();
   setMode("running", text.running);
   addEvent("START", detail);
   render();
+  startTimerRenderLoop();
 }
 
 function stopRun(reason = text.stopDetail) {
@@ -292,6 +330,17 @@ function stopRun(reason = text.stopDetail) {
   saveCurrentRun();
   state.measurementMode = "none";
   render();
+}
+
+function startTimerRenderLoop() {
+  if (timerFrameId !== null) return;
+  const tick = () => {
+    timerFrameId = null;
+    if (state.mode !== "running") return;
+    render();
+    timerFrameId = requestAnimationFrame(tick);
+  };
+  timerFrameId = requestAnimationFrame(tick);
 }
 
 function handleMotionSample(sample) {
@@ -313,7 +362,7 @@ function handleMotionSample(sample) {
     longG: cleanedLongG,
     latG: cleanedLatG,
     yawRate: calibrated.yawRate,
-    bankDeg: sample.bankDeg,
+    bankDeg: calibrated.bankDeg,
   }, dt);
   state.longG = estimate.longG;
   state.latG = estimate.latG;
@@ -338,60 +387,96 @@ function handleMotionSample(sample) {
 function calibrateAndProjectSample(sample, t) {
   const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
   const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
+  const rawZ = Number.isFinite(sample.rawZ) ? sample.rawZ : 0;
   const rawYaw = Number.isFinite(sample.yawRate) ? sample.yawRate : 0;
 
   const x = rawX - state.deviceOffsetX;
   const y = rawY - state.deviceOffsetY;
+  const z = rawZ - state.deviceOffsetZ;
   const yawRate = rawYaw - state.yawOffset;
+  const acceleration = [x, y, z];
 
-  maybeLockForwardAxis(x, y);
+  maybeLockForwardAxis(acceleration);
+
+  if (state.forwardVector && state.lateralVector) {
+    const gravity = normalizeVector([
+      sample.gravityX || 0,
+      sample.gravityY || 0,
+      sample.gravityZ || 0,
+    ], state.gravityVector);
+    const bankDeg = Math.atan2(
+      dotVector(gravity, state.lateralVector),
+      dotVector(gravity, state.gravityVector)
+    ) * RAD_TO_DEG;
+    return {
+      longG: dotVector(acceleration, state.forwardVector),
+      latG: dotVector(acceleration, state.lateralVector),
+      yawRate,
+      bankDeg: Number.isFinite(bankDeg) ? bankDeg : sample.bankDeg,
+    };
+  }
 
   if (state.forwardAxis === "x") {
-    return { longG: state.forwardSign * x, latG: y, yawRate };
+    return { longG: state.forwardSign * x, latG: y, yawRate, bankDeg: sample.bankDeg };
   }
   if (state.forwardAxis === "y") {
-    return { longG: state.forwardSign * y, latG: x, yawRate };
+    return { longG: state.forwardSign * y, latG: x, yawRate, bankDeg: sample.bankDeg };
   }
 
   if (Math.abs(y) >= Math.abs(x)) {
-    return { longG: y, latG: x, yawRate };
+    return { longG: y, latG: x, yawRate, bankDeg: sample.bankDeg };
   }
-  return { longG: x, latG: y, yawRate };
+  return { longG: x, latG: y, yawRate, bankDeg: sample.bankDeg };
 }
 
 function collectCalibrationSample(sample, t) {
   if (!state.calibrationActive) return false;
   const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
   const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
+  const rawZ = Number.isFinite(sample.rawZ) ? sample.rawZ : 0;
   const rawYaw = Number.isFinite(sample.yawRate) ? sample.yawRate : 0;
-  state.calibrationSamples.push({ x: rawX, y: rawY, yaw: rawYaw });
+  state.calibrationSamples.push({
+    x: rawX,
+    y: rawY,
+    z: rawZ,
+    yaw: rawYaw,
+    gravityX: sample.gravityX || 0,
+    gravityY: sample.gravityY || 0,
+    gravityZ: sample.gravityZ || 0,
+  });
   if (t - state.calibrationStartedAt >= CALIBRATION_MS && state.calibrationSamples.length >= 10) {
     finishCalibration();
   }
   return true;
 }
 
-function maybeLockForwardAxis(x, y) {
+function maybeLockForwardAxis(acceleration) {
   if (state.forwardAxis) return;
   if (state.mode !== "armed" && state.mode !== "running") return;
-  const axis = Math.abs(x) > Math.abs(y) ? "x" : "y";
-  const value = axis === "x" ? x : y;
-  if (Math.abs(value) < AXIS_LOCK_G) return;
-  state.forwardAxis = axis;
-  state.forwardSign = value >= 0 ? 1 : -1;
-  addEvent("AXIS", `${text.axisLocked} ${axis}${state.forwardSign > 0 ? "+" : "-"}`);
+  const verticalPart = dotVector(acceleration, state.gravityVector);
+  const horizontal = acceleration.map((value, index) => value - verticalPart * state.gravityVector[index]);
+  if (vectorLength(horizontal) < AXIS_LOCK_G) return;
+  state.forwardVector = normalizeVector(horizontal, [0, 1, 0]);
+  state.lateralVector = normalizeVector(crossVector(state.gravityVector, state.forwardVector), [1, 0, 0]);
+  state.forwardAxis = "vector";
+  state.forwardSign = 1;
+  addEvent("AXIS", `${text.axisLocked} 3D`);
 }
 
 function startCalibration() {
   resetLiveSensorValues();
   state.calibrationActive = true;
+  state.calibrationCompleted = false;
   state.calibrationStartedAt = nowMs();
   state.calibrationSamples = [];
   state.deviceOffsetX = 0;
   state.deviceOffsetY = 0;
+  state.deviceOffsetZ = 0;
   state.yawOffset = 0;
   state.forwardAxis = "";
   state.forwardSign = 1;
+  state.forwardVector = null;
+  state.lateralVector = null;
   setMode("calibrating", text.calibrating);
 }
 
@@ -399,8 +484,15 @@ function finishCalibration() {
   const count = Math.max(1, state.calibrationSamples.length);
   state.deviceOffsetX = state.calibrationSamples.reduce((sum, sample) => sum + sample.x, 0) / count;
   state.deviceOffsetY = state.calibrationSamples.reduce((sum, sample) => sum + sample.y, 0) / count;
+  state.deviceOffsetZ = state.calibrationSamples.reduce((sum, sample) => sum + sample.z, 0) / count;
   state.yawOffset = state.calibrationSamples.reduce((sum, sample) => sum + sample.yaw, 0) / count;
+  state.gravityVector = normalizeVector([
+    state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityX, 0) / count,
+    state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityY, 0) / count,
+    state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityZ, 0) / count,
+  ], [0, 0, 1]);
   state.calibrationActive = false;
+  state.calibrationCompleted = true;
   state.calibrationSamples = [];
   resetLiveSensorValues(false);
   if (state.autoMeasurementEnabled && state.measurementMode === "auto" && !state.currentRunId) {
@@ -480,6 +572,12 @@ function storeRawSample(t) {
     longG: round(state.longG, 4),
     latG: round(state.latG, 4),
     speedKmh: round(state.speedMs * 3.6, 3),
+    gpsSpeedKmh: Number.isFinite(state.gpsSpeedMs) ? round(state.gpsSpeedMs * 3.6, 3) : null,
+    gpsAccuracyM: Number.isFinite(state.gpsAccuracyM) ? round(state.gpsAccuracyM, 1) : null,
+    gpsSource: state.gpsSource,
+    latitude: Number.isFinite(state.gpsLatitude) ? round(state.gpsLatitude, 7) : null,
+    longitude: Number.isFinite(state.gpsLongitude) ? round(state.gpsLongitude, 7) : null,
+    gpsHeadingDeg: Number.isFinite(state.gpsHeadingDeg) ? round(state.gpsHeadingDeg, 1) : null,
     bankDeg: round(state.bankDeg, 2),
     yawRate: round(state.yawRate, 2),
     longGVariance: round(state.longGVariance, 6),
@@ -494,14 +592,21 @@ function storeRawSample(t) {
 }
 
 function onDeviceMotion(event) {
-  const acc = event.acceleration || event.accelerationIncludingGravity || {};
+  const linear = event.acceleration;
+  const gravity = event.accelerationIncludingGravity || {};
+  const acc = linear || gravity;
   const rotation = event.rotationRate || {};
   const rawX = (acc.x || 0) / G;
   const rawY = (acc.y || 0) / G;
+  const rawZ = (acc.z || 0) / G;
   handleMotionSample({
     time: nowMs(),
     rawX,
     rawY,
+    rawZ,
+    gravityX: (gravity.x || 0) / G,
+    gravityY: (gravity.y || 0) / G,
+    gravityZ: (gravity.z || 0) / G,
     longG: rawY,
     latG: rawX,
     yawRate: rotation.alpha || 0,
@@ -532,6 +637,7 @@ async function requestSensors() {
     }
     enableSensors();
     startCalibration();
+    startGps();
     addEvent("SENSOR", text.sensorGranted);
   } catch {
     setMode("idle", text.needPermission);
@@ -563,9 +669,13 @@ function disableSensors() {
   state.autoMeasurementEnabled = false;
   state.measurementMode = "none";
   state.calibrationActive = false;
+  state.calibrationCompleted = false;
   state.calibrationSamples = [];
   state.forwardAxis = "";
   state.forwardSign = 1;
+  state.forwardVector = null;
+  state.lateralVector = null;
+  stopGps();
   state.samples = [];
   state.rawSamples = [];
   resetLiveSensorValues();
@@ -578,6 +688,11 @@ function disableSensors() {
 
 function enableAutoMeasurement() {
   if (state.mode === "running") return;
+  if (!state.sensorEnabled) {
+    addEvent("ERROR", "先にSensor ONを押してください");
+    return;
+  }
+  if (state.mode === "armed" && state.autoMeasurementEnabled) return;
   state.autoMeasurementEnabled = true;
   armTimer();
   addEvent("AUTO", text.autoOn);
@@ -595,6 +710,14 @@ function disableAutoMeasurement() {
 
 function startManualMeasurement() {
   if (state.mode === "running") return;
+  if (!state.sensorEnabled) {
+    addEvent("ERROR", "先にSensor ONを押してください");
+    return;
+  }
+  if (state.calibrationActive) {
+    addEvent("CAL", "静止補正の完了を待ってください");
+    return;
+  }
   state.autoMeasurementEnabled = false;
   startRun("manual", text.manualStart);
 }
@@ -624,6 +747,78 @@ function resetLiveSensorValues() {
   motionModel.reset();
 }
 
+function startGps() {
+  if (!("geolocation" in navigator) || state.gpsWatchId !== null) return;
+  state.gpsWatchId = navigator.geolocation.watchPosition(
+    onGpsPosition,
+    () => {
+      state.gpsSpeedMs = null;
+      state.gpsAccuracyM = null;
+      state.gpsSource = "none";
+      render();
+    },
+    { enableHighAccuracy: true, maximumAge: 500, timeout: 12000 }
+  );
+}
+
+function stopGps() {
+  if (state.gpsWatchId !== null && "geolocation" in navigator) {
+    navigator.geolocation.clearWatch(state.gpsWatchId);
+  }
+  state.gpsWatchId = null;
+  state.gpsSpeedMs = null;
+  state.gpsAccuracyM = null;
+  state.gpsSource = "none";
+  state.gpsLatitude = null;
+  state.gpsLongitude = null;
+  state.gpsHeadingDeg = null;
+  state.gpsLastPosition = null;
+  state.gpsLastAt = 0;
+}
+
+function onGpsPosition(position) {
+  if (!state.sensorEnabled) return;
+  const { coords, timestamp } = position;
+  const accuracy = Number.isFinite(coords.accuracy) ? coords.accuracy : GPS_MAX_ACCURACY_M;
+  let speedMs = Number.isFinite(coords.speed) && coords.speed >= 0 ? coords.speed : null;
+  let derived = false;
+
+  if (speedMs === null && state.gpsLastPosition && timestamp > state.gpsLastAt) {
+    const dt = (timestamp - state.gpsLastAt) / 1000;
+    const distance = haversineMeters(
+      state.gpsLastPosition.latitude,
+      state.gpsLastPosition.longitude,
+      coords.latitude,
+      coords.longitude
+    );
+    if (dt >= 0.3 && dt <= 5 && distance >= Math.max(2, accuracy * 0.5)) {
+      speedMs = distance / dt;
+      derived = true;
+    }
+  }
+
+  state.gpsLastPosition = { latitude: coords.latitude, longitude: coords.longitude };
+  state.gpsLastAt = timestamp;
+  state.gpsAccuracyM = accuracy;
+  state.gpsLatitude = coords.latitude;
+  state.gpsLongitude = coords.longitude;
+  state.gpsHeadingDeg = Number.isFinite(coords.heading) ? coords.heading : null;
+
+  if (speedMs === null || speedMs > GPS_MAX_SPEED_MS || accuracy > GPS_MAX_ACCURACY_M) {
+    state.gpsSpeedMs = null;
+    state.gpsSource = "none";
+    render();
+    return;
+  }
+
+  state.gpsSpeedMs = speedMs;
+  state.gpsSource = derived ? "position" : "sensor";
+  const estimate = motionModel.updateGpsSpeed(speedMs, accuracy, derived);
+  state.speedMs = estimate.speedMs;
+  state.kalmanVariance = estimate.covariance;
+  render();
+}
+
 function render() {
   const runMs = state.currentRunId ? (state.stoppedAt || nowMs()) - state.startedAt : 0;
   elements.timer.textContent = formatTime(runMs);
@@ -635,8 +830,19 @@ function render() {
   elements.confidence.textContent = `${state.confidence}%`;
   elements.gVariance.textContent = `${state.longGVariance.toFixed(4)} / ${state.latGVariance.toFixed(4)}`;
   elements.kalmanVariance.textContent = state.kalmanVariance.toFixed(4);
+  elements.gpsSpeed.textContent = Number.isFinite(state.gpsSpeedMs)
+    ? `${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`
+    : "-- km/h";
+  elements.gpsStatus.textContent = Number.isFinite(state.gpsAccuracyM)
+    ? `精度 ${state.gpsAccuracyM.toFixed(0)} m`
+    : text.gpsUnavailable;
+  if (state.calibrationActive) {
+    const remaining = Math.max(0, CALIBRATION_MS - (nowMs() - state.calibrationStartedAt));
+    elements.calibrationStatus.textContent = `${(remaining / 1000).toFixed(1)} 秒`;
+  } else {
+    elements.calibrationStatus.textContent = state.calibrationCompleted ? "完了" : "未実行";
+  }
   drawTrace();
-  if (state.mode === "running") requestAnimationFrame(render);
 }
 
 function drawTrace() {
@@ -690,6 +896,37 @@ function rollingVariance(values) {
   if (values.length < 2) return 0;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   return values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (values.length - 1);
+}
+
+function dotVector(a, b) {
+  return a.reduce((sum, value, index) => sum + value * b[index], 0);
+}
+
+function crossVector(a, b) {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ];
+}
+
+function vectorLength(vector) {
+  return Math.sqrt(dotVector(vector, vector));
+}
+
+function normalizeVector(vector, fallback) {
+  const length = vectorLength(vector);
+  if (!Number.isFinite(length) || length < 1e-6) return fallback.slice();
+  return vector.map((value) => value / length);
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLon = (lon2 - lon1) * toRad;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function identity(size, value = 1) {
@@ -823,9 +1060,13 @@ function buildCurrentRun() {
     calibration: {
       deviceOffsetX: round(state.deviceOffsetX, 5),
       deviceOffsetY: round(state.deviceOffsetY, 5),
+      deviceOffsetZ: round(state.deviceOffsetZ, 5),
       yawOffset: round(state.yawOffset, 3),
       forwardAxis: state.forwardAxis || "auto",
       forwardSign: state.forwardSign,
+      gravityVector: state.gravityVector.map((value) => round(value, 5)),
+      forwardVector: state.forwardVector?.map((value) => round(value, 5)) || null,
+      lateralVector: state.lateralVector?.map((value) => round(value, 5)) || null,
     },
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),
@@ -844,6 +1085,8 @@ function buildRun(run) {
     calibration: run.calibration || null,
     summary: {
       maxSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
+      maxGpsSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.gpsSpeedKmh || 0), 0), 2),
+      gpsSampleCount: samples.filter((sample) => Number.isFinite(sample.gpsSpeedKmh)).length,
       maxLongG: round(samples.reduce((max, sample) => Math.max(max, sample.longG || 0), 0), 3),
       minLongG: round(samples.reduce((min, sample) => Math.min(min, sample.longG || 0), 0), 3),
       maxLatGAbs: round(maxByAbs("latG"), 3),
@@ -911,7 +1154,7 @@ function renderHistory() {
 }
 
 function runToCsv(run) {
-  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,bank_deg,yaw_rate,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n";
+  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,bank_deg,yaw_rate,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n";
   const eventRows = run.events.map((event) => [
     "event",
     event.timeMs,
@@ -920,6 +1163,12 @@ function runToCsv(run) {
     fixed(event.longG, 3),
     fixed(event.latG, 3),
     fixed(event.speedKmh, 2),
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
     fixed(event.bankDeg, 1),
     fixed(event.yawRate, 1),
     "",
@@ -938,6 +1187,12 @@ function runToCsv(run) {
     fixed(sample.longG, 4),
     fixed(sample.latG, 4),
     fixed(sample.speedKmh, 3),
+    fixed(sample.gpsSpeedKmh, 3),
+    fixed(sample.gpsAccuracyM, 1),
+    sample.gpsSource || "",
+    fixed(sample.latitude, 7),
+    fixed(sample.longitude, 7),
+    fixed(sample.gpsHeadingDeg, 1),
     fixed(sample.bankDeg, 2),
     fixed(sample.yawRate, 2),
     fixed(sample.longGVariance, 6),

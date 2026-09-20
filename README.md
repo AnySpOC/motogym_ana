@@ -98,8 +98,8 @@ when storage pressure is high. Export important data after practice.
 
 - `Sensor ON` requests permission and starts reading iPhone motion sensors.
 - `Sensor OFF` removes sensor listeners and resets live G / speed / variance values to zero.
-- After `Sensor ON`, keep the phone still for about 2 seconds. The app uses this
-  still period to remove mounting-angle and sensor-offset drift.
+- After `Sensor ON`, keep the mounted phone and motorcycle still for about 4 seconds.
+  The app measures sensor offsets and the gravity direction during this period.
 - `Auto ON` arms automatic start / stop detection from sensor movement.
 - `Auto OFF` stops automatic detection without stopping an already running manual timer.
 - `Manual ON` starts timing immediately.
@@ -119,14 +119,16 @@ The trace graph shows:
 while the bike is stopped, the mount or sensor noise is influencing the reading.
 `Kalman P` is the current internal covariance estimate of the G filters.
 
-The app also auto-detects the forward axis. The first clear acceleration after
-`Auto ON` or `Manual ON` locks whether iPhone X or Y is treated as the bike's
-forward direction, including sign. This is necessary because real mounts are
-often portrait, landscape, reversed, or slightly angled.
+The app also auto-detects the three-dimensional forward axis. The first clear
+acceleration after `Auto ON` or `Manual ON` is projected onto the horizontal
+plane measured during calibration. This supports portrait, landscape, reversed,
+and tilted mounts. Keep the mount rigid after calibration.
 
-Speed is an acceleration-integrated estimate, not GPS speed. It is useful for
-detecting movement and comparing runs, but it will drift without calibration.
-The app clamps speed back to zero when it sees a short stationary window.
+Speed is estimated from acceleration and corrected with iPhone GPS when a
+usable high-accuracy position is available. GPS continues to work outdoors
+without Wi-Fi, although the first fix may take longer. The GPS card shows the
+reported speed and horizontal accuracy. The app rejects fixes worse than 50 m
+and clamps speed back to zero when it detects a stationary window.
 
 ## Motion model
 
@@ -134,16 +136,16 @@ The app uses a lightweight extended Kalman filter rather than independent
 one-dimensional filters. The state vector is:
 
 ```text
-[speed, longitudinal_g, lateral_g, yaw_rate, bank_deg, longitudinal_bias, lateral_bias, yaw_bias]
+[speed, longitudinal_g, lateral_g, yaw_rate, bank_deg]
 ```
 
 Prediction model:
 
 ```text
-speed_k = speed_{k-1} + ((longitudinal_g - bias) * g - drag * speed) * dt
+speed_k = speed_{k-1} + (longitudinal_g * g - drag * speed) * dt
 longitudinal_g, lateral_g, yaw_rate = decayed random walk
 bank_deg = blended toward atan(lateral_g)
-bias terms = slow random walk
+GPS speed = periodic scalar observation when accuracy is usable
 stationary samples clamp speed back to zero
 ```
 
@@ -156,6 +158,9 @@ z = [
   measured_yaw_rate,
   measured_bank_deg
 ]
+
+The GPS observation is applied separately because it arrives much more slowly
+than DeviceMotion samples.
 ```
 
 The model is intentionally small enough to run in iPhone Safari. It is not a

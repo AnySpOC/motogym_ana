@@ -10,6 +10,9 @@ const RAD_TO_DEG = 180 / Math.PI;
 const DRAG_COEFF = 0.025;
 const CALIBRATION_MS = 4000;
 const AXIS_LOCK_G = 0.08;
+const MOTION_LOW_PASS_TAU_SEC = 0.08;
+const VIBRATION_LEVEL_TAU_SEC = 0.35;
+const START_CONFIRM_MS = 140;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_MAX_ACCURACY_M = 50;
 const GPS_MAX_SPEED_MS = 90;
@@ -78,6 +81,7 @@ const elements = {
   yaw: document.querySelector("#yaw"),
   confidence: document.querySelector("#confidence"),
   gVariance: document.querySelector("#gVariance"),
+  vibrationG: document.querySelector("#vibrationG"),
   kalmanVariance: document.querySelector("#kalmanVariance"),
   gpsSpeed: document.querySelector("#gpsSpeed"),
   gpsStatus: document.querySelector("#gpsStatus"),
@@ -118,6 +122,10 @@ const state = {
   calibrationCompleted: false,
   calibrationStartedAt: 0,
   calibrationSamples: [],
+  filteredAcceleration: [0, 0, 0],
+  vibrationEnergy: 0,
+  vibrationG: 0,
+  startCandidateAt: 0,
   zeroSpeedCandidateAt: 0,
   confidence: 0,
   sensorEnabled: false,
@@ -288,6 +296,7 @@ function addEvent(type, detail = "") {
     speedKmh: state.speedMs * 3.6,
     bankDeg: state.bankDeg,
     yawRate: state.yawRate,
+    vibrationG: state.vibrationG,
   };
   state.events.unshift(event);
   renderEvents();
@@ -305,18 +314,20 @@ function armTimer() {
   addEvent("ARM", text.armDetail);
 }
 
-function startRun(mode = "auto", detail = text.startDetail) {
-  state.startedAt = nowMs();
+function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs()) {
+  state.startedAt = onsetAt;
   state.stoppedAt = 0;
   state.samples = [];
   state.rawSamples = [];
   state.events = state.events.filter((event) => event.type === "ARM");
   state.currentRunId = makeRunId();
   state.measurementMode = mode;
+  state.startCandidateAt = 0;
   state.speedMs = 0;
   motionModel.zeroSpeed();
   setMode("running", text.running);
   addEvent("START", detail);
+  state.events[0].timeMs = 0;
   render();
   startTimerRenderLoop();
 }
@@ -355,7 +366,7 @@ function handleMotionSample(sample) {
   }
 
   const profile = currentProfile();
-  const calibrated = calibrateAndProjectSample(sample, t);
+  const calibrated = calibrateAndProjectSample(sample, t, dt);
   const cleanedLongG = applyDeadband(calibrated.longG, profile.deadbandG);
   const cleanedLatG = applyDeadband(calibrated.latG, profile.deadbandG);
   const estimate = motionModel.update({
@@ -384,7 +395,7 @@ function handleMotionSample(sample) {
   render();
 }
 
-function calibrateAndProjectSample(sample, t) {
+function calibrateAndProjectSample(sample, t, dt) {
   const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
   const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
   const rawZ = Number.isFinite(sample.rawZ) ? sample.rawZ : 0;
@@ -394,7 +405,8 @@ function calibrateAndProjectSample(sample, t) {
   const y = rawY - state.deviceOffsetY;
   const z = rawZ - state.deviceOffsetZ;
   const yawRate = rawYaw - state.yawOffset;
-  const acceleration = [x, y, z];
+  const rawAcceleration = [x, y, z];
+  const acceleration = filterEngineVibration(rawAcceleration, dt);
 
   maybeLockForwardAxis(acceleration);
 
@@ -469,6 +481,10 @@ function startCalibration() {
   state.calibrationCompleted = false;
   state.calibrationStartedAt = nowMs();
   state.calibrationSamples = [];
+  state.filteredAcceleration = [0, 0, 0];
+  state.vibrationEnergy = 0;
+  state.vibrationG = 0;
+  state.startCandidateAt = 0;
   state.deviceOffsetX = 0;
   state.deviceOffsetY = 0;
   state.deviceOffsetZ = 0;
@@ -525,8 +541,15 @@ function estimateConfidence(sample, dt) {
 
 function detectEvents(t) {
   const profile = currentProfile();
-  if (state.autoMeasurementEnabled && state.mode === "armed" && state.longG > profile.startG) {
-    startRun("auto", text.startDetail);
+  if (state.autoMeasurementEnabled && state.mode === "armed") {
+    if (state.longG > profile.startG) {
+      state.startCandidateAt ||= t;
+      if (t - state.startCandidateAt >= START_CONFIRM_MS) {
+        startRun("auto", text.startDetail, state.startCandidateAt);
+      }
+    } else {
+      state.startCandidateAt = 0;
+    }
   }
 
   if (state.mode !== "running") return;
@@ -580,6 +603,7 @@ function storeRawSample(t) {
     gpsHeadingDeg: Number.isFinite(state.gpsHeadingDeg) ? round(state.gpsHeadingDeg, 1) : null,
     bankDeg: round(state.bankDeg, 2),
     yawRate: round(state.yawRate, 2),
+    vibrationG: round(state.vibrationG, 4),
     longGVariance: round(state.longGVariance, 6),
     latGVariance: round(state.latGVariance, 6),
     kalmanVariance: round(state.kalmanVariance, 6),
@@ -729,6 +753,7 @@ function stopManualMeasurement() {
 function resetLiveSensorValues() {
   state.lastSampleAt = 0;
   state.lastStopCandidateAt = 0;
+  state.startCandidateAt = 0;
   state.zeroSpeedCandidateAt = 0;
   state.speedMs = 0;
   state.longG = 0;
@@ -744,6 +769,9 @@ function resetLiveSensorValues() {
   state.latGVariance = 0;
   state.kalmanVariance = 0;
   state.varianceSamples = [];
+  state.filteredAcceleration = [0, 0, 0];
+  state.vibrationEnergy = 0;
+  state.vibrationG = 0;
   motionModel.reset();
 }
 
@@ -829,6 +857,7 @@ function render() {
   elements.yaw.textContent = `${state.yawRate.toFixed(0)} deg/s`;
   elements.confidence.textContent = `${state.confidence}%`;
   elements.gVariance.textContent = `${state.longGVariance.toFixed(4)} / ${state.latGVariance.toFixed(4)}`;
+  elements.vibrationG.textContent = `${state.vibrationG.toFixed(3)} g`;
   elements.kalmanVariance.textContent = state.kalmanVariance.toFixed(4);
   elements.gpsSpeed.textContent = Number.isFinite(state.gpsSpeedMs)
     ? `${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`
@@ -883,6 +912,19 @@ function currentProfile() {
 function applyDeadband(value, deadband) {
   if (!Number.isFinite(value)) return 0;
   return Math.abs(value) < deadband ? 0 : value;
+}
+
+function filterEngineVibration(acceleration, dt) {
+  const alpha = 1 - Math.exp(-dt / MOTION_LOW_PASS_TAU_SEC);
+  state.filteredAcceleration = state.filteredAcceleration.map((value, index) =>
+    value + alpha * (acceleration[index] - value)
+  );
+  const residual = acceleration.map((value, index) => value - state.filteredAcceleration[index]);
+  const residualEnergy = dotVector(residual, residual);
+  const vibrationAlpha = 1 - Math.exp(-dt / VIBRATION_LEVEL_TAU_SEC);
+  state.vibrationEnergy += vibrationAlpha * (residualEnergy - state.vibrationEnergy);
+  state.vibrationG = Math.sqrt(Math.max(0, state.vibrationEnergy));
+  return state.filteredAcceleration.slice();
 }
 
 function updateVariance(longG, latG) {
@@ -1092,6 +1134,7 @@ function buildRun(run) {
       maxLatGAbs: round(maxByAbs("latG"), 3),
       maxBankDegAbs: round(maxByAbs("bankDeg"), 1),
       maxYawRateAbs: round(maxByAbs("yawRate"), 1),
+      maxVibrationG: round(samples.reduce((max, sample) => Math.max(max, sample.vibrationG || 0), 0), 4),
       sampleCount: samples.length,
       eventCount: events.length,
     },
@@ -1154,7 +1197,7 @@ function renderHistory() {
 }
 
 function runToCsv(run) {
-  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,bank_deg,yaw_rate,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n";
+  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,bank_deg,yaw_rate,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n";
   const eventRows = run.events.map((event) => [
     "event",
     event.timeMs,
@@ -1171,6 +1214,7 @@ function runToCsv(run) {
     "",
     fixed(event.bankDeg, 1),
     fixed(event.yawRate, 1),
+    fixed(event.vibrationG, 4),
     "",
     "",
     "",
@@ -1195,6 +1239,7 @@ function runToCsv(run) {
     fixed(sample.gpsHeadingDeg, 1),
     fixed(sample.bankDeg, 2),
     fixed(sample.yawRate, 2),
+    fixed(sample.vibrationG, 4),
     fixed(sample.longGVariance, 6),
     fixed(sample.latGVariance, 6),
     fixed(sample.kalmanVariance, 6),

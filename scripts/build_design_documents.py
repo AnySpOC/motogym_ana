@@ -148,7 +148,7 @@ def create_architecture_diagram():
         ((970, 590, 1380, 810), "走行データ\nRun  Event  Sample", PALE_BLUE),
         ((1450, 590, 1760, 810), "表示\nタイマー  指標\nグラフ  履歴", PALE_GRAY),
         ((500, 590, 850, 810), "端末内保存\nIndexedDB\nCSV  JSON", PALE_GRAY),
-        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v10", PALE_BLUE),
+        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v11", PALE_BLUE),
     ]
     for box, label, fill in boxes:
         rounded_box(draw, box, label, fill=fill, outline=BLUE, title=False)
@@ -699,6 +699,9 @@ def build_design_doc():
     add_heading(doc, "静止キャリブレーション", 2)
     add_para(doc, "Sensor ON後の4秒間で加速度とヨーレートの平均を計算する。重力を含む加速度の平均を正規化し、端末座標上の重力方向とする。")
     add_code_block(doc, "b_a = mean([a_x, a_y, a_z])\nb_w = mean(yaw_rate)\ng_d = normalize(mean(accelerationIncludingGravity))")
+    add_heading(doc, "エンジン振動除去", 2)
+    add_para(doc, "補正済み3軸加速度は、車体軸決定、イベント判定、速度積分の前に時定数0.08秒の一次低域通過フィルタへ通す。自動STARTは前後Gがしきい値を140 ms継続した場合に成立させ、開始時刻は継続判定の先頭へ戻す。静止補正はSTART待機時と同じエンジンアイドリング状態で行う。")
+    add_code_block(doc, "alpha = 1 - exp(-dt / 0.08)\na_lp = a_lp + alpha * (a_c - a_lp)\nvibration = a_c - a_lp")
     add_heading(doc, "車体座標", 2)
     add_code_block(doc, "a_h = a_c - dot(a_c, g_d) * g_d\ne_forward = normalize(a_h)\ne_lateral = normalize(cross(g_d, e_forward))\nlong_g = dot(a_c, e_forward)\nlat_g = dot(a_c, e_lateral)")
     add_para(doc, "最初の水平加速が0.08 G以上になった時点で前方向を固定する。取付後に端末が動いた場合は再度Sensor ONを実行する。")
@@ -735,6 +738,7 @@ def build_design_doc():
         ["gpsAccuracyM", "m", "GPS水平精度"],
         ["latitude  longitude", "deg", "GPS位置"],
         ["bankDeg  yawRate", "deg  deg/s", "姿勢と旋回"],
+        ["vibrationG", "G", "除去した高周波振動のRMS"],
         ["variance", "各状態", "G分散とKalman P"],
     ], widths=[2.0, 1.15, 3.55], font_size=8.5)
 
@@ -743,7 +747,7 @@ def build_design_doc():
         "IndexedDBのDB名はmoto-gym-ana、ストア名はrunsとする。",
         "STOP時に走行データを自動保存する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v10としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v11としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 

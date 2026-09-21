@@ -106,6 +106,11 @@ when storage pressure is high. Export important data after practice.
 - `Sensor OFF` removes sensor listeners and resets live G / speed / variance values to zero.
 - After `Sensor ON`, keep the mounted phone and motorcycle still for about 4 seconds.
   The app measures sensor offsets and the gravity direction during this period.
+- The three-axis acceleration passes through a low-pass filter before axis detection,
+  event detection, and speed integration. Fast engine vibration is rejected, while
+  automatic START requires sustained forward acceleration for about 0.14 seconds.
+- For the best vibration baseline, perform the four-second calibration with the
+  engine idling in the same state used while waiting for START.
 - `Auto ON` arms automatic start / stop detection from sensor movement.
 - `Auto OFF` stops automatic detection without stopping an already running manual timer.
 - `Manual ON` starts timing immediately.
@@ -120,6 +125,9 @@ The trace graph shows:
 - green: longitudinal G
 - cyan: lateral G
 - amber: rolling G variance
+
+`Vibration` shows the RMS magnitude of the high-frequency acceleration removed
+by the engine-vibration filter. It is also written to CSV as `vibration_g`.
 
 `G Var` is rolling variance for longitudinal / lateral G. If this value rises
 while the bike is stopped, the mount or sensor noise is influencing the reading.

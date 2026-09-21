@@ -76,13 +76,36 @@ assert.equal(api.state.calibrationCompleted, true, "static calibration should co
 assert.deepEqual(Array.from(api.state.gravityVector), [0, 0, 1]);
 
 api.enableAutoMeasurement();
+
+for (let i = 0; i < 180; i += 1) {
+  clock += 1000 / 60;
+  const vibration = 0.22 * Math.sin(2 * Math.PI * 24 * clock / 1000);
+  api.handleMotionSample({
+    time: clock,
+    rawX: vibration,
+    rawY: -vibration,
+    rawZ: vibration * 0.35,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: vibration * 20,
+    bankDeg: 0,
+  });
+}
+
+assert.equal(api.state.mode, "armed", "engine vibration must not trigger automatic START");
+assert.equal(api.state.forwardAxis, "", "engine vibration must not lock a false forward axis");
+assert.ok(api.state.speedMs * 3.6 < 0.5, "engine vibration must not create speed");
+assert.ok(api.state.vibrationG > 0.05, "removed vibration should remain observable for field tuning");
+
 let firstRunSpeed = null;
 for (let i = 0; i < 120; i += 1) {
   clock += 1000 / 60;
+  const vibration = 0.08 * Math.sin(2 * Math.PI * 24 * clock / 1000);
   api.handleMotionSample({
     time: clock,
-    rawX: 0,
-    rawY: 0.3,
+    rawX: vibration,
+    rawY: 0.3 - vibration,
     rawZ: 0,
     gravityX: 0,
     gravityY: 0,
@@ -95,6 +118,7 @@ for (let i = 0; i < 120; i += 1) {
 
 assert.equal(api.state.forwardAxis, "vector", "launch should lock the 3D forward axis");
 assert.ok(firstRunSpeed !== null, "automatic start should trigger");
+assert.equal(api.state.events.find((event) => event.type === "START")?.timeMs, 0, "confirmed START should be backdated to its onset");
 assert.ok(firstRunSpeed * 3.6 < 0.5, "START must reset pre-start velocity");
 assert.ok(api.state.speedMs * 3.6 > 5, "sustained acceleration should increase speed");
 assert.ok(api.state.speedMs * 3.6 < 30, "speed should remain physically plausible");

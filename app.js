@@ -330,6 +330,7 @@ function armTimer() {
   state.startedAt = 0;
   state.stoppedAt = 0;
   resetLiveSensorValues(true);
+  state.samples = [];
   state.rawSamples = [];
   state.lastStopCandidateAt = 0;
   state.lastBrakeAt = 0;
@@ -394,6 +395,10 @@ function handleMotionSample(sample) {
     return;
   }
 
+  if (!state.calibrationCompleted || (state.mode !== "armed" && state.mode !== "running")) {
+    return;
+  }
+
   const profile = currentProfile();
   const calibrated = calibrateAndProjectSample(sample, t, dt);
   const cleanedLongG = applyDeadband(calibrated.longG, profile.deadbandG);
@@ -413,6 +418,10 @@ function handleMotionSample(sample) {
   state.latBias = estimate.latBias;
   state.yawBias = estimate.yawBias;
   state.kalmanVariance = estimate.covariance;
+  if (state.mode === "armed") {
+    state.speedMs = 0;
+    motionModel.setSpeed(0);
+  }
   if (state.longG < -0.05) state.lastBrakeAt = t;
   updateVariance(cleanedLongG, cleanedLatG);
   applyZeroSpeedUpdate(t);
@@ -420,8 +429,10 @@ function handleMotionSample(sample) {
   state.confidence = estimateConfidence({ ...sample, longG: calibrated.longG, latG: calibrated.latG, yawRate: calibrated.yawRate }, dt);
 
   detectEvents(t);
-  storeSample(t);
-  storeRawSample(t);
+  if (state.mode === "running") {
+    storeSample(t);
+    storeRawSample(t);
+  }
   render();
 }
 
@@ -866,6 +877,9 @@ function disableAutoMeasurement() {
   state.autoMeasurementEnabled = false;
   if (state.mode === "armed") {
     state.measurementMode = "none";
+    resetLiveSensorValues(true);
+    state.samples = [];
+    state.rawSamples = [];
     setMode(state.sensorEnabled ? "sensor-on" : "idle", state.sensorEnabled ? text.sensorOn : text.idle);
   }
   addEvent("AUTO", text.autoOff);
@@ -994,6 +1008,10 @@ function onGpsPosition(position) {
 
   state.gpsSpeedMs = speedMs;
   state.gpsSource = derived ? "position" : "sensor";
+  if (state.mode !== "running") {
+    render();
+    return;
+  }
   const estimate = motionModel.updateGpsSpeed(speedMs, accuracy, derived);
   state.speedMs = estimate.speedMs;
   state.kalmanVariance = estimate.covariance;
@@ -1012,7 +1030,7 @@ function render() {
   elements.gVariance.textContent = `${state.longGVariance.toFixed(4)} / ${state.latGVariance.toFixed(4)}`;
   elements.vibrationG.textContent = `${state.vibrationG.toFixed(3)} g`;
   elements.kalmanVariance.textContent = state.kalmanVariance.toFixed(4);
-  elements.gpsSpeed.textContent = Number.isFinite(state.gpsSpeedMs)
+  elements.gpsSpeed.textContent = state.mode === "running" && Number.isFinite(state.gpsSpeedMs)
     ? `${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`
     : "-- km/h";
   elements.gpsStatus.textContent = Number.isFinite(state.gpsAccuracyM)

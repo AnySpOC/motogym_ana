@@ -97,6 +97,25 @@ assert.equal(api.state.calibrationCompleted, true, "static calibration should co
 assert.equal(api.state.calibrationState, "complete");
 assert.deepEqual(Array.from(api.state.gravityVector), [0, 0, 1]);
 
+for (let i = 0; i < 30; i += 1) {
+  clock += 1000 / 60;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0.4,
+    rawZ: 0,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+assert.equal(api.state.mode, "sensor-on", "Sensor ON must remain a non-measuring standby state");
+assert.equal(api.state.speedMs, 0, "Sensor ON must not integrate speed before a measurement mode starts");
+assert.equal(api.state.samples.length, 0, "Sensor ON must not add graph samples");
+assert.equal(api.state.rawSamples.length, 0, "Sensor ON must not add run samples");
+
 api.enableAutoMeasurement();
 
 for (let i = 0; i < 180; i += 1) {
@@ -117,7 +136,9 @@ for (let i = 0; i < 180; i += 1) {
 
 assert.equal(api.state.mode, "armed", "engine vibration must not trigger automatic START");
 assert.equal(api.state.forwardAxis, "", "engine vibration must not lock a false forward axis");
-assert.ok(api.state.speedMs * 3.6 < 0.5, "engine vibration must not create speed");
+assert.equal(api.state.speedMs, 0, "Auto standby must keep displayed speed at zero before START");
+assert.equal(api.state.samples.length, 0, "Auto standby must not add graph samples before START");
+assert.equal(api.state.rawSamples.length, 0, "Auto standby must not save samples before START");
 assert.ok(api.state.vibrationG > 0.05, "removed vibration should remain observable for field tuning");
 
 let firstRunSpeed = null;
@@ -171,6 +192,19 @@ api.onGpsPosition({
     latitude: 35,
     longitude: 139,
     accuracy: 5,
+    speed: 8,
+    heading: 90,
+  },
+});
+assert.equal(api.state.gpsSpeedMs, 8);
+assert.ok(api.state.speedMs > 0, "GPS observation should correct estimated speed while running");
+
+api.onGpsPosition({
+  timestamp: 11000,
+  coords: {
+    latitude: 35,
+    longitude: 139,
+    accuracy: 5,
     speed: 0,
     heading: 90,
   },
@@ -194,7 +228,7 @@ assert.equal(api.state.speedMs, 0, "fresh zero GPS speed should clamp speed to z
 assert.equal(api.state.mode, "stopped", "fresh zero GPS speed should complete automatic timing");
 
 api.onGpsPosition({
-  timestamp: 11000,
+  timestamp: 12000,
   coords: {
     latitude: 35,
     longitude: 139,
@@ -204,7 +238,7 @@ api.onGpsPosition({
   },
 });
 assert.equal(api.state.gpsSpeedMs, 8);
-assert.ok(api.state.speedMs > 0, "GPS observation should correct estimated speed");
+assert.equal(api.state.speedMs, 0, "GPS must not change the completed run after measurement stops");
 
 const csv = api.runToCsv({ events: api.state.events.slice(0, 1), samples: api.state.rawSamples.slice(0, 1) });
 const csvLines = csv.trim().split("\n");

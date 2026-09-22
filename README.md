@@ -102,7 +102,8 @@ when storage pressure is high. Export important data after practice.
 
 ## Sensor controls and graph
 
-- `Sensor ON` requests permission and starts reading iPhone motion sensors.
+- `Sensor ON` requests permission and prepares the iPhone motion sensors and GPS.
+  It does not integrate speed, draw a run graph, or save samples.
 - `Sensor OFF` removes sensor listeners and resets live G / speed / variance values to zero.
 - `Calibration` explicitly starts a four-second stationary calibration. Automatic
   and manual timing remain disabled until calibration completes successfully.
@@ -117,6 +118,8 @@ when storage pressure is high. Export important data after practice.
 - For the best vibration baseline, perform the four-second calibration with the
   engine idling in the same state used while waiting for START.
 - `Auto待機` waits for sustained forward acceleration and then starts timing.
+  While armed, acceleration is used only for START detection; speed and run samples
+  begin at the confirmed START.
 - `Auto解除` cancels only the automatic launch wait.
 - `手動開始` starts timing immediately.
 - `計測停止` stops and saves either an automatic or manual run.

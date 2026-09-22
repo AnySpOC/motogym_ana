@@ -148,7 +148,7 @@ def create_architecture_diagram():
         ((970, 590, 1380, 810), "走行データ\nRun  Event  Sample", PALE_BLUE),
         ((1450, 590, 1760, 810), "表示\nタイマー  指標\nグラフ  履歴", PALE_GRAY),
         ((500, 590, 850, 810), "端末内保存\nIndexedDB\nCSV  JSON", PALE_GRAY),
-        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v12", PALE_BLUE),
+        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v13", PALE_BLUE),
     ]
     for box, label, fill in boxes:
         rounded_box(draw, box, label, fill=fill, outline=BLUE, title=False)
@@ -689,6 +689,7 @@ def build_design_doc():
         ["stopped", "計測完了 保存済み", "次の計測またはSensor OFF"],
         ["sensor-off", "センサー停止", "Sensor ONでsensor-on"],
     ], widths=[1.1, 2.2, 3.4], font_size=8.5)
+    add_para(doc, "sensor-onは権限取得とGPS測位準備だけを行い、速度積分、グラフ追加、走行サンプル保存は行わない。armedではSTART判定に必要な加速度だけを評価し、確定前の表示速度は0とする。")
 
     add_heading(doc, "論理クラス構成", 1)
     add_figure(doc, ASSETS / "class_diagram.png", "図5  JavaScript実装を論理責務へ整理したクラス図")
@@ -713,7 +714,7 @@ def build_design_doc():
     add_code_block(doc, "alpha = 1 - exp(-dt / 0.08)\na_lp = a_lp + alpha * (a_c - a_lp)\nvibration = a_c - a_lp")
     add_heading(doc, "車体座標", 2)
     add_code_block(doc, "a_h = a_c - dot(a_c, g_d) * g_d\ne_forward = normalize(a_h)\ne_lateral = normalize(cross(g_d, e_forward))\nlong_g = dot(a_c, e_forward)\nlat_g = dot(a_c, e_lateral)")
-    add_para(doc, "最初の水平加速が0.08 G以上になった時点で前方向を固定する。取付後に端末が動いた場合は再度Sensor ONを実行する。")
+    add_para(doc, "最初の水平加速が0.08 G以上になった時点で前方向を固定する。取付後に端末が動いた場合は再度Calibrationを実行する。")
 
     add_heading(doc, "状態推定", 1)
     add_heading(doc, "状態ベクトル", 2)
@@ -756,7 +757,7 @@ def build_design_doc():
         "IndexedDBのDB名はmoto-gym-ana、ストア名はrunsとする。",
         "STOP時に走行データを自動保存する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v12としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v13としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 
@@ -913,7 +914,7 @@ def build_report_doc(samples, events, implied, residual):
     add_heading(doc, "次回試験", 1)
     add_numbered(doc, [
         "公開版を再読み込みし、GPSと補正カードを確認する。",
-        "iPhoneを車体へ固定してSensor ONを押し、補正完了まで4秒以上静止する。",
+        "iPhoneを車体へ固定し、Sensor ONの後にCalibrationを押して4秒以上静止する。",
         "GPS精度20 m以下を目安に待つ。",
         "静止、20 m以上の直線発進、一定速、制動、完全停止を最低3回記録する。",
         "左右旋回を同程度に実施する。",

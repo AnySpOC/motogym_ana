@@ -1,5 +1,4 @@
 const G = 9.80665;
-const STOP_SPEED = 0.65;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -14,8 +13,16 @@ const MOTION_LOW_PASS_TAU_SEC = 0.08;
 const VIBRATION_LEVEL_TAU_SEC = 0.35;
 const START_CONFIRM_MS = 140;
 const ZERO_SPEED_HOLD_MS = 450;
+const GPS_FRESH_MS = 2500;
+const GPS_STOP_SPEED_MS = 0.8;
+const IMU_STOP_SPEED_MS = 0.35;
+const RECENT_BRAKE_MS = 3500;
 const GPS_MAX_ACCURACY_M = 50;
 const GPS_MAX_SPEED_MS = 90;
+const CALIBRATION_MIN_HZ = 15;
+const CALIBRATION_MAX_MEAN_G = 0.12;
+const CALIBRATION_MAX_GRAVITY_DRIFT_DEG = 7;
+const CALIBRATION_MAX_VIBRATION_G = 0.6;
 
 const sensitivityProfiles = {
   calm: { startG: 0.26, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
@@ -29,7 +36,7 @@ const text = {
   needPermission: "\u8a31\u53ef\u304c\u5fc5\u8981",
   armed: "\u767a\u9032\u5f85\u3061",
   running: "\u8d70\u884c\u4e2d",
-  stopped: "\u505c\u6b62",
+  stopped: "\u8a08\u6e2c\u5b8c\u4e86",
   armDetail: "\u8a08\u6e2c\u5f85\u6a5f",
   startDetail: "\u767a\u9032\u3092\u691c\u51fa",
   stopDetail: "\u505c\u6b62\u3092\u691c\u51fa",
@@ -51,7 +58,7 @@ const text = {
   storageReady: "\u81ea\u52d5\u4fdd\u5b58\u6709\u52b9",
   storageUnavailable: "\u81ea\u52d5\u4fdd\u5b58\u4e0d\u53ef",
   sensorOff: "\u30bb\u30f3\u30b5OFF",
-  sensorOn: "\u30bb\u30f3\u30b5ON",
+  sensorOn: "\u30bb\u30f3\u30b5\u30fc\u5f85\u6a5f",
   sensorDisabled: "\u30bb\u30f3\u30b5\u505c\u6b62",
   calibrating: "\u9759\u6b62\u88dc\u6b63\u4e2d",
   calibrated: "\u9759\u6b62\u88dc\u6b63\u5b8c\u4e86",
@@ -66,6 +73,7 @@ const elements = {
   timer: document.querySelector("#timer"),
   permissionButton: document.querySelector("#permissionButton"),
   sensorOffButton: document.querySelector("#sensorOffButton"),
+  calibrationButton: document.querySelector("#calibrationButton"),
   sensitivitySelect: document.querySelector("#sensitivitySelect"),
   autoOnButton: document.querySelector("#autoOnButton"),
   autoOffButton: document.querySelector("#autoOffButton"),
@@ -86,6 +94,7 @@ const elements = {
   gpsSpeed: document.querySelector("#gpsSpeed"),
   gpsStatus: document.querySelector("#gpsStatus"),
   calibrationStatus: document.querySelector("#calibrationStatus"),
+  calibrationDetail: document.querySelector("#calibrationDetail"),
   eventLog: document.querySelector("#eventLog"),
   historyList: document.querySelector("#historyList"),
   storageStatus: document.querySelector("#storageStatus"),
@@ -120,12 +129,17 @@ const state = {
   lateralVector: null,
   calibrationActive: false,
   calibrationCompleted: false,
+  calibrationState: "not-run",
+  calibrationQuality: null,
+  calibrationFailure: "",
   calibrationStartedAt: 0,
   calibrationSamples: [],
   filteredAcceleration: [0, 0, 0],
   vibrationEnergy: 0,
   vibrationG: 0,
   startCandidateAt: 0,
+  startCandidateLastAt: 0,
+  startCandidateVelocityMs: 0,
   zeroSpeedCandidateAt: 0,
   confidence: 0,
   sensorEnabled: false,
@@ -139,6 +153,7 @@ const state = {
   gpsHeadingDeg: null,
   gpsLastPosition: null,
   gpsLastAt: 0,
+  gpsReceivedAt: 0,
   autoMeasurementEnabled: false,
   measurementMode: "none",
   sensitivity: "normal",
@@ -151,6 +166,7 @@ const state = {
   events: [],
   savedRuns: [],
   currentRunId: "",
+  lastBrakeAt: 0,
 };
 
 let dbPromise = null;
@@ -177,21 +193,29 @@ class MotionEkf {
     }
   }
 
+  setSpeed(speedMs) {
+    this.x[0] = Math.max(0, speedMs);
+    this.p[0][0] = Math.max(this.p[0][0], 0.06);
+  }
+
   update(measurement, dt) {
-    this.predict(dt);
+    this.predict(dt, measurement.longG);
     this.correct(measurement);
     return this.value();
   }
 
-  predict(dt) {
+  predict(dt, measuredLongG = null) {
     const [v, longG, latG, yawRate, bankDeg] = this.x;
     const accelDecay = Math.exp(-dt / 0.7);
     const yawDecay = Math.exp(-dt / 0.5);
     const rollBlend = Math.min(0.35, dt / 0.45);
     const rollEqDeg = Math.atan(latG) * RAD_TO_DEG;
+    const driveLongG = Number.isFinite(measuredLongG)
+      ? 0.75 * measuredLongG + 0.25 * longG
+      : longG;
 
     const next = [
-      Math.max(0, v + (longG * G - DRAG_COEFF * v) * dt),
+      Math.max(0, v + (driveLongG * G - DRAG_COEFF * v) * dt),
       longG * accelDecay,
       latG * accelDecay,
       yawRate * yawDecay,
@@ -200,7 +224,7 @@ class MotionEkf {
 
     const f = identity(this.n);
     f[0][0] = Math.max(0, 1 - DRAG_COEFF * dt);
-    f[0][1] = G * dt;
+    f[0][1] = 0.25 * G * dt;
     f[1][1] = accelDecay;
     f[2][2] = accelDecay;
     f[3][3] = yawDecay;
@@ -208,7 +232,7 @@ class MotionEkf {
     f[4][4] = 1 - rollBlend;
 
     const q = diag([
-      0.03 * dt,
+      0.18 * dt,
       0.09 * dt,
       0.09 * dt,
       18 * dt,
@@ -305,16 +329,17 @@ function addEvent(type, detail = "") {
 function armTimer() {
   state.startedAt = 0;
   state.stoppedAt = 0;
-  resetLiveSensorValues();
+  resetLiveSensorValues(true);
   state.rawSamples = [];
   state.lastStopCandidateAt = 0;
+  state.lastBrakeAt = 0;
   state.currentRunId = "";
   state.measurementMode = "auto";
   setMode("armed", text.armed);
   addEvent("ARM", text.armDetail);
 }
 
-function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs()) {
+function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), initialSpeedMs = 0) {
   state.startedAt = onsetAt;
   state.stoppedAt = 0;
   state.samples = [];
@@ -323,11 +348,15 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs()) {
   state.currentRunId = makeRunId();
   state.measurementMode = mode;
   state.startCandidateAt = 0;
-  state.speedMs = 0;
+  state.startCandidateLastAt = 0;
+  state.startCandidateVelocityMs = 0;
+  state.speedMs = Math.max(0, initialSpeedMs);
   motionModel.zeroSpeed();
+  motionModel.setSpeed(state.speedMs);
   setMode("running", text.running);
   addEvent("START", detail);
   state.events[0].timeMs = 0;
+  state.events[0].speedKmh = 0;
   render();
   startTimerRenderLoop();
 }
@@ -384,6 +413,7 @@ function handleMotionSample(sample) {
   state.latBias = estimate.latBias;
   state.yawBias = estimate.yawBias;
   state.kalmanVariance = estimate.covariance;
+  if (state.longG < -0.05) state.lastBrakeAt = t;
   updateVariance(cleanedLongG, cleanedLatG);
   applyZeroSpeedUpdate(t);
 
@@ -451,6 +481,7 @@ function collectCalibrationSample(sample, t) {
     x: rawX,
     y: rawY,
     z: rawZ,
+    linearAvailable: sample.linearAvailable !== false,
     yaw: rawYaw,
     gravityX: sample.gravityX || 0,
     gravityY: sample.gravityY || 0,
@@ -476,15 +507,30 @@ function maybeLockForwardAxis(acceleration) {
 }
 
 function startCalibration() {
+  if (!state.sensorEnabled) {
+    addEvent("ERROR", "先にSensor ONを押してください");
+    return;
+  }
+  if (state.mode === "running") {
+    addEvent("CAL", "走行中は補正できません");
+    return;
+  }
   resetLiveSensorValues();
+  state.autoMeasurementEnabled = false;
+  state.measurementMode = "none";
   state.calibrationActive = true;
   state.calibrationCompleted = false;
+  state.calibrationState = "running";
+  state.calibrationQuality = null;
+  state.calibrationFailure = "";
   state.calibrationStartedAt = nowMs();
   state.calibrationSamples = [];
   state.filteredAcceleration = [0, 0, 0];
   state.vibrationEnergy = 0;
   state.vibrationG = 0;
   state.startCandidateAt = 0;
+  state.startCandidateLastAt = 0;
+  state.startCandidateVelocityMs = 0;
   state.deviceOffsetX = 0;
   state.deviceOffsetY = 0;
   state.deviceOffsetZ = 0;
@@ -494,10 +540,25 @@ function startCalibration() {
   state.forwardVector = null;
   state.lateralVector = null;
   setMode("calibrating", text.calibrating);
+  render();
 }
 
 function finishCalibration() {
-  const count = Math.max(1, state.calibrationSamples.length);
+  const quality = evaluateCalibration(state.calibrationSamples, nowMs() - state.calibrationStartedAt);
+  if (!quality.passed) {
+    state.calibrationActive = false;
+    state.calibrationCompleted = false;
+    state.calibrationState = "failed";
+    state.calibrationQuality = quality;
+    state.calibrationFailure = quality.reason;
+    state.calibrationSamples = [];
+    resetLiveSensorValues();
+    setMode("sensor-on", text.sensorOn);
+    addEvent("CAL", `補正失敗: ${quality.reason}`);
+    render();
+    return;
+  }
+  const count = state.calibrationSamples.length;
   state.deviceOffsetX = state.calibrationSamples.reduce((sum, sample) => sum + sample.x, 0) / count;
   state.deviceOffsetY = state.calibrationSamples.reduce((sum, sample) => sum + sample.y, 0) / count;
   state.deviceOffsetZ = state.calibrationSamples.reduce((sum, sample) => sum + sample.z, 0) / count;
@@ -509,6 +570,9 @@ function finishCalibration() {
   ], [0, 0, 1]);
   state.calibrationActive = false;
   state.calibrationCompleted = true;
+  state.calibrationState = "complete";
+  state.calibrationQuality = quality;
+  state.calibrationFailure = "";
   state.calibrationSamples = [];
   resetLiveSensorValues(false);
   if (state.autoMeasurementEnabled && state.measurementMode === "auto" && !state.currentRunId) {
@@ -519,8 +583,58 @@ function finishCalibration() {
   addEvent("CAL", text.calibrated);
 }
 
+function evaluateCalibration(samples, durationMs) {
+  const count = samples.length;
+  const durationSec = Math.max(0.001, durationMs / 1000);
+  const sampleRateHz = count / durationSec;
+  if (count < 60 || sampleRateHz < CALIBRATION_MIN_HZ) {
+    return { passed: false, reason: "センサー周期不足", sampleRateHz, vibrationRmsG: 0, gravityDriftDeg: 0 };
+  }
+
+  const mean = (items, key) => items.reduce((sum, sample) => sum + sample[key], 0) / items.length;
+  const linearSamples = samples.map((sample) => ({
+    x: sample.x - (sample.linearAvailable ? 0 : sample.gravityX),
+    y: sample.y - (sample.linearAvailable ? 0 : sample.gravityY),
+    z: sample.z - (sample.linearAvailable ? 0 : sample.gravityZ),
+  }));
+  const linearMean = [mean(linearSamples, "x"), mean(linearSamples, "y"), mean(linearSamples, "z")];
+  const meanLinearG = vectorLength(linearMean);
+  const vibrationRmsG = Math.sqrt(linearSamples.reduce((sum, sample) =>
+    sum + (sample.x - linearMean[0]) ** 2 + (sample.y - linearMean[1]) ** 2 + (sample.z - linearMean[2]) ** 2
+  , 0) / count);
+  const gravityMean = (items) => [mean(items, "gravityX"), mean(items, "gravityY"), mean(items, "gravityZ")];
+  const gravity = gravityMean(samples);
+  const gravityMagnitudeG = vectorLength(gravity);
+  const midpoint = Math.floor(count / 2);
+  const gravityFirst = normalizeVector(gravityMean(samples.slice(0, midpoint)), [0, 0, 1]);
+  const gravityLast = normalizeVector(gravityMean(samples.slice(midpoint)), [0, 0, 1]);
+  const gravityDot = Math.max(-1, Math.min(1, dotVector(gravityFirst, gravityLast)));
+  const gravityDriftDeg = Math.acos(gravityDot) * RAD_TO_DEG;
+
+  let reason = "";
+  if (meanLinearG > CALIBRATION_MAX_MEAN_G) reason = "発進せず静止してください";
+  else if (gravityMagnitudeG < 0.75 || gravityMagnitudeG > 1.25) reason = "重力値を取得できません";
+  else if (gravityDriftDeg > CALIBRATION_MAX_GRAVITY_DRIFT_DEG) reason = "補正中に車体が動きました";
+  else if (vibrationRmsG > CALIBRATION_MAX_VIBRATION_G) reason = "振動が大きすぎます";
+
+  return {
+    passed: !reason,
+    reason,
+    sampleRateHz,
+    meanLinearG,
+    gravityMagnitudeG,
+    gravityDriftDeg,
+    vibrationRmsG,
+  };
+}
+
 function applyZeroSpeedUpdate(t) {
-  const stationary = Math.abs(state.longG) < 0.035 && Math.abs(state.latG) < 0.04 && Math.abs(state.yawRate) < 3.5;
+  const lowDynamics = Math.abs(state.longG) < 0.035 && Math.abs(state.latG) < 0.04 && Math.abs(state.yawRate) < 3.5;
+  const gpsFresh = hasFreshGps();
+  const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
+  const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
+  const imuStopped = !gpsFresh && state.speedMs < IMU_STOP_SPEED_MS && recentlyBraked;
+  const stationary = lowDynamics && (state.mode !== "running" || gpsStopped || imuStopped);
   if (stationary) {
     state.zeroSpeedCandidateAt ||= t;
     if (t - state.zeroSpeedCandidateAt > ZERO_SPEED_HOLD_MS) {
@@ -543,12 +657,22 @@ function detectEvents(t) {
   const profile = currentProfile();
   if (state.autoMeasurementEnabled && state.mode === "armed") {
     if (state.longG > profile.startG) {
-      state.startCandidateAt ||= t;
+      if (!state.startCandidateAt) {
+        state.startCandidateAt = t;
+        state.startCandidateLastAt = t;
+        state.startCandidateVelocityMs = 0;
+      } else {
+        const candidateDt = Math.min(0.12, Math.max(0, (t - state.startCandidateLastAt) / 1000));
+        state.startCandidateVelocityMs += Math.max(0, state.longG * G) * candidateDt;
+        state.startCandidateLastAt = t;
+      }
       if (t - state.startCandidateAt >= START_CONFIRM_MS) {
-        startRun("auto", text.startDetail, state.startCandidateAt);
+        startRun("auto", text.startDetail, state.startCandidateAt, state.startCandidateVelocityMs);
       }
     } else {
       state.startCandidateAt = 0;
+      state.startCandidateLastAt = 0;
+      state.startCandidateVelocityMs = 0;
     }
   }
 
@@ -559,7 +683,12 @@ function detectEvents(t) {
   if (Math.abs(state.yawRate) > profile.turnRate) addEdgeEvent("TURN", state.yawRate > 0 ? text.rightTurn : text.leftTurn);
   if (Math.abs(state.bankDeg) > profile.bankAngle) addEdgeEvent("BANK", state.bankDeg > 0 ? text.rightBank : text.leftBank);
 
-  const nearStopped = state.speedMs < STOP_SPEED && Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06;
+  const lowDynamics = Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06 && Math.abs(state.yawRate) < 4;
+  const gpsFresh = hasFreshGps();
+  const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
+  const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
+  const imuStopped = !gpsFresh && state.speedMs < IMU_STOP_SPEED_MS && recentlyBraked;
+  const nearStopped = lowDynamics && (gpsStopped || imuStopped);
   if (nearStopped) {
     state.lastStopCandidateAt ||= t;
     if (state.autoMeasurementEnabled && state.measurementMode === "auto" && t - state.lastStopCandidateAt > STOP_HOLD_MS && nowMs() - state.startedAt > 1500) {
@@ -618,7 +747,8 @@ function storeRawSample(t) {
 function onDeviceMotion(event) {
   const linear = event.acceleration;
   const gravity = event.accelerationIncludingGravity || {};
-  const acc = linear || gravity;
+  const linearAvailable = Boolean(linear && [linear.x, linear.y, linear.z].some(Number.isFinite));
+  const acc = linearAvailable ? linear : gravity;
   const rotation = event.rotationRate || {};
   const rawX = (acc.x || 0) / G;
   const rawY = (acc.y || 0) / G;
@@ -628,6 +758,7 @@ function onDeviceMotion(event) {
     rawX,
     rawY,
     rawZ,
+    linearAvailable,
     gravityX: (gravity.x || 0) / G,
     gravityY: (gravity.y || 0) / G,
     gravityZ: (gravity.z || 0) / G,
@@ -660,9 +791,10 @@ async function requestSensors() {
       await DeviceOrientationEvent.requestPermission();
     }
     enableSensors();
-    startCalibration();
     startGps();
+    setMode("sensor-on", text.sensorOn);
     addEvent("SENSOR", text.sensorGranted);
+    render();
   } catch {
     setMode("idle", text.needPermission);
     addEvent("ERROR", text.sensorError);
@@ -694,6 +826,9 @@ function disableSensors() {
   state.measurementMode = "none";
   state.calibrationActive = false;
   state.calibrationCompleted = false;
+  state.calibrationState = "not-run";
+  state.calibrationQuality = null;
+  state.calibrationFailure = "";
   state.calibrationSamples = [];
   state.forwardAxis = "";
   state.forwardSign = 1;
@@ -716,10 +851,15 @@ function enableAutoMeasurement() {
     addEvent("ERROR", "先にSensor ONを押してください");
     return;
   }
+  if (!state.calibrationCompleted) {
+    addEvent("CAL", "先にCalibrationを完了してください");
+    return;
+  }
   if (state.mode === "armed" && state.autoMeasurementEnabled) return;
   state.autoMeasurementEnabled = true;
   armTimer();
   addEvent("AUTO", text.autoOn);
+  render();
 }
 
 function disableAutoMeasurement() {
@@ -738,8 +878,8 @@ function startManualMeasurement() {
     addEvent("ERROR", "先にSensor ONを押してください");
     return;
   }
-  if (state.calibrationActive) {
-    addEvent("CAL", "静止補正の完了を待ってください");
+  if (!state.calibrationCompleted) {
+    addEvent("CAL", state.calibrationActive ? "静止補正の完了を待ってください" : "先にCalibrationを完了してください");
     return;
   }
   state.autoMeasurementEnabled = false;
@@ -750,10 +890,13 @@ function stopManualMeasurement() {
   stopRun(text.manualStop);
 }
 
-function resetLiveSensorValues() {
+function resetLiveSensorValues(preserveMotionFilter = false) {
   state.lastSampleAt = 0;
   state.lastStopCandidateAt = 0;
+  state.lastBrakeAt = 0;
   state.startCandidateAt = 0;
+  state.startCandidateLastAt = 0;
+  state.startCandidateVelocityMs = 0;
   state.zeroSpeedCandidateAt = 0;
   state.speedMs = 0;
   state.longG = 0;
@@ -769,9 +912,11 @@ function resetLiveSensorValues() {
   state.latGVariance = 0;
   state.kalmanVariance = 0;
   state.varianceSamples = [];
-  state.filteredAcceleration = [0, 0, 0];
-  state.vibrationEnergy = 0;
-  state.vibrationG = 0;
+  if (!preserveMotionFilter) {
+    state.filteredAcceleration = [0, 0, 0];
+    state.vibrationEnergy = 0;
+    state.vibrationG = 0;
+  }
   motionModel.reset();
 }
 
@@ -802,6 +947,13 @@ function stopGps() {
   state.gpsHeadingDeg = null;
   state.gpsLastPosition = null;
   state.gpsLastAt = 0;
+  state.gpsReceivedAt = 0;
+}
+
+function hasFreshGps() {
+  return Number.isFinite(state.gpsSpeedMs)
+    && state.gpsReceivedAt > 0
+    && nowMs() - state.gpsReceivedAt <= GPS_FRESH_MS;
 }
 
 function onGpsPosition(position) {
@@ -827,6 +979,7 @@ function onGpsPosition(position) {
 
   state.gpsLastPosition = { latitude: coords.latitude, longitude: coords.longitude };
   state.gpsLastAt = timestamp;
+  state.gpsReceivedAt = nowMs();
   state.gpsAccuracyM = accuracy;
   state.gpsLatitude = coords.latitude;
   state.gpsLongitude = coords.longitude;
@@ -868,9 +1021,35 @@ function render() {
   if (state.calibrationActive) {
     const remaining = Math.max(0, CALIBRATION_MS - (nowMs() - state.calibrationStartedAt));
     elements.calibrationStatus.textContent = `${(remaining / 1000).toFixed(1)} 秒`;
+    elements.calibrationDetail.textContent = "アイドリングで車体を静止";
+    elements.calibrationButton.textContent = "Calibrating";
+    elements.calibrationButton.classList.add("primary");
+  } else if (state.calibrationState === "complete") {
+    elements.calibrationStatus.textContent = "完了";
+    elements.calibrationDetail.textContent = `振動 ${state.calibrationQuality.vibrationRmsG.toFixed(3)} g / ${state.calibrationQuality.sampleRateHz.toFixed(0)} Hz`;
+    elements.calibrationButton.textContent = "Recalibrate";
+    elements.calibrationButton.classList.remove("primary");
+  } else if (state.calibrationState === "failed") {
+    elements.calibrationStatus.textContent = "失敗";
+    elements.calibrationDetail.textContent = state.calibrationFailure;
+    elements.calibrationButton.textContent = "Retry Calibration";
+    elements.calibrationButton.classList.remove("primary");
   } else {
-    elements.calibrationStatus.textContent = state.calibrationCompleted ? "完了" : "未実行";
+    elements.calibrationStatus.textContent = "未実行";
+    elements.calibrationDetail.textContent = "Calibrationを押す";
+    elements.calibrationButton.textContent = "Calibration";
+    elements.calibrationButton.classList.remove("primary");
   }
+  elements.autoOnButton.textContent = "Auto待機";
+  elements.autoOffButton.textContent = "Auto解除";
+  elements.manualOnButton.textContent = "手動開始";
+  elements.manualOffButton.textContent = "計測停止";
+  elements.calibrationButton.disabled = !state.sensorEnabled || state.mode === "running";
+  elements.autoOnButton.disabled = !state.calibrationCompleted || state.mode === "running" || state.mode === "armed";
+  elements.autoOffButton.disabled = state.mode !== "armed";
+  elements.manualOnButton.disabled = !state.calibrationCompleted || state.mode === "running";
+  elements.manualOffButton.disabled = state.mode !== "running";
+  elements.clearButton.disabled = state.mode === "running";
   drawTrace();
 }
 
@@ -1109,6 +1288,7 @@ function buildCurrentRun() {
       gravityVector: state.gravityVector.map((value) => round(value, 5)),
       forwardVector: state.forwardVector?.map((value) => round(value, 5)) || null,
       lateralVector: state.lateralVector?.map((value) => round(value, 5)) || null,
+      quality: state.calibrationQuality,
     },
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),
@@ -1293,6 +1473,7 @@ function exportStoredRun(runId, format) {
 
 elements.permissionButton.addEventListener("click", requestSensors);
 elements.sensorOffButton.addEventListener("click", disableSensors);
+elements.calibrationButton.addEventListener("click", startCalibration);
 elements.sensitivitySelect.addEventListener("change", () => {
   state.sensitivity = elements.sensitivitySelect.value;
   if (state.mode !== "running") resetLiveSensorValues();
@@ -1304,6 +1485,7 @@ elements.autoOffButton.addEventListener("click", disableAutoMeasurement);
 elements.manualOnButton.addEventListener("click", startManualMeasurement);
 elements.manualOffButton.addEventListener("click", stopManualMeasurement);
 elements.clearButton.addEventListener("click", () => {
+  if (state.mode === "running") return;
   state.samples = [];
   state.rawSamples = [];
   state.events = [];
@@ -1314,7 +1496,7 @@ elements.clearButton.addEventListener("click", () => {
   state.autoMeasurementEnabled = false;
   state.measurementMode = "none";
   resetLiveSensorValues();
-  setMode("idle", text.idle);
+  setMode(state.sensorEnabled ? "sensor-on" : "idle", state.sensorEnabled ? text.sensorOn : text.idle);
   renderEvents();
   render();
 });

@@ -148,7 +148,7 @@ def create_architecture_diagram():
         ((970, 590, 1380, 810), "走行データ\nRun  Event  Sample", PALE_BLUE),
         ((1450, 590, 1760, 810), "表示\nタイマー  指標\nグラフ  履歴", PALE_GRAY),
         ((500, 590, 850, 810), "端末内保存\nIndexedDB\nCSV  JSON", PALE_GRAY),
-        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v11", PALE_BLUE),
+        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v12", PALE_BLUE),
     ]
     for box, label, fill in boxes:
         rounded_box(draw, box, label, fill=fill, outline=BLUE, title=False)
@@ -169,8 +169,8 @@ def create_activity_diagram():
     draw.ellipse((center - 18, 105, center + 18, 141), fill=hex_rgb(TEXT))
     steps = [
         ((530, 175, 970, 265), "Sensor ON"),
-        ((450, 330, 1050, 430), "4秒間静止してオフセットと重力方向を算出"),
-        ((550, 500, 950, 590), "Auto ONで発進待ち"),
+        ((450, 330, 1050, 430), "Calibrationを押して4秒静止  品質条件を確認"),
+        ((550, 500, 950, 590), "Auto待機で発進待ち"),
         ((460, 830, 1040, 930), "START時に速度を0へ初期化して計測開始"),
         ((420, 995, 1080, 1095), "IMU予測と観測更新  GPS速度で補正"),
         ((520, 1260, 980, 1350), "STOPしてIndexedDBへ保存"),
@@ -246,38 +246,46 @@ def create_state_diagram():
     image, draw, path = save_canvas("state_transition_diagram.png", (1800, 1050))
     draw.text((60, 35), "状態遷移図", font=font(42, True), fill=hex_rgb(TEXT))
     states = {
-        "idle": (80, 200, 340, 310),
-        "calibrating": (500, 170, 850, 330),
-        "sensor-on": (1020, 170, 1370, 330),
-        "armed": (1020, 510, 1370, 660),
-        "running": (500, 500, 850, 670),
-        "stopped": (80, 520, 340, 650),
-        "sensor-off": (630, 850, 1030, 970),
+        "idle": (70, 170, 350, 300),
+        "sensor-on": (540, 160, 900, 310),
+        "armed": (1090, 160, 1450, 310),
+        "calibrating": (70, 520, 430, 680),
+        "stopped": (540, 520, 900, 680),
+        "running": (1090, 510, 1450, 680),
+        "sensor-off": (540, 840, 900, 970),
     }
     labels = {
-        "idle": "idle\n初期待機", "calibrating": "calibrating\n4秒静止補正", "sensor-on": "sensor-on\n取得中",
-        "armed": "armed\n発進待ち", "running": "running\n計測中", "stopped": "stopped\n保存完了", "sensor-off": "sensor-off\n停止",
+        "idle": "idle\n初期待機", "calibrating": "calibrating\n明示的な4秒補正", "sensor-on": "sensor-on\n取得中",
+        "armed": "armed\n発進待ち", "running": "running\n計測中", "stopped": "stopped\n計測完了", "sensor-off": "sensor-off\n停止",
     }
     for key, box in states.items():
         rounded_box(draw, box, labels[key], fill=PALE_BLUE if key in {"calibrating", "running", "armed"} else PALE_GRAY, outline=BLUE)
-    transitions = [
-        ("idle", "calibrating", "Sensor ON"), ("calibrating", "sensor-on", "補正完了"),
-        ("sensor-on", "armed", "Auto ON"), ("armed", "running", "START検出"),
-        ("running", "stopped", "STOP検出またはManual OFF"), ("stopped", "armed", "Auto ON"),
-        ("sensor-on", "running", "Manual ON"),
-    ]
-    for src, dst, label in transitions:
-        a, b = states[src], states[dst]
-        start = ((a[0] + a[2]) // 2, (a[1] + a[3]) // 2)
-        end = ((b[0] + b[2]) // 2, (b[1] + b[3]) // 2)
-        arrow(draw, start, end, color="6B7280", width=3)
-        mx, my = (start[0] + end[0]) // 2, (start[1] + end[1]) // 2
-        draw.rectangle((mx - 85, my - 18, mx + 85, my + 18), fill="white")
-        draw_centered(draw, (mx - 85, my - 18, mx + 85, my + 18), label, font(17), fill=TEXT)
-    # Sensor OFF from all active states is represented as a shared transition.
-    draw.line((1370, 250, 1600, 250, 1600, 910, 1030, 910), fill=hex_rgb(RED), width=3)
-    arrow(draw, (1600, 910), (1030, 910), color=RED, width=3)
-    draw.text((1450, 560), "Sensor OFF", font=font(22, True), fill=hex_rgb(RED))
+
+    arrow(draw, (350, 235), (540, 235), color="6B7280", width=3)
+    draw_centered(draw, (365, 195, 525, 225), "Sensor ON", font(18), fill=TEXT)
+    arrow(draw, (900, 235), (1090, 235), color="6B7280", width=3)
+    draw_centered(draw, (920, 195, 1070, 225), "Auto待機", font(18), fill=TEXT)
+    arrow(draw, (1270, 310), (1270, 510), color="6B7280", width=3)
+    draw.text((1290, 390), "START検出", font=font(18), fill=hex_rgb(TEXT))
+    arrow(draw, (1090, 595), (900, 595), color="6B7280", width=3)
+    draw_centered(draw, (900, 555, 1090, 585), "停止根拠を確認", font(17), fill=TEXT)
+    arrow(draw, (720, 520), (720, 310), color="6B7280", width=3)
+    draw.text((740, 400), "次の計測", font=font(18), fill=hex_rgb(TEXT))
+
+    draw.line((540, 255, 360, 255, 360, 480), fill=hex_rgb("6B7280"), width=3)
+    arrow(draw, (360, 480), (360, 520), color="6B7280", width=3)
+    draw.text((375, 380), "Calibration", font=font(18), fill=hex_rgb(TEXT))
+    draw.line((250, 520, 250, 350, 620, 350, 620, 310), fill=hex_rgb("6B7280"), width=3)
+    arrow(draw, (620, 350), (620, 310), color="6B7280", width=3)
+    draw.text((275, 315), "成功または失敗", font=font(18), fill=hex_rgb(TEXT))
+
+    draw.line((900, 275, 1010, 275, 1010, 555, 1090, 555), fill=hex_rgb("6B7280"), width=3)
+    arrow(draw, (1010, 555), (1090, 555), color="6B7280", width=3)
+    draw.text((920, 330), "手動開始", font=font(18), fill=hex_rgb(TEXT))
+
+    arrow(draw, (720, 680), (720, 840), color=RED, width=3)
+    draw.text((745, 745), "Sensor OFF", font=font(19, True), fill=hex_rgb(RED))
+    draw.text((1030, 895), "各状態からSensor OFFへ遷移可能", font=font(20), fill=hex_rgb(RED))
     image.save(path, quality=95)
 
 
@@ -646,9 +654,9 @@ def build_design_doc():
     add_table(doc, ["ID", "要求"], [
         ["FR01", "Sensor ONとOFFでセンサー取得を開始および停止できる"],
         ["FR02", "Sensor OFF中は計測値をゼロまたは未取得状態にする"],
-        ["FR03", "Sensor ON後に4秒の静止キャリブレーションを実行する"],
-        ["FR04", "Auto ONとOFFで自動計測を切り替える"],
-        ["FR05", "Manual ONとOFFで手動計測を開始および停止する"],
+        ["FR03", "Calibration操作で4秒補正を開始し成功または失敗理由を表示する"],
+        ["FR04", "Auto待機とAuto解除で自動発進待ちを制御する"],
+        ["FR05", "手動開始と計測停止で計測を明示的に制御する"],
         ["FR06", "発進 停止 加速 減速 旋回 バンクを検出する"],
         ["FR07", "GPSが利用可能な場合は推定速度を補正する"],
         ["FR08", "走行をIndexedDBへ保存しCSVとJSONで出力する"],
@@ -668,18 +676,18 @@ def build_design_doc():
 
     add_heading(doc, "自動計測処理", 1)
     add_figure(doc, ASSETS / "activity_diagram.png", "図3  自動計測アクティビティ図", width=5.75)
-    add_para(doc, "Auto ONは発進待ちを作る。最初の明確な水平加速で車体前方向を確定し、前後Gが感度しきい値を超えるとSTARTする。START処理は速度状態を0へ戻してから時系列記録を始める。")
+    add_para(doc, "Auto待機は発進待ちを作る。最初の明確な水平加速で車体前方向を確定し、前後Gが感度しきい値を140 ms継続して超えるとSTARTする。手動開始は操作時刻から直ちに計測する。計測停止はどちらの方式でも走行を終了して保存する。")
 
     add_heading(doc, "状態管理", 1)
     add_figure(doc, ASSETS / "state_transition_diagram.png", "図4  主要な状態遷移")
     add_table(doc, ["状態", "内容", "主な遷移"], [
-        ["idle", "初期待機", "Sensor ONでcalibrating"],
-        ["calibrating", "4秒静止補正", "完了後sensor-onまたはarmed"],
-        ["sensor-on", "センサー取得中", "Auto ONまたはManual ON"],
+        ["idle", "初期待機", "Sensor ONでsensor-on"],
+        ["calibrating", "明示的な4秒静止補正", "成功または失敗後sensor-on"],
+        ["sensor-on", "センサー取得中", "Calibration Auto待機 手動開始"],
         ["armed", "自動発進待ち", "START検出でrunning"],
-        ["running", "計測中", "STOPまたはManual OFF"],
-        ["stopped", "保存完了", "次の計測またはSensor OFF"],
-        ["sensor-off", "センサー停止", "Sensor ONでcalibrating"],
+        ["running", "計測中", "自動停止または計測停止"],
+        ["stopped", "計測完了 保存済み", "次の計測またはSensor OFF"],
+        ["sensor-off", "センサー停止", "Sensor ONでsensor-on"],
     ], widths=[1.1, 2.2, 3.4], font_size=8.5)
 
     add_heading(doc, "論理クラス構成", 1)
@@ -697,10 +705,11 @@ def build_design_doc():
     ], widths=[2.25, 1.0, 3.45])
 
     add_heading(doc, "静止キャリブレーション", 2)
-    add_para(doc, "Sensor ON後の4秒間で加速度とヨーレートの平均を計算する。重力を含む加速度の平均を正規化し、端末座標上の重力方向とする。")
+    add_para(doc, "Sensor ONは取得だけを開始する。Calibration操作後の4秒間で加速度とヨーレートの平均を計算し、重力を含む加速度の平均を正規化して端末座標上の重力方向とする。")
     add_code_block(doc, "b_a = mean([a_x, a_y, a_z])\nb_w = mean(yaw_rate)\ng_d = normalize(mean(accelerationIncludingGravity))")
+    add_para(doc, "完了条件は15 Hz以上かつ60サンプル以上、平均加速度0.12 G以下、重力0.75から1.25 G、前半と後半の重力方向差7度以下、振動RMS 0.6 G以下とする。条件外はfailed状態とし理由を表示する。")
     add_heading(doc, "エンジン振動除去", 2)
-    add_para(doc, "補正済み3軸加速度は、車体軸決定、イベント判定、速度積分の前に時定数0.08秒の一次低域通過フィルタへ通す。自動STARTは前後Gがしきい値を140 ms継続した場合に成立させ、開始時刻は継続判定の先頭へ戻す。静止補正はSTART待機時と同じエンジンアイドリング状態で行う。")
+    add_para(doc, "補正済み3軸加速度は、車体軸決定、イベント判定、速度積分の前に時定数0.08秒の一次低域通過フィルタへ通す。自動STARTは前後Gがしきい値を140 ms継続した場合に成立させ、開始時刻は継続判定の先頭へ戻す。確認区間の加速度は仮積分して現在速度へ引き継ぐ。静止補正はSTART待機時と同じエンジンアイドリング状態で行う。")
     add_code_block(doc, "alpha = 1 - exp(-dt / 0.08)\na_lp = a_lp + alpha * (a_c - a_lp)\nvibration = a_c - a_lp")
     add_heading(doc, "車体座標", 2)
     add_code_block(doc, "a_h = a_c - dot(a_c, g_d) * g_d\ne_forward = normalize(a_h)\ne_lateral = normalize(cross(g_d, e_forward))\nlong_g = dot(a_c, e_forward)\nlat_g = dot(a_c, e_lateral)")
@@ -710,15 +719,15 @@ def build_design_doc():
     add_heading(doc, "状態ベクトル", 2)
     add_code_block(doc, "x = [v, a_long, a_lat, yaw_rate, bank]^T")
     add_heading(doc, "物理モデル", 2)
-    add_code_block(doc, "v_k = max(0, v + (a_long * 9.80665 - 0.025 * v) * dt)\na_long_k = a_long * exp(-dt / 0.7)\na_lat_k = a_lat * exp(-dt / 0.7)\nyaw_k = yaw * exp(-dt / 0.5)\nbank_k = bank + blend * (atan(a_lat) - bank)")
-    add_para(doc, "状態遷移ヤコビアンFで共分散を予測し、P = FPF^T + Qとする。dtは0.005秒から0.12秒へ制限し、Safari復帰時の過大積分を防ぐ。")
+    add_code_block(doc, "a_drive = 0.75 * measured_long_g + 0.25 * a_long\nv_k = max(0, v + (a_drive * 9.80665 - 0.025 * v) * dt)\na_long_k = a_long * exp(-dt / 0.7)\na_lat_k = a_lat * exp(-dt / 0.7)\nyaw_k = yaw * exp(-dt / 0.5)\nbank_k = bank + blend * (atan(a_lat) - bank)")
+    add_para(doc, "現在サンプルの前後Gを同じ周期の速度更新へ75パーセント反映し、従来の1周期遅れを減らす。速度プロセスノイズは0.18 dtとする。dtは0.005秒から0.12秒へ制限する。")
     add_heading(doc, "IMU観測", 2)
     add_code_block(doc, "z_imu = [measured_long_g, measured_lat_g, measured_yaw_rate, measured_bank]^T\ny = z - Hx\nS = HPH^T + R\nK = PH^T S^-1\nx = x + Ky\nP = (I - KH)P")
     add_heading(doc, "GPS速度観測", 2)
     add_para(doc, "GPSの直接速度があればスカラー観測として速度状態を更新する。直接速度がない場合は連続する位置のHaversine距離から速度を算出する。水平精度が50 mを超える測位と90 m/sを超える値は採用しない。")
     add_code_block(doc, "H_gps = [1, 0, 0, 0, 0]\nsigma_direct = clamp(accuracy * 0.06, 0.4, 3.0)\nsigma_position = clamp(accuracy * 0.25, 1.2, 5.0)")
     add_heading(doc, "ゼロ速度更新", 2)
-    add_para(doc, "前後Gが0.035 G未満、左右Gが0.040 G未満、ヨーレートが3.5 deg/s未満の状態が450 ms続くと速度を0へ拘束する。")
+    add_para(doc, "低運動状態だけでは等速走行と停止を区別できない。450 msの低運動に加え、2.5秒以内のGPSが0.8 m/s未満、またはGPSなしで速度0.35 m/s未満かつ3.5秒以内に減速を検出した場合だけ速度を0へ拘束する。")
 
     add_heading(doc, "イベント判定", 1)
     add_table(doc, ["感度", "START G", "加速 G", "減速 G", "旋回 deg/s", "バンク deg", "deadband G"], [
@@ -726,7 +735,7 @@ def build_design_doc():
         ["標準", "0.20", "0.26", "-0.30", "40", "20", "0.025"],
         ["高", "0.14", "0.19", "-0.22", "30", "15", "0.014"],
     ], widths=[0.75, 0.85, 0.85, 0.85, 1.15, 1.0, 1.05], font_size=8)
-    add_para(doc, "自動停止は速度0.65 m/s未満、前後G絶対値0.05 G未満、左右G絶対値0.06 G未満が950 ms続き、START後1.5秒以上経過した場合に成立する。")
+    add_para(doc, "自動停止は低運動状態に加え、GPS停止または低速かつ直前の減速という停止根拠が950 ms続き、START後1.5秒以上経過した場合に成立する。")
 
     add_heading(doc, "データ設計", 1)
     add_code_block(doc, "Run\n  id\n  startedAtIso  endedAtIso  durationMs\n  calibration\n  summary\n  events[]\n  samples[]")
@@ -747,7 +756,7 @@ def build_design_doc():
         "IndexedDBのDB名はmoto-gym-ana、ストア名はrunsとする。",
         "STOP時に走行データを自動保存する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v11としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v12としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 
@@ -763,16 +772,16 @@ def build_design_doc():
     add_heading(doc, "試験方針", 1)
     add_heading(doc, "自動試験", 2)
     add_bullets(doc, [
-        "4秒静止後にキャリブレーションが完了する。",
-        "START時の速度が0 km/hである。",
+        "静止した4秒補正はcomplete、補正中に動かすとfailedになる。",
+        "STARTイベントは時刻0、速度0 km/hで、確認区間の速度が現在値へ引き継がれる。",
         "0.3 Gを2秒与えた速度が物理的範囲に収まる。",
-        "静止継続で速度が0へ戻る。",
+        "等速相当の低運動だけでは停止せず、GPS停止で速度が0へ戻る。",
         "GPS観測が速度状態を補正する。",
         "CSVの全行が同じ列数になる。",
     ])
     add_heading(doc, "実機試験", 2)
     add_numbered(doc, [
-        "端末を固定してSensor ONを押し、4秒静止する。",
+        "端末を固定してSensor ON後にCalibrationを押し、4秒静止する。",
         "GPS精度20 m以下を目安に待つ。",
         "静止、直線発進、一定速、制動、完全停止を記録する。",
         "左右旋回を記録し、ヨーとバンクの符号を確認する。",

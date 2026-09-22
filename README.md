@@ -91,9 +91,9 @@ minutes, which is much longer than a normal moto gymkhana run.
 Use:
 
 1. Tap `Sensor ON`.
-2. Tap `Auto ON` for automatic start / stop detection, or `Manual ON` for manual timing.
-3. Ride or move the mounted iPhone.
-4. `STOP` saves the run automatically.
+2. Start the engine, tap `Calibration`, and keep the motorcycle still for four seconds.
+3. Tap `Auto待機` for automatic timing or `手動開始` for manual timing.
+4. Use `計測停止` when an automatic stop is not appropriate.
 5. Use the saved run cards to export CSV or JSON.
 6. Use `All JSON` to back up every saved run.
 
@@ -104,17 +104,22 @@ when storage pressure is high. Export important data after practice.
 
 - `Sensor ON` requests permission and starts reading iPhone motion sensors.
 - `Sensor OFF` removes sensor listeners and resets live G / speed / variance values to zero.
-- After `Sensor ON`, keep the mounted phone and motorcycle still for about 4 seconds.
-  The app measures sensor offsets and the gravity direction during this period.
+- `Calibration` explicitly starts a four-second stationary calibration. Automatic
+  and manual timing remain disabled until calibration completes successfully.
+- Completion requires at least 15 Hz input, a valid gravity magnitude, less than
+  7 degrees of gravity-direction drift, low mean acceleration, and vibration below
+  the abnormal-mount threshold. Failure remains visible with its reason.
 - The three-axis acceleration passes through a low-pass filter before axis detection,
   event detection, and speed integration. Fast engine vibration is rejected, while
   automatic START requires sustained forward acceleration for about 0.14 seconds.
+  Acceleration accumulated during that confirmation window is carried into the
+  current speed, while the START event itself remains zero speed at time zero.
 - For the best vibration baseline, perform the four-second calibration with the
   engine idling in the same state used while waiting for START.
-- `Auto ON` arms automatic start / stop detection from sensor movement.
-- `Auto OFF` stops automatic detection without stopping an already running manual timer.
-- `Manual ON` starts timing immediately.
-- `Manual OFF` stops timing and saves the run.
+- `Auto待機` waits for sustained forward acceleration and then starts timing.
+- `Auto解除` cancels only the automatic launch wait.
+- `手動開始` starts timing immediately.
+- `計測停止` stops and saves either an automatic or manual run.
 - Sensitivity changes detection thresholds and a small G deadband.
   - Low: fewer false detections, better for vibration tests.
   - Normal: default.
@@ -134,7 +139,7 @@ while the bike is stopped, the mount or sensor noise is influencing the reading.
 `Kalman P` is the current internal covariance estimate of the G filters.
 
 The app also auto-detects the three-dimensional forward axis. The first clear
-acceleration after `Auto ON` or `Manual ON` is projected onto the horizontal
+acceleration after `Auto待機` or `手動開始` is projected onto the horizontal
 plane measured during calibration. This supports portrait, landscape, reversed,
 and tilted mounts. Keep the mount rigid after calibration.
 
@@ -142,7 +147,9 @@ Speed is estimated from acceleration and corrected with iPhone GPS when a
 usable high-accuracy position is available. GPS continues to work outdoors
 without Wi-Fi, although the first fix may take longer. The GPS card shows the
 reported speed and horizontal accuracy. The app rejects fixes worse than 50 m
-and clamps speed back to zero when it detects a stationary window.
+and clamps speed back to zero only when fresh GPS reports a stop, or when an
+IMU-only run is already very slow immediately after braking. Low acceleration
+alone is not treated as stationary because it can also mean constant-speed travel.
 
 ## Motion model
 
@@ -156,11 +163,12 @@ one-dimensional filters. The state vector is:
 Prediction model:
 
 ```text
-speed_k = speed_{k-1} + (longitudinal_g * g - drag * speed) * dt
+drive_g = 0.75 * measured_longitudinal_g + 0.25 * filtered_longitudinal_g
+speed_k = speed_{k-1} + (drive_g * g - drag * speed) * dt
 longitudinal_g, lateral_g, yaw_rate = decayed random walk
 bank_deg = blended toward atan(lateral_g)
 GPS speed = periodic scalar observation when accuracy is usable
-stationary samples clamp speed back to zero
+fresh zero-speed GPS, or very-low-speed post-braking IMU evidence, clamps speed to zero
 ```
 
 Observation model:
@@ -194,10 +202,11 @@ ngrok http 4173
 Open the generated `https://...ngrok-free.app` URL on iPhone Safari, then tap:
 
 1. `Sensor ON`
-2. `Auto ON`
-3. Move the iPhone forward to trigger START
-4. Keep it still to trigger STOP
-5. Export CSV after the run
+2. Start the engine, tap `Calibration`, and keep the motorcycle still for four seconds
+3. Tap `Auto待機`
+4. Move the iPhone forward to trigger START
+5. Provide a fresh zero-speed GPS observation, or tap `計測停止`
+6. Export CSV or JSON after the run
 
 ## Safety
 

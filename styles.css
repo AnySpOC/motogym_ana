@@ -178,6 +178,10 @@ h1 {
   gap: 5px;
 }
 
+.calibration-control {
+  grid-column: span 2;
+}
+
 .select-control span {
   color: var(--muted);
   font-size: 0.78rem;

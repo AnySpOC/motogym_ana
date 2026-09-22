@@ -36,10 +36,11 @@
         <div class="controls">
           <button id="permissionButton" class="primary" type="button">Sensor ON</button>
           <button id="sensorOffButton" type="button">Sensor OFF</button>
-          <button id="autoOnButton" type="button">Auto ON</button>
-          <button id="autoOffButton" type="button">Auto OFF</button>
-          <button id="manualOnButton" type="button">Manual ON</button>
-          <button id="manualOffButton" type="button">Manual OFF</button>
+          <button id="calibrationButton" class="calibration-control" type="button">Calibration</button>
+          <button id="autoOnButton" type="button">Auto待機</button>
+          <button id="autoOffButton" type="button">Auto解除</button>
+          <button id="manualOnButton" type="button">手動開始</button>
+          <button id="manualOffButton" type="button">計測停止</button>
           <label class="select-control">
             <span>&#24863;&#24230;</span>
             <select id="sensitivitySelect">
@@ -96,7 +97,7 @@
         <article>
           <span>補正</span>
           <strong id="calibrationStatus">未実行</strong>
-          <small>車体を静止</small>
+          <small id="calibrationDetail">Calibrationを押す</small>
         </article>
       </section>
 

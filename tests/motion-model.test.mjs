@@ -59,6 +59,27 @@ api.startCalibration();
 
 for (let i = 0; i < 250; i += 1) {
   clock = i * (1000 / 60);
+  const moved = i >= 125;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0,
+    rawZ: 0,
+    gravityX: moved ? 0.3 : 0,
+    gravityY: 0,
+    gravityZ: moved ? Math.sqrt(1 - 0.3 ** 2) : 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+
+assert.equal(api.state.calibrationState, "failed", "moving the bike during calibration must fail");
+assert.equal(api.state.calibrationCompleted, false);
+
+api.startCalibration();
+
+for (let i = 0; i < 250; i += 1) {
+  clock += 1000 / 60;
   api.handleMotionSample({
     time: clock,
     rawX: 0,
@@ -73,6 +94,7 @@ for (let i = 0; i < 250; i += 1) {
 }
 
 assert.equal(api.state.calibrationCompleted, true, "static calibration should complete");
+assert.equal(api.state.calibrationState, "complete");
 assert.deepEqual(Array.from(api.state.gravityVector), [0, 0, 1]);
 
 api.enableAutoMeasurement();
@@ -119,10 +141,40 @@ for (let i = 0; i < 120; i += 1) {
 assert.equal(api.state.forwardAxis, "vector", "launch should lock the 3D forward axis");
 assert.ok(firstRunSpeed !== null, "automatic start should trigger");
 assert.equal(api.state.events.find((event) => event.type === "START")?.timeMs, 0, "confirmed START should be backdated to its onset");
-assert.ok(firstRunSpeed * 3.6 < 0.5, "START must reset pre-start velocity");
+assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh, 0, "START event must represent zero speed at onset");
+assert.ok(firstRunSpeed * 3.6 > 0.5, "confirmed launch should include velocity accumulated during START confirmation");
+assert.ok(firstRunSpeed * 3.6 < 3, "START confirmation velocity must remain physically plausible");
 assert.ok(api.state.speedMs * 3.6 > 5, "sustained acceleration should increase speed");
 assert.ok(api.state.speedMs * 3.6 < 30, "speed should remain physically plausible");
 const acceleratedSpeedKmh = api.state.speedMs * 3.6;
+
+for (let i = 0; i < 90; i += 1) {
+  clock += 1000 / 60;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0,
+    rawZ: 0,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+assert.equal(api.state.mode, "running", "low dynamics alone must not stop a moving run");
+assert.ok(api.state.speedMs > 0, "constant-speed motion must not be mistaken for zero speed");
+
+api.onGpsPosition({
+  timestamp: 10000,
+  coords: {
+    latitude: 35,
+    longitude: 139,
+    accuracy: 5,
+    speed: 0,
+    heading: 90,
+  },
+});
 
 for (let i = 0; i < 60; i += 1) {
   clock += 1000 / 60;
@@ -138,10 +190,11 @@ for (let i = 0; i < 60; i += 1) {
     bankDeg: 0,
   });
 }
-assert.equal(api.state.speedMs, 0, "stationary update should clamp speed to zero");
+assert.equal(api.state.speedMs, 0, "fresh zero GPS speed should clamp speed to zero");
+assert.equal(api.state.mode, "stopped", "fresh zero GPS speed should complete automatic timing");
 
 api.onGpsPosition({
-  timestamp: 10000,
+  timestamp: 11000,
   coords: {
     latitude: 35,
     longitude: 139,

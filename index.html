@@ -124,7 +124,19 @@
             <h2>&#20445;&#23384;&#28168;&#12415;&#36208;&#34892;</h2>
             <p id="storageStatus" class="storage-status">&#35501;&#12415;&#36796;&#12415;&#20013;</p>
           </div>
-          <button id="exportAllButton" type="button">&#20840;JSON</button>
+        </div>
+        <div class="history-toolbar">
+          <label class="history-select-all">
+            <input id="selectAllRuns" type="checkbox">
+            <span>すべて選択</span>
+          </label>
+          <span id="selectedRunCount" class="selected-run-count">0件選択</span>
+          <div class="history-bulk-actions">
+            <button id="exportSelectedJsonButton" type="button">選択JSON</button>
+            <button id="exportSelectedCsvButton" type="button">選択CSV</button>
+            <button id="deleteSelectedButton" class="danger" type="button">選択削除</button>
+            <button id="exportAllButton" type="button">全JSON</button>
+          </div>
         </div>
         <div id="historyList" class="history-list"></div>
       </section>

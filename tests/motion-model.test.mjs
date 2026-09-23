@@ -49,7 +49,7 @@ let source = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
 source = source.replace(/\nrender\(\);\s*\nloadRuns\(\);\s*$/, "\n");
 source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
-  enableAutoMeasurement, onGpsPosition, motionModel, runToCsv
+  enableAutoMeasurement, onGpsPosition, motionModel, runToCsv, runsToCsv
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -245,6 +245,27 @@ const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
+}
+
+const currentRun = {
+  id: "run-current",
+  startedAtIso: "2026-09-23T01:00:00.000Z",
+  events: api.state.events.slice(0, 1),
+  samples: api.state.rawSamples.slice(0, 1),
+};
+const previousRun = {
+  id: "run-previous",
+  startedAtIso: "2026-09-22T01:00:00.000Z",
+  events: api.state.events.slice(0, 1),
+  samples: api.state.rawSamples.slice(0, 1),
+};
+const selectedCsvLines = api.runsToCsv([currentRun, previousRun]).trim().split("\n");
+const selectedHeaderColumns = selectedCsvLines[0].split(",").length;
+assert.match(selectedCsvLines[0], /^run_id,started_at_iso,section,/);
+assert.ok(selectedCsvLines.some((line) => line.startsWith("run-current,")));
+assert.ok(selectedCsvLines.some((line) => line.startsWith("run-previous,")));
+for (const line of selectedCsvLines.slice(1)) {
+  assert.equal(line.split(",").length, selectedHeaderColumns, "selected CSV rows must match the header width");
 }
 
 console.log(JSON.stringify({

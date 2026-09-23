@@ -314,8 +314,11 @@ run
 - IndexedDBのDB名は`moto-gym-ana`、ストア名は`runs`とする。
 - STOP時に走行データを自動保存する。
 - CSVはイベント行とサンプル行を同じ列定義で出力する。
+- 履歴のチェックボックスで任意の走行を複数選択し、選択JSONまたは選択CSVを1ファイルで出力できる。
+- 複数走行CSVは`run_id`と`started_at_iso`で走行を識別する。
+- 選択削除は確認後にIndexedDBから対象だけを削除する。
 - JSONはキャリブレーションベクトルを含むため、詳細解析ではJSONを優先する。
-- Service Workerは`moto-gym-ana-v13`としてアプリシェルをキャッシュする。
+- Service Workerは`moto-gym-ana-v14`としてアプリシェルをキャッシュする。
 - iOSは容量圧迫時にWebデータを削除する可能性があるため、重要データは走行後に出力する。
 
 ## 11. 試験設計

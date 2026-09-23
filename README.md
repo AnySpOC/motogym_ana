@@ -94,8 +94,11 @@ Use:
 2. Start the engine, tap `Calibration`, and keep the motorcycle still for four seconds.
 3. Tap `Auto待機` for automatic timing or `手動開始` for manual timing.
 4. Use `計測停止` when an automatic stop is not appropriate.
-5. Use the saved run cards to export CSV or JSON.
-6. Use `All JSON` to back up every saved run.
+5. Select one or more saved runs with the checkboxes.
+6. Use `選択JSON` or `選択CSV` to export only those runs. Multi-run CSV
+   includes `run_id` and `started_at_iso` columns.
+7. Use `選択削除` to remove selected runs from the device after confirmation, or
+   use `全JSON` to back up every saved run.
 
 IndexedDB is practical for field testing, but iOS can remove browser storage
 when storage pressure is high. Export important data after practice.

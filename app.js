@@ -82,6 +82,11 @@ const elements = {
   clearButton: document.querySelector("#clearButton"),
   exportButton: document.querySelector("#exportButton"),
   exportAllButton: document.querySelector("#exportAllButton"),
+  selectAllRuns: document.querySelector("#selectAllRuns"),
+  selectedRunCount: document.querySelector("#selectedRunCount"),
+  exportSelectedJsonButton: document.querySelector("#exportSelectedJsonButton"),
+  exportSelectedCsvButton: document.querySelector("#exportSelectedCsvButton"),
+  deleteSelectedButton: document.querySelector("#deleteSelectedButton"),
   longG: document.querySelector("#longG"),
   latG: document.querySelector("#latG"),
   speed: document.querySelector("#speed"),
@@ -165,6 +170,7 @@ const state = {
   rawSamples: [],
   events: [],
   savedRuns: [],
+  selectedRunIds: new Set(),
   currentRunId: "",
   lastBrakeAt: 0,
 };
@@ -1290,6 +1296,16 @@ function dbGetAll(storeName) {
   }));
 }
 
+function dbDeleteMany(storeName, ids) {
+  return openDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    ids.forEach((id) => store.delete(id));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  }));
+}
+
 function buildCurrentRun() {
   return buildRun({
     id: state.currentRunId || makeRunId(),
@@ -1359,6 +1375,8 @@ function loadRuns() {
   return dbGetAll(RUN_STORE)
     .then((runs) => {
       state.savedRuns = runs.sort((a, b) => b.startedAtIso.localeCompare(a.startedAtIso));
+      const existingIds = new Set(state.savedRuns.map((run) => run.id));
+      state.selectedRunIds = new Set([...state.selectedRunIds].filter((id) => existingIds.has(id)));
       setStorageStatus(`${text.storageReady} / ${state.savedRuns.length} runs`);
       renderHistory();
     })
@@ -1375,12 +1393,16 @@ function setStorageStatus(message) {
 function renderHistory() {
   if (!state.savedRuns.length) {
     elements.historyList.innerHTML = `<div class="history-card"><small>No saved runs yet</small></div>`;
+    syncHistorySelectionControls();
     return;
   }
   elements.historyList.innerHTML = state.savedRuns
     .map((run) => {
       const date = new Date(run.startedAtIso).toLocaleString();
       return `<article class="history-card">
+        <label class="run-selector" aria-label="${escapeHtml(date)} を選択">
+          <input type="checkbox" data-select-run="${escapeHtml(run.id)}"${state.selectedRunIds.has(run.id) ? " checked" : ""}>
+        </label>
         <div>
           <strong>${formatTime(run.durationMs)}</strong>
           <small>${escapeHtml(date)} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
@@ -1392,11 +1414,32 @@ function renderHistory() {
       </article>`;
     })
     .join("");
+  syncHistorySelectionControls();
 }
 
-function runToCsv(run) {
-  const eventHeader = "section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,bank_deg,yaw_rate,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n";
+function selectedRuns() {
+  return state.savedRuns.filter((run) => state.selectedRunIds.has(run.id));
+}
+
+function syncHistorySelectionControls() {
+  const selectedCount = state.selectedRunIds.size;
+  const totalCount = state.savedRuns.length;
+  elements.selectedRunCount.textContent = `${selectedCount}件選択`;
+  elements.selectAllRuns.checked = totalCount > 0 && selectedCount === totalCount;
+  elements.selectAllRuns.indeterminate = selectedCount > 0 && selectedCount < totalCount;
+  elements.selectAllRuns.disabled = totalCount === 0;
+  elements.exportSelectedJsonButton.disabled = selectedCount === 0;
+  elements.exportSelectedCsvButton.disabled = selectedCount === 0;
+  elements.deleteSelectedButton.disabled = selectedCount === 0;
+  elements.exportAllButton.disabled = totalCount === 0;
+}
+
+function runToCsv(run, includeRunMetadata = false) {
+  const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
+  const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,bank_deg,yaw_rate,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n`;
   const eventRows = run.events.map((event) => [
+    ...metadata,
     "event",
     event.timeMs,
     event.type,
@@ -1422,6 +1465,7 @@ function runToCsv(run) {
     "",
   ].map(csvCell).join(","));
   const sampleRows = run.samples.map((sample) => [
+    ...metadata,
     "sample",
     sample.timeMs,
     "",
@@ -1447,6 +1491,12 @@ function runToCsv(run) {
     sample.confidence,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
+}
+
+function runsToCsv(runs) {
+  const documents = runs.map((run) => runToCsv(run, true).trimEnd().split("\n"));
+  if (!documents.length) return "";
+  return `${documents[0][0]}\n${documents.flatMap((lines) => lines.slice(1)).join("\n")}`;
 }
 
 function fixed(value, digits) {
@@ -1477,6 +1527,31 @@ function downloadText(content, filename, type) {
 
 function exportAllJson() {
   downloadText(JSON.stringify({ exportedAt: new Date().toISOString(), runs: state.savedRuns }, null, 2), `gym-ana-all-${makeRunId()}.json`, "application/json;charset=utf-8");
+}
+
+function exportSelectedJson() {
+  const runs = selectedRuns();
+  if (!runs.length) return;
+  downloadText(JSON.stringify({ exportedAt: new Date().toISOString(), runs }, null, 2), `gym-ana-selected-${makeRunId()}.json`, "application/json;charset=utf-8");
+}
+
+function exportSelectedCsv() {
+  const runs = selectedRuns();
+  if (!runs.length) return;
+  downloadText(runsToCsv(runs), `gym-ana-selected-${makeRunId()}.csv`, "text/csv;charset=utf-8");
+}
+
+function deleteSelectedRuns() {
+  const ids = [...state.selectedRunIds];
+  if (!ids.length) return;
+  if (!window.confirm(`選択した${ids.length}件の走行データを端末から削除します。元には戻せません。`)) return;
+  setStorageStatus("削除中");
+  dbDeleteMany(RUN_STORE, ids)
+    .then(() => {
+      state.selectedRunIds.clear();
+      return loadRuns();
+    })
+    .catch(() => setStorageStatus("削除できませんでした"));
 }
 
 function exportStoredRun(runId, format) {
@@ -1520,6 +1595,22 @@ elements.clearButton.addEventListener("click", () => {
 });
 elements.exportButton.addEventListener("click", exportCsv);
 elements.exportAllButton.addEventListener("click", exportAllJson);
+elements.exportSelectedJsonButton.addEventListener("click", exportSelectedJson);
+elements.exportSelectedCsvButton.addEventListener("click", exportSelectedCsv);
+elements.deleteSelectedButton.addEventListener("click", deleteSelectedRuns);
+elements.selectAllRuns.addEventListener("change", () => {
+  state.selectedRunIds = elements.selectAllRuns.checked
+    ? new Set(state.savedRuns.map((run) => run.id))
+    : new Set();
+  renderHistory();
+});
+elements.historyList.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("input[data-select-run]");
+  if (!checkbox) return;
+  if (checkbox.checked) state.selectedRunIds.add(checkbox.dataset.selectRun);
+  else state.selectedRunIds.delete(checkbox.dataset.selectRun);
+  syncHistorySelectionControls();
+});
 elements.historyList.addEventListener("click", (event) => {
   const button = event.target.closest("button[data-action][data-run]");
   if (!button) return;

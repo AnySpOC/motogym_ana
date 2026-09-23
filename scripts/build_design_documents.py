@@ -148,7 +148,7 @@ def create_architecture_diagram():
         ((970, 590, 1380, 810), "走行データ\nRun  Event  Sample", PALE_BLUE),
         ((1450, 590, 1760, 810), "表示\nタイマー  指標\nグラフ  履歴", PALE_GRAY),
         ((500, 590, 850, 810), "端末内保存\nIndexedDB\nCSV  JSON", PALE_GRAY),
-        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v13", PALE_BLUE),
+        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v14", PALE_BLUE),
     ]
     for box, label, fill in boxes:
         rounded_box(draw, box, label, fill=fill, outline=BLUE, title=False)
@@ -756,8 +756,10 @@ def build_design_doc():
     add_bullets(doc, [
         "IndexedDBのDB名はmoto-gym-ana、ストア名はrunsとする。",
         "STOP時に走行データを自動保存する。",
+        "履歴で任意の走行を複数選択し、選択JSONまたは選択CSVを1ファイルで出力する。",
+        "選択削除は確認後にIndexedDBから対象だけを削除する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v13としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v14としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 
@@ -778,6 +780,7 @@ def build_design_doc():
         "0.3 Gを2秒与えた速度が物理的範囲に収まる。",
         "等速相当の低運動だけでは停止せず、GPS停止で速度が0へ戻る。",
         "GPS観測が速度状態を補正する。",
+        "複数走行CSVはrun_idとstarted_at_isoを含み、全行の列数が一致する。",
         "CSVの全行が同じ列数になる。",
     ])
     add_heading(doc, "実機試験", 2)

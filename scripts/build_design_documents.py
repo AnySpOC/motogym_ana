@@ -218,7 +218,9 @@ def create_class_diagram():
         header_h = 64
         draw.rectangle((x1, y1, x2, y1 + header_h), fill=hex_rgb(NAVY))
         draw_centered(draw, (x1, y1, x2, y1 + header_h), name, font(27, True), fill="FFFFFF")
-        split = y1 + header_h + (y2 - y1 - header_h) * 0.48
+        proportional_split = y1 + header_h + (y2 - y1 - header_h) * 0.48
+        content_split = y1 + header_h + 16 + len(attrs) * 31 + 4
+        split = max(proportional_split, content_split)
         draw.line((x1, split, x2, split), fill=hex_rgb(GRID), width=2)
         y = y1 + header_h + 16
         for attr in attrs:
@@ -513,7 +515,7 @@ def add_cover(doc, title, subtitle, version, source=None):
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
     meta.paragraph_format.space_before = Pt(55)
-    meta.add_run(f"対象版  {version}\n作成日  2026年9月20日")
+    meta.add_run(f"対象版  {version}\n作成日  2026年10月3日")
     if source:
         meta.add_run(f"\n解析対象  {source}")
     doc.add_paragraph().paragraph_format.space_before = Pt(130)
@@ -625,7 +627,7 @@ def add_code_block(doc, text):
 def build_design_doc():
     doc = Document()
     configure_document(doc, "Gym Ana システム設計書")
-    add_cover(doc, "Gym Ana システム設計書", "iPhoneセンサーとGPSによる走行計測", "f59a182")
+    add_cover(doc, "Gym Ana システム設計書", "iPhoneセンサーとGPSによる走行計測", "f1079de")
 
     add_heading(doc, "文書の目的", 1)
     add_para(doc, "本書は、Gym Anaの要求、利用手順、構成、状態推定、データ保存、試験方法を実装と対応づけて説明する。開発者は変更時の影響範囲を確認でき、試験者はキャリブレーションと実走評価の条件を確認できる。")

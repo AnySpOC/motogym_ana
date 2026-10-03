@@ -17,6 +17,7 @@ const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
 const IMU_STOP_SPEED_MS = 0.35;
 const RECENT_BRAKE_MS = 3500;
+const SENSOR_GAP_SEC = 0.5;
 const GPS_MAX_ACCURACY_M = 50;
 const GPS_MAX_SPEED_MS = 90;
 const CALIBRATION_MIN_HZ = 15;
@@ -173,6 +174,8 @@ const state = {
   selectedRunIds: new Set(),
   currentRunId: "",
   lastBrakeAt: 0,
+  gpsResyncPending: false,
+  lastSensorGapSec: 0,
 };
 
 let dbPromise = null;
@@ -363,7 +366,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   setMode("running", text.running);
   addEvent("START", detail);
   state.events[0].timeMs = 0;
-  state.events[0].speedKmh = 0;
+  if (mode === "auto") state.events[0].speedKmh = 0;
   render();
   startTimerRenderLoop();
 }
@@ -393,7 +396,8 @@ function startTimerRenderLoop() {
 function handleMotionSample(sample) {
   if (!state.sensorEnabled) return;
   const t = sample.time ?? nowMs();
-  const dt = state.lastSampleAt ? Math.min(0.12, Math.max(0.005, (t - state.lastSampleAt) / 1000)) : 0.016;
+  const sampleIntervalSec = state.lastSampleAt ? Math.max(0, (t - state.lastSampleAt) / 1000) : 0.016;
+  const dt = Math.min(0.12, Math.max(0.005, sampleIntervalSec));
   state.lastSampleAt = t;
 
   if (collectCalibrationSample(sample, t)) {
@@ -403,6 +407,10 @@ function handleMotionSample(sample) {
 
   if (!state.calibrationCompleted || (state.mode !== "armed" && state.mode !== "running")) {
     return;
+  }
+
+  if (state.mode === "running" && sampleIntervalSec > SENSOR_GAP_SEC) {
+    handleSensorGap(sampleIntervalSec);
   }
 
   const profile = currentProfile();
@@ -440,6 +448,23 @@ function handleMotionSample(sample) {
     storeRawSample(t);
   }
   render();
+}
+
+function handleSensorGap(gapSec) {
+  state.lastSensorGapSec = gapSec;
+  state.gpsResyncPending = true;
+  addEvent("GAP", `IMU欠測 ${gapSec.toFixed(1)}秒`);
+  if (hasFreshGps()) resyncSpeedFromGps("欠測復帰時GPS");
+}
+
+function resyncSpeedFromGps(reason) {
+  if (!Number.isFinite(state.gpsSpeedMs)) return false;
+  motionModel.reset();
+  motionModel.setSpeed(state.gpsSpeedMs);
+  state.speedMs = state.gpsSpeedMs;
+  state.gpsResyncPending = false;
+  addEvent("SYNC", `${reason} ${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`);
+  return true;
 }
 
 function calibrateAndProjectSample(sample, t, dt) {
@@ -903,7 +928,11 @@ function startManualMeasurement() {
     return;
   }
   state.autoMeasurementEnabled = false;
-  startRun("manual", text.manualStart);
+  const initialSpeedMs = hasFreshGps() ? state.gpsSpeedMs : 0;
+  const detail = initialSpeedMs > 0.5
+    ? `${text.manualStart} / GPS ${(initialSpeedMs * 3.6).toFixed(1)} km/h`
+    : text.manualStart;
+  startRun("manual", detail, nowMs(), initialSpeedMs);
 }
 
 function stopManualMeasurement() {
@@ -917,6 +946,8 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.startCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
+  state.gpsResyncPending = false;
+  state.lastSensorGapSec = 0;
   state.zeroSpeedCandidateAt = 0;
   state.speedMs = 0;
   state.longG = 0;
@@ -1015,6 +1046,10 @@ function onGpsPosition(position) {
   state.gpsSpeedMs = speedMs;
   state.gpsSource = derived ? "position" : "sensor";
   if (state.mode !== "running") {
+    render();
+    return;
+  }
+  if (state.gpsResyncPending && resyncSpeedFromGps("欠測後GPS再同期")) {
     render();
     return;
   }
@@ -1349,6 +1384,7 @@ function buildRun(run) {
       maxBankDegAbs: round(maxByAbs("bankDeg"), 1),
       maxYawRateAbs: round(maxByAbs("yawRate"), 1),
       maxVibrationG: round(samples.reduce((max, sample) => Math.max(max, sample.vibrationG || 0), 0), 4),
+      sensorGapCount: events.filter((event) => event.type === "GAP").length,
       sampleCount: samples.length,
       eventCount: events.length,
     },

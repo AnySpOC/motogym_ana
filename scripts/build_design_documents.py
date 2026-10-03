@@ -148,7 +148,7 @@ def create_architecture_diagram():
         ((970, 590, 1380, 810), "走行データ\nRun  Event  Sample", PALE_BLUE),
         ((1450, 590, 1760, 810), "表示\nタイマー  指標\nグラフ  履歴", PALE_GRAY),
         ((500, 590, 850, 810), "端末内保存\nIndexedDB\nCSV  JSON", PALE_GRAY),
-        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v14", PALE_BLUE),
+        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v15", PALE_BLUE),
     ]
     for box, label, fill in boxes:
         rounded_box(draw, box, label, fill=fill, outline=BLUE, title=False)
@@ -726,6 +726,7 @@ def build_design_doc():
     add_code_block(doc, "z_imu = [measured_long_g, measured_lat_g, measured_yaw_rate, measured_bank]^T\ny = z - Hx\nS = HPH^T + R\nK = PH^T S^-1\nx = x + Ky\nP = (I - KH)P")
     add_heading(doc, "GPS速度観測", 2)
     add_para(doc, "GPSの直接速度があればスカラー観測として速度状態を更新する。直接速度がない場合は連続する位置のHaversine距離から速度を算出する。水平精度が50 mを超える測位と90 m/sを超える値は採用しない。")
+    add_para(doc, "手動開始で2.5秒以内の有効GPSがある場合はその速度を初期値に使う。0.5秒超のIMU欠測はGAPとして記録し、次の有効GPSで速度状態と共分散を再初期化しSYNCを記録する。")
     add_code_block(doc, "H_gps = [1, 0, 0, 0, 0]\nsigma_direct = clamp(accuracy * 0.06, 0.4, 3.0)\nsigma_position = clamp(accuracy * 0.25, 1.2, 5.0)")
     add_heading(doc, "ゼロ速度更新", 2)
     add_para(doc, "低運動状態だけでは等速走行と停止を区別できない。450 msの低運動に加え、2.5秒以内のGPSが0.8 m/s未満、またはGPSなしで速度0.35 m/s未満かつ3.5秒以内に減速を検出した場合だけ速度を0へ拘束する。")
@@ -759,7 +760,7 @@ def build_design_doc():
         "履歴で任意の走行を複数選択し、選択JSONまたは選択CSVを1ファイルで出力する。",
         "選択削除は確認後にIndexedDBから対象だけを削除する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v14としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v15としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 
@@ -780,6 +781,8 @@ def build_design_doc():
         "0.3 Gを2秒与えた速度が物理的範囲に収まる。",
         "等速相当の低運動だけでは停止せず、GPS停止で速度が0へ戻る。",
         "GPS観測が速度状態を補正する。",
+        "走行中の手動開始は新鮮なGPS速度から開始する。",
+        "0.5秒超のIMU欠測はGAPと次回GPSのSYNCを記録する。",
         "複数走行CSVはrun_idとstarted_at_isoを含み、全行の列数が一致する。",
         "CSVの全行が同じ列数になる。",
     ])

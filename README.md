@@ -124,7 +124,8 @@ when storage pressure is high. Export important data after practice.
   While armed, acceleration is used only for START detection; speed and run samples
   begin at the confirmed START.
 - `Auto解除` cancels only the automatic launch wait.
-- `手動開始` starts timing immediately.
+- `手動開始` starts timing immediately. If a usable GPS fix was received
+  within 2.5 seconds, its speed initializes the run instead of forcing 0 km/h.
 - `計測停止` stops and saves either an automatic or manual run.
 - Sensitivity changes detection thresholds and a small G deadband.
   - Low: fewer false detections, better for vibration tests.
@@ -175,6 +176,7 @@ longitudinal_g, lateral_g, yaw_rate = decayed random walk
 bank_deg = blended toward atan(lateral_g)
 GPS speed = periodic scalar observation when accuracy is usable
 fresh zero-speed GPS, or very-low-speed post-braking IMU evidence, clamps speed to zero
+IMU gap > 0.5 s = log GAP and hard-sync speed on the next usable GPS fix
 ```
 
 Observation model:
@@ -186,10 +188,24 @@ z = [
   measured_yaw_rate,
   measured_bank_deg
 ]
+```
 
 The GPS observation is applied separately because it arrives much more slowly
 than DeviceMotion samples.
+
+## GoPro GPX synchronization
+
+The CSV filename encodes the run start in UTC. GoPro GPX points also contain UTC
+timestamps, so video time can be calculated as `csv_time - first_gpx_time`.
+Compare a run reproducibly with:
+
+```powershell
+python scripts\analyze_synced_runs.py --csv <gym-ana.csv> --gpx <gopro.gpx> --video-duration <seconds>
 ```
+
+The report includes overlap, video offset, sampling gaps, RMSE, bias, correlation,
+and the best clock shift. Exact coordinates remain in the local source files and
+are not required in a public issue.
 
 The model is intentionally small enough to run in iPhone Safari. It is not a
 full motorcycle multibody model; it is a sensor-fusion model for stable event

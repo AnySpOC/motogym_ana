@@ -49,7 +49,8 @@ let source = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
 source = source.replace(/\nrender\(\);\s*\nloadRuns\(\);\s*$/, "\n");
 source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
-  enableAutoMeasurement, onGpsPosition, motionModel, runToCsv, runsToCsv
+  enableAutoMeasurement, startManualMeasurement, onGpsPosition,
+  motionModel, runToCsv, runsToCsv
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -199,6 +200,35 @@ api.onGpsPosition({
 assert.equal(api.state.gpsSpeedMs, 8);
 assert.ok(api.state.speedMs > 0, "GPS observation should correct estimated speed while running");
 
+clock += 3000;
+api.handleMotionSample({
+  time: clock,
+  rawX: 0,
+  rawY: 0,
+  rawZ: 0,
+  gravityX: 0,
+  gravityY: 0,
+  gravityZ: 1,
+  yawRate: 0,
+  bankDeg: 0,
+});
+assert.equal(api.state.gpsResyncPending, true, "a long IMU gap should wait for a fresh GPS speed");
+assert.ok(api.state.events.some((event) => event.type === "GAP"), "sensor gaps must be visible in the run log");
+
+api.onGpsPosition({
+  timestamp: 10500,
+  coords: {
+    latitude: 35,
+    longitude: 139,
+    accuracy: 5,
+    speed: 6,
+    heading: 90,
+  },
+});
+assert.equal(api.state.gpsResyncPending, false, "fresh GPS should complete gap recovery");
+assert.equal(api.state.speedMs, 6, "gap recovery should hard-sync speed to fresh GPS");
+assert.ok(api.state.events.some((event) => event.type === "SYNC"), "GPS resynchronization must be logged");
+
 api.onGpsPosition({
   timestamp: 11000,
   coords: {
@@ -240,6 +270,11 @@ api.onGpsPosition({
 assert.equal(api.state.gpsSpeedMs, 8);
 assert.equal(api.state.speedMs, 0, "GPS must not change the completed run after measurement stops");
 
+api.startManualMeasurement();
+assert.equal(api.state.mode, "running");
+assert.equal(api.state.speedMs, 8, "manual timing should initialize from fresh GPS when already moving");
+assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh, 28.8);
+
 const csv = api.runToCsv({ events: api.state.events.slice(0, 1), samples: api.state.rawSamples.slice(0, 1) });
 const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
@@ -271,6 +306,6 @@ for (const line of selectedCsvLines.slice(1)) {
 console.log(JSON.stringify({
   firstRunSpeedKmh: Number((firstRunSpeed * 3.6).toFixed(3)),
   acceleratedSpeedKmh: Number(acceleratedSpeedKmh.toFixed(3)),
-  gpsCorrectedSpeedKmh: Number((api.state.speedMs * 3.6).toFixed(3)),
+  manualStartSpeedKmh: Number((api.state.speedMs * 3.6).toFixed(3)),
   calibrationCompleted: api.state.calibrationCompleted,
 }));

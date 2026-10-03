@@ -123,7 +123,7 @@ Auto待機と手動開始はキャリブレーション成功後だけ有効に�
 
 - `acceleration`: 重力を除いた端末X、Y、Z加速度、単位 `m/s^2`
 - `accelerationIncludingGravity`: 重力を含む端末X、Y、Z加速度
-- `rotationRate.alpha`: ヨーレートとして使用、単位 `deg/s`
+- `rotationRate.beta/gamma/alpha`: 端末X/Y/Z軸の角速度、単位 `deg/s`
 - `DeviceOrientation.gamma`: 3軸姿勢推定が成立しない場合のバンク角補助値
 - `GeolocationCoordinates.speed`: GPS速度、単位 `m/s`
 - `accuracy`: 水平位置精度、単位 `m`
@@ -137,11 +137,11 @@ Sensor ONはセンサー取得だけを開始する。利用者がCalibrationを
 
 ```text
 b_a = mean([a_x, a_y, a_z])
-b_w = mean(yaw_rate)
+b_w = mean([gyro_x, gyro_y, gyro_z])
 g_d = normalize(mean(accelerationIncludingGravity))
 ```
 
-`b_a`は加速度オフセット、`b_w`はヨーオフセット、`g_d`は端末座標上の静止重力方向である。走行中の補正済み加速度は`a_c = a_raw - b_a`とする。
+`b_a`は加速度オフセット、`b_w`は3軸ジャイロオフセット、`g_d`は端末座標上の静止重力方向である。走行中の補正済み加速度は`a_c = a_raw - b_a`とする。
 
 完了条件は、入力15 Hz以上、60サンプル以上、平均加速度0.12 G以下、重力大きさ0.75から1.25 G、前半と後半の重力方向差7度以下、振動RMS 0.6 G以下である。条件外は`failed`として理由を表示する。
 

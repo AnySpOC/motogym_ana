@@ -18,6 +18,8 @@ stop, acceleration, braking, banking, and turning events.
 - `docs/generated/Gym_Ana_Data_Analysis_Report.docx` - illustrated Japanese ride-data analysis report
 - `docs/assets/` - use-case, architecture, activity, class, state, and analysis charts
 - `scripts/build_design_documents.py` - reproducible document and chart generator
+- `scripts/analyze_gopro_mp4.mjs` - GoPro GPMF sensor extraction and iPhone comparison
+- `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
 
 ## Local check on PC
 
@@ -216,6 +218,29 @@ The report includes overlap, video offset, sampling gaps, speed RMSE, bias,
 correlation, and the best clock shift. It also derives course yaw rate from GPX
 above 2.5 m/s and reports the best yaw sign and time alignment. Exact coordinates
 remain in the local source files and are not required in a public issue.
+
+## GoPro MP4 sensor comparison
+
+Original GoPro MP4 files contain a `gpmd` telemetry track. It provides a much
+higher-rate reference than GPX: the supplied HERO13 files contain accelerometer
+and gyroscope data at about 200 Hz, plus gravity/orientation at about 60 Hz and
+GPS at about 10 Hz. Install the analysis dependencies once:
+
+```powershell
+pnpm install
+```
+
+Then compare one recording with its iPhone CSV and GoPro GPX:
+
+```powershell
+pnpm analyze:gopro -- --mp4 <original.MP4> --csv <gym-ana.csv> --gpx <video.gpx> --out <summary.json>
+```
+
+The tool streams the MP4 in small blocks, searches axis direction, sign, and a
+clock shift of +/-5 seconds, and compares 200 ms low-pass acceleration and 100 ms
+low-pass angular rate. The summary intentionally omits coordinates and full raw
+samples. Use the original uppercase `.MP4`; the supplied transcoded `(1).MP4`
+copies no longer contain the telemetry track.
 
 The model is intentionally small enough to run in iPhone Safari. It is not a
 full motorcycle multibody model; it is a sensor-fusion model for stable event

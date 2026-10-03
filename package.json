@@ -1,0 +1,13 @@
+{
+  "name": "motogym-ana-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/motion-model.test.mjs",
+    "analyze:gopro": "node scripts/analyze_gopro_mp4.mjs"
+  },
+  "dependencies": {
+    "gpmf-extract": "0.3.3",
+    "gopro-telemetry": "1.2.11"
+  }
+}

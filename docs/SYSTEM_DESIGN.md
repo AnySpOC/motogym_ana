@@ -237,6 +237,17 @@ P = (I - KH)P
 
 観測ノイズ対角値は`R = diag([0.012, 0.012, 9, 12])`である。
 
+DeviceMotionの角速度`beta`、`gamma`、`alpha`を端末X、Y、Z軸の3次元ベクトルとして取得する。静止キャリブレーションで各軸のバイアスを除去し、キャリブレーション時の重力方向へ射影した値を車体ヨーレートとして使う。
+
+```text
+omega_device = [rotationRate.beta, rotationRate.gamma, rotationRate.alpha]
+omega_corrected = omega_device - gyro_bias_vector
+yaw_rate = dot(omega_corrected, calibrated_gravity_vector)
+roll_rate = dot(omega_corrected, calibrated_forward_vector)
+```
+
+これにより、端末Z軸と車体鉛直軸が一致するという従来の仮定を取り除く。前後軸確定後はロールレートも記録する。
+
 ### 7.4 GPS速度観測
 
 GPS速度が取得できる場合は`z_gps = speed`を使う。取得できない場合は、連続するGPS位置からHaversine距離を求めて速度を算出する。
@@ -304,8 +315,11 @@ run
 | `gpsAccuracyM` | m | GPS水平精度 |
 | `latitude`, `longitude` | deg | GPS位置 |
 | `gpsHeadingDeg` | deg | GPS方位 |
+| `gpsTimestampMs`, `gpsAgeMs` | ms | GPS測位時刻と受信時点の観測経過時間 |
 | `bankDeg` | deg | バンク角 |
 | `yawRate` | deg/s | ヨーレート |
+| `gyroX`, `gyroY`, `gyroZ` | deg/s | 端末座標系の生3軸角速度 |
+| `rollRate` | deg/s | 車体前後軸へ射影した角速度 |
 | `vibrationG` | G | 低域通過フィルタで除去した高周波振動のRMS |
 | `longGVariance`, `latGVariance` | G^2 | 移動窓分散 |
 | `kalmanVariance` | mixed | 主要状態共分散の平均指標 |
@@ -322,7 +336,7 @@ run
 - 複数走行CSVは`run_id`と`started_at_iso`で走行を識別する。
 - 選択削除は確認後にIndexedDBから対象だけを削除する。
 - JSONはキャリブレーションベクトルを含むため、詳細解析ではJSONを優先する。
-- Service Workerは`moto-gym-ana-v15`としてアプリシェルをキャッシュする。
+- Service Workerは`moto-gym-ana-v16`としてアプリシェルをキャッシュする。
 - iOSは容量圧迫時にWebデータを削除する可能性があるため、重要データは走行後に出力する。
 
 ## 11. 試験設計
@@ -333,6 +347,7 @@ run
 
 - 4秒静止後にキャリブレーションが完了すること
 - 重力方向が正規化されること
+- 3軸ジャイロが端末取付角度によらず車体鉛直軸へ射影されること
 - 3軸前方向が発進加速度で決定されること
 - STARTイベントが時刻0、速度0 km/hで、確認区間の積分速度が現在値へ引き継がれること
 - 0.3 Gを2秒与えた速度が物理的範囲に収まること
@@ -351,13 +366,14 @@ run
 4. 静止、発進、一定速、制動、完全停止を含める。
 5. CSVとJSONを出力し、GPS速度、推定速度、動画または距離時間速度を比較する。
 6. 右旋回と左旋回を行い、ヨーとバンクの符号を確認する。
+7. GoPro GPXから速度2.5 m/s以上の方位変化率を算出し、ヨーの符号、遅延、RMSE、相関を比較する。
 
 ## 12. 既知の制約と今後の設計
 
 - 最初の大きな水平加速度を前方向とするため、横揺れや衝撃で誤学習する可能性がある。
 - GPS速度の誤差分散を位置精度から近似しており、速度専用精度ではない。
 - 現在の状態はスカラー前進速度で、東西、南北速度や走行軌跡を状態に含めていない。
-- SafariのDeviceMotion値はiOS版、端末、取付振動の影響を受ける。
+- SafariのDeviceMotion値はiOS版、端末、取付振動の影響を受ける。3軸射影後も実機で符号を確認する。
 - `confidence`は統計的な推定信頼区間ではなく、入力健全性の簡易表示である。
 - バンク中の重力ベクトルには並進加速度が混入する。
 

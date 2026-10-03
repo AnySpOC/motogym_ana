@@ -83,6 +83,7 @@ Saved per run:
 - summary: duration, max speed, max / min G, max bank, max yaw, sample count
 - events: START, STOP, ACCEL, BRAKE, TURN, BANK, SENSOR, ERROR, SAVE
 - samples: time, longitudinal G, lateral G, estimated speed, bank, yaw rate, confidence
+- gyro samples: device-axis X/Y/Z angular rate and vehicle-axis roll rate
 
 The in-memory trace graph still keeps only the latest visible samples, but saved
 runs keep up to 20,000 raw samples per run. At around 30 Hz this is roughly 11
@@ -150,6 +151,14 @@ acceleration after `Auto待機` or `手動開始` is projected onto the horizont
 plane measured during calibration. This supports portrait, landscape, reversed,
 and tilted mounts. Keep the mount rigid after calibration.
 
+The three DeviceMotion angular-rate components are treated as the device X/Y/Z
+gyro vector (`beta`, `gamma`, `alpha`). Stationary calibration removes the bias
+of every axis, then the vector is projected onto the calibrated vehicle vertical
+axis for yaw rate. This avoids assuming that `alpha` is always the motorcycle yaw
+axis. The original three components and projected roll rate are saved for field
+validation. GPS fix timestamp and observation age are also saved so that browser
+delivery delay can be measured before delayed-observation correction is enabled.
+
 Speed is estimated from acceleration and corrected with iPhone GPS when a
 usable high-accuracy position is available. GPS continues to work outdoors
 without Wi-Fi, although the first fix may take longer. The GPS card shows the
@@ -203,9 +212,10 @@ Compare a run reproducibly with:
 python scripts\analyze_synced_runs.py --csv <gym-ana.csv> --gpx <gopro.gpx> --video-duration <seconds>
 ```
 
-The report includes overlap, video offset, sampling gaps, RMSE, bias, correlation,
-and the best clock shift. Exact coordinates remain in the local source files and
-are not required in a public issue.
+The report includes overlap, video offset, sampling gaps, speed RMSE, bias,
+correlation, and the best clock shift. It also derives course yaw rate from GPX
+above 2.5 m/s and reports the best yaw sign and time alignment. Exact coordinates
+remain in the local source files and are not required in a public issue.
 
 The model is intentionally small enough to run in iPhone Safari. It is not a
 full motorcycle multibody model; it is a sensor-fusion model for stable event

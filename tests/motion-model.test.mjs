@@ -50,7 +50,7 @@ source = source.replace(/\nrender\(\);\s*\nloadRuns\(\);\s*$/, "\n");
 source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
-  motionModel, runToCsv, runsToCsv
+  calibrateAndProjectSample, motionModel, runToCsv, runsToCsv
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -97,6 +97,22 @@ for (let i = 0; i < 250; i += 1) {
 assert.equal(api.state.calibrationCompleted, true, "static calibration should complete");
 assert.equal(api.state.calibrationState, "complete");
 assert.deepEqual(Array.from(api.state.gravityVector), [0, 0, 1]);
+
+api.state.gravityVector = [1, 0, 0];
+api.state.gyroOffsetVector = [1, 2, 3];
+const projectedGyro = api.calibrateAndProjectSample({
+  rawX: 0,
+  rawY: 0,
+  rawZ: 0,
+  gravityX: 1,
+  gravityY: 0,
+  gravityZ: 0,
+  gyroVector: [11, 7, 8],
+  bankDeg: 0,
+}, clock, 1 / 60);
+assert.equal(projectedGyro.yawRate, 10, "yaw rate must be projected onto the calibrated vehicle vertical axis");
+api.state.gravityVector = [0, 0, 1];
+api.state.gyroOffsetVector = [0, 0, 0];
 
 for (let i = 0; i < 30; i += 1) {
   clock += 1000 / 60;
@@ -278,6 +294,8 @@ assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh,
 const csv = api.runToCsv({ events: api.state.events.slice(0, 1), samples: api.state.rawSamples.slice(0, 1) });
 const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
+assert.match(csvLines[0], /gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps/);
+assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
 }

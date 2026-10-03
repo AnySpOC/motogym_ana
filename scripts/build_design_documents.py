@@ -148,7 +148,7 @@ def create_architecture_diagram():
         ((970, 590, 1380, 810), "走行データ\nRun  Event  Sample", PALE_BLUE),
         ((1450, 590, 1760, 810), "表示\nタイマー  指標\nグラフ  履歴", PALE_GRAY),
         ((500, 590, 850, 810), "端末内保存\nIndexedDB\nCSV  JSON", PALE_GRAY),
-        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v15", PALE_BLUE),
+        ((80, 590, 390, 810), "オフライン\nService Worker\nPWA Cache v16", PALE_BLUE),
     ]
     for box, label, fill in boxes:
         rounded_box(draw, box, label, fill=fill, outline=BLUE, title=False)
@@ -700,14 +700,14 @@ def build_design_doc():
     add_table(doc, ["入力", "単位", "用途"], [
         ["acceleration", "m/s2", "重力を除いた3軸加速度"],
         ["accelerationIncludingGravity", "m/s2", "静止重力方向とバンク推定"],
-        ["rotationRate.alpha", "deg/s", "ヨーレート"],
+        ["rotationRate beta/gamma/alpha", "deg/s", "端末X/Y/Z軸の角速度"],
         ["Geolocation speed", "m/s", "速度観測"],
         ["Geolocation accuracy", "m", "GPS観測ノイズと採否"],
     ], widths=[2.25, 1.0, 3.45])
 
     add_heading(doc, "静止キャリブレーション", 2)
-    add_para(doc, "Sensor ONは取得だけを開始する。Calibration操作後の4秒間で加速度とヨーレートの平均を計算し、重力を含む加速度の平均を正規化して端末座標上の重力方向とする。")
-    add_code_block(doc, "b_a = mean([a_x, a_y, a_z])\nb_w = mean(yaw_rate)\ng_d = normalize(mean(accelerationIncludingGravity))")
+    add_para(doc, "Sensor ONは取得だけを開始する。Calibration操作後の4秒間で加速度と3軸角速度の平均を計算し、重力を含む加速度の平均を正規化して端末座標上の重力方向とする。")
+    add_code_block(doc, "b_a = mean([a_x, a_y, a_z])\nb_w = mean([gyro_x, gyro_y, gyro_z])\ng_d = normalize(mean(accelerationIncludingGravity))\nyaw_rate = dot(gyro - b_w, g_d)")
     add_para(doc, "完了条件は15 Hz以上かつ60サンプル以上、平均加速度0.12 G以下、重力0.75から1.25 G、前半と後半の重力方向差7度以下、振動RMS 0.6 G以下とする。条件外はfailed状態とし理由を表示する。")
     add_heading(doc, "エンジン振動除去", 2)
     add_para(doc, "補正済み3軸加速度は、車体軸決定、イベント判定、速度積分の前に時定数0.08秒の一次低域通過フィルタへ通す。自動STARTは前後Gがしきい値を140 ms継続した場合に成立させ、開始時刻は継続判定の先頭へ戻す。確認区間の加速度は仮積分して現在速度へ引き継ぐ。静止補正はSTART待機時と同じエンジンアイドリング状態で行う。")
@@ -748,7 +748,9 @@ def build_design_doc():
         ["gpsSpeedKmh", "km/h", "GPS観測速度"],
         ["gpsAccuracyM", "m", "GPS水平精度"],
         ["latitude  longitude", "deg", "GPS位置"],
-        ["bankDeg  yawRate", "deg  deg/s", "姿勢と旋回"],
+        ["gpsTimestampMs  gpsAgeMs", "ms", "GPS測位時刻と受信時の観測年齢"],
+        ["bankDeg  yawRate", "deg  deg/s", "姿勢と車体鉛直軸回りの旋回"],
+        ["gyroX/Y/Z  rollRate", "deg/s", "端末3軸角速度と車体前後軸回り角速度"],
         ["vibrationG", "G", "除去した高周波振動のRMS"],
         ["variance", "各状態", "G分散とKalman P"],
     ], widths=[2.0, 1.15, 3.55], font_size=8.5)
@@ -760,7 +762,7 @@ def build_design_doc():
         "履歴で任意の走行を複数選択し、選択JSONまたは選択CSVを1ファイルで出力する。",
         "選択削除は確認後にIndexedDBから対象だけを削除する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v15としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v16としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 
@@ -777,6 +779,7 @@ def build_design_doc():
     add_heading(doc, "自動試験", 2)
     add_bullets(doc, [
         "静止した4秒補正はcomplete、補正中に動かすとfailedになる。",
+        "3軸ジャイロはキャリブレーション済み車体鉛直軸へ射影される。",
         "STARTイベントは時刻0、速度0 km/hで、確認区間の速度が現在値へ引き継がれる。",
         "0.3 Gを2秒与えた速度が物理的範囲に収まる。",
         "等速相当の低運動だけでは停止せず、GPS停止で速度が0へ戻る。",
@@ -793,6 +796,7 @@ def build_design_doc():
         "静止、直線発進、一定速、制動、完全停止を記録する。",
         "左右旋回を記録し、ヨーとバンクの符号を確認する。",
         "JSONとCSVを出力し、動画または既知距離の速度と比較する。",
+        "GoPro GPXの方位変化率とヨーの符号、遅延、RMSE、相関を比較する。",
     ])
 
     add_heading(doc, "制約と改善計画", 1)

@@ -47,6 +47,19 @@ def haversine_m(a: dict, b: dict) -> float:
     return EARTH_RADIUS_M * 2 * math.atan2(math.sqrt(h), math.sqrt(max(0, 1 - h)))
 
 
+def bearing_deg(a: dict, b: dict) -> float:
+    lat1 = math.radians(a["lat"])
+    lat2 = math.radians(b["lat"])
+    dlon = math.radians(b["lon"] - a["lon"])
+    y = math.sin(dlon) * math.cos(lat2)
+    x = math.cos(lat1) * math.sin(lat2) - math.sin(lat1) * math.cos(lat2) * math.cos(dlon)
+    return math.degrees(math.atan2(y, x))
+
+
+def angle_delta_deg(a: float, b: float) -> float:
+    return (b - a + 180) % 360 - 180
+
+
 def load_gpx(path: Path) -> list[dict]:
     root = ET.parse(path).getroot()
     ns = {"g": "http://www.topografix.com/GPX/1/1"}
@@ -71,6 +84,22 @@ def load_gpx(path: Path) -> list[dict]:
         speed = haversine_m(left, right) / dt if dt > 0 else None
         quality_ok = point["pdop"] is None or point["pdop"] <= 4.0
         point["speed_ms"] = speed if quality_ok and speed is not None and speed <= 60 else None
+
+    for index, point in enumerate(points):
+        left = points[max(0, index - radius)]
+        right = points[min(len(points) - 1, index + radius)]
+        point["course_deg"] = bearing_deg(left, right) if right["t"] > left["t"] else None
+
+    for index, point in enumerate(points):
+        left = points[max(0, index - radius)]
+        right = points[min(len(points) - 1, index + radius)]
+        dt = right["t"] - left["t"]
+        speed_ok = point["speed_ms"] is not None and point["speed_ms"] >= 2.5
+        if dt > 0 and speed_ok and left["course_deg"] is not None and right["course_deg"] is not None:
+            yaw_rate = angle_delta_deg(left["course_deg"], right["course_deg"]) / dt
+            point["yaw_rate_dps"] = yaw_rate if abs(yaw_rate) <= 120 else None
+        else:
+            point["yaw_rate_dps"] = None
     return points
 
 
@@ -97,6 +126,7 @@ def load_csv(path: Path) -> tuple[float, list[dict], list[dict]]:
                 "app_speed_ms": (number(row, "speed_kmh") or 0) / 3.6,
                 "gps_speed_ms": None if number(row, "gps_speed_kmh") is None else number(row, "gps_speed_kmh") / 3.6,
                 "long_accel_ms2": (number(row, "long_g") or 0) * 9.80665,
+                "yaw_rate_dps": number(row, "yaw_rate"),
             }
             if row.get("section") == "sample":
                 samples.append(item)
@@ -167,6 +197,44 @@ def best_offset(samples: list[dict], points: list[dict], source_key: str) -> tup
     return offset, metrics
 
 
+def compare_yaw(samples: list[dict], points: list[dict], offset_sec: float, sign: int) -> dict | None:
+    times = [point["t"] for point in points]
+    observed = []
+    reference = []
+    for sample in samples[::6]:
+        source = sample.get("yaw_rate_dps")
+        gpx = interpolate(points, times, sample["t"] + offset_sec, "yaw_rate_dps")
+        if source is None or gpx is None:
+            continue
+        observed.append(source * sign)
+        reference.append(gpx)
+    if len(observed) < 20:
+        return None
+    errors = [value - truth for value, truth in zip(observed, reference)]
+    return {
+        "count": len(errors),
+        "sign": sign,
+        "rmse_dps": math.sqrt(statistics.fmean(error * error for error in errors)),
+        "mae_dps": statistics.fmean(abs(error) for error in errors),
+        "bias_dps": statistics.fmean(errors),
+        "correlation": correlation(observed, reference),
+    }
+
+
+def best_yaw_alignment(samples: list[dict], points: list[dict]) -> tuple[float, dict] | tuple[None, None]:
+    candidates = []
+    for sign in (1, -1):
+        for step in range(-50, 51):
+            offset = step / 10
+            metrics = compare_yaw(samples, points, offset, sign)
+            if metrics:
+                candidates.append((metrics["rmse_dps"], offset, metrics))
+    if not candidates:
+        return None, None
+    _, offset, metrics = min(candidates, key=lambda item: item[0])
+    return offset, metrics
+
+
 def iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -200,6 +268,7 @@ def main() -> None:
     app_offset, app_metrics = best_offset(samples, points, "app_speed_ms")
     zero_metrics_gps = compare(samples, points, 0, "gps_speed_ms")
     zero_metrics_app = compare(samples, points, 0, "app_speed_ms")
+    yaw_offset, yaw_metrics = best_yaw_alignment(samples, points)
     gpx_start = points[0]["t"]
     gpx_end = points[-1]["t"]
     csv_end = samples[-1]["t"] if samples else start
@@ -227,6 +296,11 @@ def main() -> None:
             "iphone_gps_vs_gpx": gps_metrics,
             "app_shift_sec": app_offset,
             "app_vs_gpx": app_metrics,
+        },
+        "yaw_alignment": {
+            "app_yaw_shift_sec": yaw_offset,
+            "app_yaw_vs_gpx": yaw_metrics,
+            "note": "GPX course yaw is evaluated only at speeds >= 2.5 m/s; sign -1 means the app axis is reversed.",
         },
         "start_values_kmh": {
             "app": samples[0]["app_speed_ms"] * 3.6 if samples else None,

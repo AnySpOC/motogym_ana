@@ -128,6 +128,9 @@ const state = {
   deviceOffsetY: 0,
   deviceOffsetZ: 0,
   yawOffset: 0,
+  gyroOffsetVector: [0, 0, 0],
+  rawGyroVector: [0, 0, 0],
+  rollRate: 0,
   forwardAxis: "",
   forwardSign: 1,
   gravityVector: [0, 0, 1],
@@ -160,6 +163,8 @@ const state = {
   gpsLastPosition: null,
   gpsLastAt: 0,
   gpsReceivedAt: 0,
+  gpsTimestampMs: null,
+  gpsAgeMs: null,
   autoMeasurementEnabled: false,
   measurementMode: "none",
   sensitivity: "normal",
@@ -471,12 +476,18 @@ function calibrateAndProjectSample(sample, t, dt) {
   const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
   const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
   const rawZ = Number.isFinite(sample.rawZ) ? sample.rawZ : 0;
-  const rawYaw = Number.isFinite(sample.yawRate) ? sample.yawRate : 0;
+  const rawGyro = Array.isArray(sample.gyroVector)
+    ? sample.gyroVector.map((value) => Number.isFinite(value) ? value : 0)
+    : [0, 0, Number.isFinite(sample.yawRate) ? sample.yawRate : 0];
 
   const x = rawX - state.deviceOffsetX;
   const y = rawY - state.deviceOffsetY;
   const z = rawZ - state.deviceOffsetZ;
-  const yawRate = rawYaw - state.yawOffset;
+  const gyro = rawGyro.map((value, index) => value - state.gyroOffsetVector[index]);
+  const yawRate = dotVector(gyro, state.gravityVector);
+  const rollRate = state.forwardVector ? dotVector(gyro, state.forwardVector) : 0;
+  state.rawGyroVector = rawGyro;
+  state.rollRate = rollRate;
   const rawAcceleration = [x, y, z];
   const acceleration = filterEngineVibration(rawAcceleration, dt);
 
@@ -518,13 +529,17 @@ function collectCalibrationSample(sample, t) {
   const rawX = Number.isFinite(sample.rawX) ? sample.rawX : sample.latG;
   const rawY = Number.isFinite(sample.rawY) ? sample.rawY : sample.longG;
   const rawZ = Number.isFinite(sample.rawZ) ? sample.rawZ : 0;
-  const rawYaw = Number.isFinite(sample.yawRate) ? sample.yawRate : 0;
+  const rawGyro = Array.isArray(sample.gyroVector)
+    ? sample.gyroVector.map((value) => Number.isFinite(value) ? value : 0)
+    : [0, 0, Number.isFinite(sample.yawRate) ? sample.yawRate : 0];
   state.calibrationSamples.push({
     x: rawX,
     y: rawY,
     z: rawZ,
     linearAvailable: sample.linearAvailable !== false,
-    yaw: rawYaw,
+    gyroX: rawGyro[0],
+    gyroY: rawGyro[1],
+    gyroZ: rawGyro[2],
     gravityX: sample.gravityX || 0,
     gravityY: sample.gravityY || 0,
     gravityZ: sample.gravityZ || 0,
@@ -577,6 +592,7 @@ function startCalibration() {
   state.deviceOffsetY = 0;
   state.deviceOffsetZ = 0;
   state.yawOffset = 0;
+  state.gyroOffsetVector = [0, 0, 0];
   state.forwardAxis = "";
   state.forwardSign = 1;
   state.forwardVector = null;
@@ -604,12 +620,15 @@ function finishCalibration() {
   state.deviceOffsetX = state.calibrationSamples.reduce((sum, sample) => sum + sample.x, 0) / count;
   state.deviceOffsetY = state.calibrationSamples.reduce((sum, sample) => sum + sample.y, 0) / count;
   state.deviceOffsetZ = state.calibrationSamples.reduce((sum, sample) => sum + sample.z, 0) / count;
-  state.yawOffset = state.calibrationSamples.reduce((sum, sample) => sum + sample.yaw, 0) / count;
+  state.gyroOffsetVector = ["gyroX", "gyroY", "gyroZ"].map((key) =>
+    state.calibrationSamples.reduce((sum, sample) => sum + sample[key], 0) / count
+  );
   state.gravityVector = normalizeVector([
     state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityX, 0) / count,
     state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityY, 0) / count,
     state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityZ, 0) / count,
   ], [0, 0, 1]);
+  state.yawOffset = dotVector(state.gyroOffsetVector, state.gravityVector);
   state.calibrationActive = false;
   state.calibrationCompleted = true;
   state.calibrationState = "complete";
@@ -772,8 +791,14 @@ function storeRawSample(t) {
     latitude: Number.isFinite(state.gpsLatitude) ? round(state.gpsLatitude, 7) : null,
     longitude: Number.isFinite(state.gpsLongitude) ? round(state.gpsLongitude, 7) : null,
     gpsHeadingDeg: Number.isFinite(state.gpsHeadingDeg) ? round(state.gpsHeadingDeg, 1) : null,
+    gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
+    gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
     bankDeg: round(state.bankDeg, 2),
     yawRate: round(state.yawRate, 2),
+    gyroX: round(state.rawGyroVector[0], 3),
+    gyroY: round(state.rawGyroVector[1], 3),
+    gyroZ: round(state.rawGyroVector[2], 3),
+    rollRate: round(state.rollRate, 2),
     vibrationG: round(state.vibrationG, 4),
     longGVariance: round(state.longGVariance, 6),
     latGVariance: round(state.latGVariance, 6),
@@ -806,6 +831,7 @@ function onDeviceMotion(event) {
     gravityZ: (gravity.z || 0) / G,
     longG: rawY,
     latG: rawX,
+    gyroVector: [rotation.beta || 0, rotation.gamma || 0, rotation.alpha || 0],
     yawRate: rotation.alpha || 0,
     bankDeg: state.observedBankDeg,
   });
@@ -953,6 +979,8 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.longG = 0;
   state.latG = 0;
   state.yawRate = 0;
+  state.rawGyroVector = [0, 0, 0];
+  state.rollRate = 0;
   state.bankDeg = 0;
   state.observedBankDeg = 0;
   state.longBias = 0;
@@ -999,6 +1027,8 @@ function stopGps() {
   state.gpsLastPosition = null;
   state.gpsLastAt = 0;
   state.gpsReceivedAt = 0;
+  state.gpsTimestampMs = null;
+  state.gpsAgeMs = null;
 }
 
 function hasFreshGps() {
@@ -1031,6 +1061,10 @@ function onGpsPosition(position) {
   state.gpsLastPosition = { latitude: coords.latitude, longitude: coords.longitude };
   state.gpsLastAt = timestamp;
   state.gpsReceivedAt = nowMs();
+  state.gpsTimestampMs = Number.isFinite(timestamp) ? timestamp : null;
+  state.gpsAgeMs = Number.isFinite(timestamp) && timestamp > 1_000_000_000_000
+    ? Math.max(0, Date.now() - timestamp)
+    : 0;
   state.gpsAccuracyM = accuracy;
   state.gpsLatitude = coords.latitude;
   state.gpsLongitude = coords.longitude;
@@ -1352,6 +1386,7 @@ function buildCurrentRun() {
       deviceOffsetY: round(state.deviceOffsetY, 5),
       deviceOffsetZ: round(state.deviceOffsetZ, 5),
       yawOffset: round(state.yawOffset, 3),
+      gyroOffsetVector: state.gyroOffsetVector.map((value) => round(value, 4)),
       forwardAxis: state.forwardAxis || "auto",
       forwardSign: state.forwardSign,
       gravityVector: state.gravityVector.map((value) => round(value, 5)),
@@ -1473,7 +1508,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,bank_deg,yaw_rate,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -1489,8 +1524,14 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     "",
     "",
+    "",
+    "",
     fixed(event.bankDeg, 1),
     fixed(event.yawRate, 1),
+    "",
+    "",
+    "",
+    "",
     fixed(event.vibrationG, 4),
     "",
     "",
@@ -1515,8 +1556,14 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.latitude, 7),
     fixed(sample.longitude, 7),
     fixed(sample.gpsHeadingDeg, 1),
+    fixed(sample.gpsTimestampMs, 0),
+    fixed(sample.gpsAgeMs, 0),
     fixed(sample.bankDeg, 2),
     fixed(sample.yawRate, 2),
+    fixed(sample.gyroX, 3),
+    fixed(sample.gyroY, 3),
+    fixed(sample.gyroZ, 3),
+    fixed(sample.rollRate, 2),
     fixed(sample.vibrationG, 4),
     fixed(sample.longGVariance, 6),
     fixed(sample.latGVariance, 6),

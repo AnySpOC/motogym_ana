@@ -19,6 +19,7 @@ stop, acceleration, braking, banking, and turning events.
 - `docs/assets/` - use-case, architecture, activity, class, state, and analysis charts
 - `scripts/build_design_documents.py` - reproducible document and chart generator
 - `scripts/analyze_gopro_mp4.mjs` - GoPro GPMF sensor extraction and iPhone comparison
+- `scripts/analyze_video_motion.mjs` - forward-video motion and stop/move validation
 - `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
 
 ## Local check on PC
@@ -241,6 +242,18 @@ clock shift of +/-5 seconds, and compares 200 ms low-pass acceleration and 100 m
 low-pass angular rate. The summary intentionally omits coordinates and full raw
 samples. Use the original uppercase `.MP4`; the supplied transcoded `(1).MP4`
 copies no longer contain the telemetry track.
+
+The transcoded `(1).MP4` copies can still be used for image-motion analysis. This
+is faster than decoding the original HEVC files and does not need embedded
+telemetry:
+
+```powershell
+pnpm analyze:video -- --mp4 <video (1).MP4> --gpx <video.gpx> --csv <gym-ana.csv> --out <motion.json>
+```
+
+The tool decodes grayscale 160x90 frames at 5 fps, calculates sparse optical
+flow, compares it with GPX speed, and evaluates a per-video stationary/moving
+threshold. It stores no frames and no coordinates.
 
 The model is intentionally small enough to run in iPhone Safari. It is not a
 full motorcycle multibody model; it is a sensor-fusion model for stable event

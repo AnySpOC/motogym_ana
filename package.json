@@ -4,10 +4,14 @@
   "type": "module",
   "scripts": {
     "test": "node tests/motion-model.test.mjs",
-    "analyze:gopro": "node scripts/analyze_gopro_mp4.mjs"
+    "analyze:gopro": "node scripts/analyze_gopro_mp4.mjs",
+    "analyze:video": "node scripts/analyze_video_motion.mjs"
   },
   "dependencies": {
-    "gpmf-extract": "0.3.3",
-    "gopro-telemetry": "1.2.11"
+    "gopro-telemetry": "1.2.11",
+    "gpmf-extract": "0.3.3"
+  },
+  "devDependencies": {
+    "ffmpeg-static": "5.3.0"
   }
 }

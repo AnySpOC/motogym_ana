@@ -10,6 +10,7 @@ const gpmfExtract = require("gpmf-extract");
 const goproTelemetry = require("gopro-telemetry");
 const DEFAULT_STREAMS = ["ACCL", "GYRO", "GRAV", "CORI", "GPS5", "GPS9"];
 const CHUNK_SIZE = 2 * 1024 * 1024;
+const EARTH_RADIUS_M = 6371000;
 
 function parseArgs(argv) {
   const args = { streams: DEFAULT_STREAMS };
@@ -30,7 +31,7 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/analyze_gopro_mp4.mjs --mp4 <video.mp4> [--out <summary.json>]",
-    "  [--csv <gym-ana.csv> --gpx <video.gpx>]",
+    "  [--csv <gym-ana.csv>] [--gpx <video.gpx>]",
     "  [--streams ACCL,GYRO,GRAV,CORI,GPS5,GPS9]",
     "",
     "The JSON summary never includes GPS coordinates or full sensor samples.",
@@ -67,12 +68,23 @@ function parseRunStart(filePath) {
   return Date.parse(`${match[1]}T${match[2]}:${match[3]}:${match[4]}.${match[5]}Z`);
 }
 
-function loadPhoneSamples(csvPath, gpxPath) {
-  const csvStartMs = parseRunStart(csvPath);
+function firstGpxTime(gpxPath) {
   const gpxText = fs.readFileSync(gpxPath, "utf8");
   const timeMatch = gpxText.match(/<time>([^<]+)<\/time>/);
   if (!timeMatch) throw new Error(`No GPX time found in ${gpxPath}`);
-  const videoStartMs = Date.parse(timeMatch[1]);
+  return Date.parse(timeMatch[1]);
+}
+
+function embeddedGpsVideoStart(telemetryStreams) {
+  const gps = telemetryStreams.find(({ key }) => key === "GPS9" || key === "GPS5")?.stream?.samples || [];
+  const sample = gps.find((item) => Number.isFinite(item.cts) && item.date);
+  if (!sample) return null;
+  const sampleEpochMs = new Date(sample.date).getTime();
+  return Number.isFinite(sampleEpochMs) ? sampleEpochMs - sample.cts : null;
+}
+
+function loadPhoneSamples(csvPath, videoStartMs, timingSource) {
+  const csvStartMs = parseRunStart(csvPath);
   const lines = fs.readFileSync(csvPath, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
   const headers = parseCsvLine(lines[0]);
   const index = Object.fromEntries(headers.map((header, position) => [header, position]));
@@ -81,23 +93,40 @@ function loadPhoneSamples(csvPath, gpxPath) {
     return Number.isFinite(value) ? value : null;
   };
   const samples = [];
+  const events = [];
   for (const line of lines.slice(1)) {
     const cells = parseCsvLine(line);
-    if (cells[index.section] !== "sample") continue;
     const timeMs = number(cells, "time_ms");
     if (timeMs === null) continue;
+    if (cells[index.section] === "event" && ["START", "STOP"].includes(cells[index.type])) {
+      events.push({
+        type: cells[index.type],
+        detail: cells[index.detail],
+        videoTimeMs: csvStartMs - videoStartMs + timeMs,
+        appSpeedKmh: number(cells, "speed_kmh"),
+      });
+      continue;
+    }
+    if (cells[index.section] !== "sample") continue;
     samples.push({
       videoTimeMs: csvStartMs - videoStartMs + timeMs,
       longG: number(cells, "long_g"),
       latG: number(cells, "lat_g"),
       yawRateDps: number(cells, "yaw_rate"),
+      appSpeedKmh: number(cells, "speed_kmh"),
+      iphoneGpsSpeedKmh: number(cells, "gps_speed_kmh"),
+      gpsAccuracyM: number(cells, "gps_accuracy_m"),
+      gpsTimestampMs: number(cells, "gps_timestamp_ms"),
+      gpsSource: cells[index.gps_source] || "none",
     });
   }
   return {
     csvStartUtc: new Date(csvStartMs).toISOString(),
     videoStartUtc: new Date(videoStartMs).toISOString(),
+    timingSource,
     csvZeroAtVideoSec: (csvStartMs - videoStartMs) / 1000,
     samples,
+    events,
   };
 }
 
@@ -254,6 +283,54 @@ function correlation(a, b) {
   return denominator > 0 ? covariance / denominator : null;
 }
 
+function haversineMeters(a, b) {
+  const radians = (degrees) => degrees * Math.PI / 180;
+  const dLat = radians(b[0] - a[0]);
+  const dLon = radians(b[1] - a[1]);
+  const lat1 = radians(a[0]);
+  const lat2 = radians(b[0]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.sqrt(h));
+}
+
+function gpsSpeedSamples(samples) {
+  const radius = 5;
+  const result = [];
+  for (let index = 0; index < samples.length; index += 1) {
+    const left = samples[Math.max(0, index - radius)];
+    const right = samples[Math.min(samples.length - 1, index + radius)];
+    const value = numericVector(samples[index].value);
+    const leftValue = numericVector(left.value);
+    const rightValue = numericVector(right.value);
+    const elapsedSec = (right.cts - left.cts) / 1000;
+    const dop = value[7];
+    const fix = value[8];
+    if (elapsedSec <= 0 || leftValue.length < 2 || rightValue.length < 2 || fix < 2 || dop > 4) continue;
+    const speedMs = haversineMeters(leftValue, rightValue) / elapsedSec;
+    if (!Number.isFinite(speedMs) || speedMs > 60) continue;
+    result.push({ cts: samples[index].cts, value: speedMs * 3.6 });
+  }
+  return result;
+}
+
+function projectGyroOntoGravity(gyroscope, gravity) {
+  const projected = [];
+  for (const sample of gyroscope) {
+    const gyro = numericVector(sample.value);
+    const gravityVector = interpolateVector(gravity, sample.cts);
+    if (gyro.length < 3 || !gravityVector || gravityVector.length < 3) continue;
+    const magnitude = Math.hypot(gravityVector[0], gravityVector[1], gravityVector[2]);
+    if (magnitude < 1e-6) continue;
+    const value = (
+      gyro[0] * gravityVector[0]
+      + gyro[1] * gravityVector[1]
+      + gyro[2] * gravityVector[2]
+    ) / magnitude;
+    projected.push({ cts: sample.cts, value });
+  }
+  return projected;
+}
+
 function compareChannel(phoneSamples, phoneKey, goproSamples, scale, smoothingWindowMs) {
   const vectorLength = numericVector(goproSamples.find((sample) => numericVector(sample.value).length)?.value).length;
   const candidates = [];
@@ -300,18 +377,74 @@ function compareChannel(phoneSamples, phoneKey, goproSamples, scale, smoothingWi
   return candidates.sort((a, b) => b.correlation - a.correlation)[0] || null;
 }
 
+function replaySpeedModel(phoneSamples, dragCoefficient, speedProcessNoise) {
+  let speedMs = Math.max(0, (phoneSamples[0]?.appSpeedKmh || 0) / 3.6);
+  let variance = 0.04;
+  let previousTimeMs = phoneSamples[0]?.videoTimeMs || 0;
+  let previousGpsTimestamp = null;
+  return phoneSamples.map((sample) => {
+    const dt = Math.min(0.12, Math.max(0.005, (sample.videoTimeMs - previousTimeMs) / 1000));
+    previousTimeMs = sample.videoTimeMs;
+    const transition = Math.max(0, 1 - dragCoefficient * dt);
+    speedMs = Math.max(0, speedMs + ((sample.longG || 0) * 9.80665 - dragCoefficient * speedMs) * dt);
+    variance = transition * transition * variance + speedProcessNoise * dt;
+    if (Number.isFinite(sample.iphoneGpsSpeedKmh)
+      && Number.isFinite(sample.gpsTimestampMs)
+      && sample.gpsTimestampMs !== previousGpsTimestamp) {
+      previousGpsTimestamp = sample.gpsTimestampMs;
+      const accuracy = Number.isFinite(sample.gpsAccuracyM) ? sample.gpsAccuracyM : 50;
+      const derived = sample.gpsSource === "position";
+      const sigma = derived
+        ? Math.min(5, Math.max(1.2, accuracy * 0.25))
+        : Math.min(3, Math.max(0.4, accuracy * 0.06));
+      const gain = variance / (variance + sigma * sigma);
+      speedMs = Math.max(0, speedMs + gain * (sample.iphoneGpsSpeedKmh / 3.6 - speedMs));
+      variance *= 1 - gain;
+    }
+    return { ...sample, replaySpeedKmh: speedMs * 3.6 };
+  });
+}
+
+function evaluateSpeedTuning(phoneSamples, goproSpeed) {
+  if (!goproSpeed.length || phoneSamples.filter((sample) => Number.isFinite(sample.gpsTimestampMs)).length < 10) return null;
+  const candidates = [];
+  for (const dragCoefficient of [0, 0.0025, 0.005, 0.01, 0.015, 0.025]) {
+    for (const speedProcessNoise of [0.18, 0.3, 0.45]) {
+      const replay = replaySpeedModel(phoneSamples, dragCoefficient, speedProcessNoise);
+      const comparison = compareChannel(replay, "replaySpeedKmh", goproSpeed, 1, 1000);
+      if (comparison) candidates.push({ dragCoefficient, speedProcessNoise, ...comparison });
+    }
+  }
+  return candidates.sort((a, b) => a.rmse - b.rmse).slice(0, 6);
+}
+
 function comparePhoneWithGopro(phone, telemetryStreams) {
   const streamMap = Object.fromEntries(telemetryStreams.map(({ key, stream }) => [key, stream]));
   const acceleration = streamMap.ACCL?.samples || [];
   const gyroscope = streamMap.GYRO?.samples || [];
+  const projectedYaw = projectGyroOntoGravity(gyroscope, streamMap.GRAV?.samples || []);
+  const gpsSpeed = gpsSpeedSamples(streamMap.GPS9?.samples || streamMap.GPS5?.samples || []);
   return {
     csvStartUtc: phone.csvStartUtc,
     videoStartUtc: phone.videoStartUtc,
     csvZeroAtVideoSec: phone.csvZeroAtVideoSec,
+    timingSource: phone.timingSource,
     phoneSampleCount: phone.samples.length,
+    events: phone.events.map((event) => ({
+      ...event,
+      videoTimeSec: event.videoTimeMs / 1000,
+      videoTimeMs: undefined,
+      goproGpsSpeedKmh: interpolateVector(gpsSpeed, event.videoTimeMs)?.[0] ?? null,
+    })),
     longitudinalG: acceleration.length ? compareChannel(phone.samples, "longG", acceleration, 1 / 9.80665, 200) : null,
     lateralG: acceleration.length ? compareChannel(phone.samples, "latG", acceleration, 1 / 9.80665, 200) : null,
     yawRateDps: gyroscope.length ? compareChannel(phone.samples, "yawRateDps", gyroscope, 180 / Math.PI, 100) : null,
+    yawRateProjectedDps: projectedYaw.length
+      ? compareChannel(phone.samples, "yawRateDps", projectedYaw, 180 / Math.PI, 100)
+      : null,
+    appSpeedKmh: gpsSpeed.length ? compareChannel(phone.samples, "appSpeedKmh", gpsSpeed, 1, 1000) : null,
+    iphoneGpsSpeedKmh: gpsSpeed.length ? compareChannel(phone.samples, "iphoneGpsSpeedKmh", gpsSpeed, 1, 1000) : null,
+    speedTuningCandidates: evaluateSpeedTuning(phone.samples, gpsSpeed),
     note: "axis is zero-based in the interpreted GoPro vector; shiftSec is added to mapped video time; centeredRmse excludes the constant sensor/mounting bias.",
   };
 }
@@ -345,7 +478,7 @@ async function main() {
   }));
   const selected = args.streams.filter((key) => available.some((item) => item.key === key));
   const telemetry = selected.length
-    ? await goproTelemetry(extracted, { stream: selected, repeatSticky: true, timeOut: "cts", tolerant: true })
+    ? await goproTelemetry(extracted, { stream: selected, repeatSticky: true, tolerant: true })
     : {};
   const telemetryStreams = findStreams(telemetry);
   const streams = telemetryStreams.map(({ deviceId, deviceName, key, stream }) => ({
@@ -363,8 +496,19 @@ async function main() {
     gpmfPayloadCount: extracted.timing.samples?.length || 0,
     availableStreams: available,
     streams,
-    iphoneComparison: args.csv && args.gpx
-      ? comparePhoneWithGopro(loadPhoneSamples(path.resolve(args.csv), path.resolve(args.gpx)), telemetryStreams)
+    iphoneComparison: args.csv
+      ? (() => {
+          const videoStartMs = args.gpx
+            ? firstGpxTime(path.resolve(args.gpx))
+            : embeddedGpsVideoStart(telemetryStreams);
+          if (!Number.isFinite(videoStartMs)) {
+            throw new Error("Could not derive UTC video start from GPX or embedded GPS telemetry.");
+          }
+          return comparePhoneWithGopro(
+            loadPhoneSamples(path.resolve(args.csv), videoStartMs, args.gpx ? "gpx" : "embedded-gps"),
+            telemetryStreams,
+          );
+        })()
       : null,
     privacy: "GPS coordinates and full sensor samples are intentionally omitted.",
   };

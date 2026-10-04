@@ -21,6 +21,7 @@ GENERATED = ROOT / "docs" / "generated"
 CSV_PATH = Path(r"C:\Users\foxho\Downloads\gym-ana-2026-09-13T04-44-31-036Z.csv")
 DESIGN_DOCX = GENERATED / "Gym_Ana_System_Design.docx"
 REPORT_DOCX = GENERATED / "Gym_Ana_Data_Analysis_Report.docx"
+LATEST_REPORT_DOCX = GENERATED / "Gym_Ana_Data_Analysis_2026-10-04.docx"
 
 NAVY = "17365D"
 BLUE = "2F75B5"
@@ -373,7 +374,7 @@ def create_analysis_charts(samples):
         v0 = float(samples[i - 1]["speed_kmh"]) / 3.6
         v1 = float(samples[i]["speed_kmh"]) / 3.6
         implied.append((v1 - v0) / dt / 9.80665)
-        pred = max(0, v0 + (float(samples[i - 1]["long_g"]) * 9.80665 - 0.025 * v0) * dt)
+        pred = max(0, v0 + float(samples[i - 1]["long_g"]) * 9.80665 * dt)
         residual.append((v1 - pred) * 3.6)
 
     clipped_implied = [max(-10, min(10, value)) for value in implied]
@@ -441,14 +442,21 @@ def set_cell_margins(cell, top=100, start=120, bottom=100, end=120):
 def add_page_number(paragraph):
     paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     run = paragraph.add_run()
+    run.font.name = "Arial"
+    run._element.get_or_add_rPr().rFonts.set(qn("w:eastAsia"), "Arial")
+    run.font.size = Pt(8.5)
     begin = OxmlElement("w:fldChar")
     begin.set(qn("w:fldCharType"), "begin")
     instr = OxmlElement("w:instrText")
     instr.set(qn("xml:space"), "preserve")
     instr.text = " PAGE "
+    separate = OxmlElement("w:fldChar")
+    separate.set(qn("w:fldCharType"), "separate")
+    placeholder = OxmlElement("w:t")
+    placeholder.text = "1"
     end = OxmlElement("w:fldChar")
     end.set(qn("w:fldCharType"), "end")
-    run._r.extend([begin, instr, end])
+    run._r.extend([begin, instr, separate, placeholder, end])
 
 
 def configure_document(doc: Document, short_title: str):
@@ -501,7 +509,7 @@ def configure_document(doc: Document, short_title: str):
     add_page_number(section.footer.paragraphs[0])
 
 
-def add_cover(doc, title, subtitle, version, source=None):
+def add_cover(doc, title, subtitle, version, source=None, created="2026年10月4日"):
     p = doc.add_paragraph(style="Title")
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(95)
@@ -515,7 +523,7 @@ def add_cover(doc, title, subtitle, version, source=None):
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
     meta.paragraph_format.space_before = Pt(55)
-    meta.add_run(f"対象版  {version}\n作成日  2026年10月3日")
+    meta.add_run(f"対象版  {version}\n作成日  {created}")
     if source:
         meta.add_run(f"\n解析対象  {source}")
     doc.add_paragraph().paragraph_format.space_before = Pt(130)
@@ -626,8 +634,8 @@ def add_code_block(doc, text):
 
 def build_design_doc():
     doc = Document()
-    configure_document(doc, "Gym Ana システム設計書")
-    add_cover(doc, "Gym Ana システム設計書", "iPhoneセンサーとGPSによる走行計測", "f1079de")
+    configure_document(doc, "Gym Ana 設計書")
+    add_cover(doc, "Gym Ana システム設計書", "iPhoneセンサーとGPSによる走行計測", "2026-10-04 速度モデル更新")
 
     add_heading(doc, "文書の目的", 1)
     add_para(doc, "本書は、Gym Anaの要求、利用手順、構成、状態推定、データ保存、試験方法を実装と対応づけて説明する。開発者は変更時の影響範囲を確認でき、試験者はキャリブレーションと実走評価の条件を確認できる。")
@@ -722,8 +730,8 @@ def build_design_doc():
     add_heading(doc, "状態ベクトル", 2)
     add_code_block(doc, "x = [v, a_long, a_lat, yaw_rate, bank]^T")
     add_heading(doc, "物理モデル", 2)
-    add_code_block(doc, "a_drive = 0.75 * measured_long_g + 0.25 * a_long\nv_k = max(0, v + (a_drive * 9.80665 - 0.025 * v) * dt)\na_long_k = a_long * exp(-dt / 0.7)\na_lat_k = a_lat * exp(-dt / 0.7)\nyaw_k = yaw * exp(-dt / 0.5)\nbank_k = bank + blend * (atan(a_lat) - bank)")
-    add_para(doc, "現在サンプルの前後Gを同じ周期の速度更新へ75パーセント反映し、従来の1周期遅れを減らす。速度プロセスノイズは0.18 dtとする。dtは0.005秒から0.12秒へ制限する。")
+    add_code_block(doc, "a_drive = 0.75 * measured_long_g + 0.25 * a_long\nv_k = max(0, v + a_drive * 9.80665 * dt)\na_long_k = a_long * exp(-dt / 0.7)\na_lat_k = a_lat * exp(-dt / 0.7)\nyaw_k = yaw * exp(-dt / 0.5)\nbank_k = bank + blend * (atan(a_lat) - bank)")
+    add_para(doc, "現在サンプルの前後Gを同じ周期の速度更新へ75パーセント反映し、従来の1周期遅れを減らす。IMUは正味加速度を観測するため、速度へ別の走行抵抗項は加えない。2026年10月4日のログ再生に基づき、速度プロセスノイズは0.45 dtとする。dtは0.005秒から0.12秒へ制限する。")
     add_heading(doc, "IMU観測", 2)
     add_code_block(doc, "z_imu = [measured_long_g, measured_lat_g, measured_yaw_rate, measured_bank]^T\ny = z - Hx\nS = HPH^T + R\nK = PH^T S^-1\nx = x + Ky\nP = (I - KH)P")
     add_heading(doc, "GPS速度観測", 2)
@@ -764,7 +772,7 @@ def build_design_doc():
         "履歴で任意の走行を複数選択し、選択JSONまたは選択CSVを1ファイルで出力する。",
         "選択削除は確認後にIndexedDBから対象だけを削除する。",
         "1走行の上限は20,000サンプルで、60 Hzでは約5.6分に相当する。",
-        "Service Workerはmoto-gym-ana-v16としてアプリシェルをキャッシュする。",
+        "Service Workerはmoto-gym-ana-v17としてアプリシェルをキャッシュする。",
         "iOSがWebデータを削除する場合に備え、重要データはJSONで退避する。",
     ])
 
@@ -810,6 +818,7 @@ def build_design_doc():
         ["簡易confidence", "統計的信頼区間ではない", "観測残差に基づく品質指標へ変更"],
     ], widths=[2.0, 2.05, 2.65], font_size=8.3)
 
+    doc.add_page_break()
     add_heading(doc, "安全とプライバシー", 1)
     add_bullets(doc, [
         "端末を確実に車体へ固定し、閉鎖された安全な場所で試験する。",
@@ -839,7 +848,7 @@ def build_report_doc(samples, events, implied, residual):
     model_residual = [value for value in residual[1:] if math.isfinite(value)]
 
     doc = Document()
-    configure_document(doc, "Gym Ana 走行データ解析レポート")
+    configure_document(doc, "Gym Ana 解析レポート")
     add_cover(doc, "Gym Ana 走行データ解析レポート", "速度推定とセンサー軸の物理整合性評価", "旧推定器ログ", CSV_PATH.name)
 
     add_heading(doc, "解析結論", 1)
@@ -956,6 +965,123 @@ def build_report_doc(samples, events, implied, residual):
     doc.core_properties.subject = "速度推定とセンサー軸の物理整合性評価"
     doc.core_properties.author = "Gym Ana project"
     doc.save(REPORT_DOCX)
+
+
+def create_latest_speed_chart():
+    image, draw, path = save_canvas("speed_rmse_2026-10-04.png", (1800, 940))
+    draw.text((120, 65), "GoPro GPS基準の速度RMSE", font=font(46, True), fill=hex_rgb(TEXT))
+    draw.text((120, 128), "低いほど良い  単位 km/h", font=font(24), fill=hex_rgb("6B7280"))
+    runs = ["A 旧版 自動", "B 旧版 手動", "C 現行 手動"]
+    app_values = [5.34, 4.70, 3.94]
+    gps_values = [6.63, 2.51, 1.70]
+    left, top, right, bottom = 170, 220, 1690, 790
+    draw.line((left, bottom, right, bottom), fill=hex_rgb("6B7280"), width=3)
+    for tick in range(0, 8):
+        y = bottom - (bottom - top) * tick / 7
+        draw.line((left, y, right, y), fill=hex_rgb(GRID), width=2)
+        draw.text((100, y - 14), str(tick), font=font(21), fill=hex_rgb("6B7280"))
+    group_width = (right - left) / len(runs)
+    for index, label in enumerate(runs):
+        center = left + group_width * (index + 0.5)
+        for offset, value, color in ((-62, app_values[index], BLUE), (18, gps_values[index], GREEN)):
+            x1 = center + offset
+            x2 = x1 + 66
+            y = bottom - (bottom - top) * value / 7
+            draw.rounded_rectangle((x1, y, x2, bottom), radius=8, fill=hex_rgb(color))
+            draw.text((x1 - 2, y - 34), f"{value:.2f}", font=font(21, True), fill=hex_rgb(TEXT))
+        label_width = draw.textbbox((0, 0), label, font=font(21))[2]
+        draw.text((center - label_width / 2, bottom + 24), label, font=font(21), fill=hex_rgb(TEXT))
+    draw.rectangle((1180, 92, 1210, 122), fill=hex_rgb(BLUE))
+    draw.text((1225, 91), "アプリ推定", font=font(22), fill=hex_rgb(TEXT))
+    draw.rectangle((1400, 92, 1430, 122), fill=hex_rgb(GREEN))
+    draw.text((1445, 91), "iPhone GPS", font=font(22), fill=hex_rgb(TEXT))
+    draw.text((120, 875), "走行Cは波形相関0.99だが平均3.39 km/h低い  モデル更新後に再試験する", font=font(25, True), fill=hex_rgb(RED))
+    image.save(path, quality=95)
+    return path
+
+
+def build_latest_report_doc():
+    chart_path = create_latest_speed_chart()
+    doc = Document()
+    configure_document(doc, "Gym Ana 解析 2026-10-04")
+    add_cover(
+        doc,
+        "Gym Ana 走行データ解析レポート",
+        "GoPro GPSと内蔵IMUによる現行速度モデル評価",
+        "2026-10-04 走行データ",
+        "GX010063  GX010065  iPhone CSV 3件",
+    )
+
+    add_heading(doc, "結論", 1)
+    add_para(doc, "現行版を確認できる走行Cでは、アプリ速度とGoPro GPS9の相関は0.99、RMSEは3.94 km/hだった。速度変化は捉えているが平均3.39 km/h低い。ログ再生では人工抵抗を除き、速度プロセスノイズを0.45 dtへ増やすとRMSEが2.35 km/hまで改善したため、この設定を採用した。", bold_lead="現行版")
+    add_para(doc, "走行Aの自動STOPはGoPro GPS約0.3 km/hで成立しており、停止保持判定は妥当だった。走行CのSTARTとSTOPは手動操作で、STOP時も44.88 km/hで走行しているため、自動停止性能の評価には使わない。")
+
+    add_heading(doc, "データ対応", 1)
+    add_table(doc, ["走行", "iPhone開始 UTC", "GoPro", "方式", "動画内開始"], [
+        ["A", "03:25:21", "GX010063", "自動", "+10.65 s"],
+        ["B", "03:28:34", "GX010063", "手動", "+203.46 s"],
+        ["C", "06:20:50", "GX010065", "手動", "+203.24 s"],
+    ], widths=[0.55, 1.55, 1.45, 0.9, 1.35], font_size=8.5)
+    add_para(doc, "GX010065は外部GPXがないため、オリジナルMP4内のGPS9日時からUTC同期した。位置座標はレポートと公開Issueへ出力していない。")
+
+    add_heading(doc, "アプリ世代", 1)
+    add_para(doc, "走行AとBは全サンプルで3軸ジャイロ、GPS観測時刻、ロールレートが空欄だった。保存済み旧形式データを現行エクスポーターで出力したログであり、現行3軸版の評価には使わない。走行Cは8,126サンプルすべてに新しい列があり、現行版の評価対象である。")
+
+    add_page_break = doc.add_page_break
+    add_page_break()
+    add_heading(doc, "速度評価", 1)
+    add_figure(doc, chart_path, "図1  GoPro GPS基準の速度RMSE", width=6.55)
+    add_table(doc, ["走行", "アプリRMSE", "バイアス", "相関", "iPhone GPS RMSE"], [
+        ["A 旧版", "5.34 km/h", "+1.33 km/h", "0.86", "6.63 km/h"],
+        ["B 旧版", "4.70 km/h", "-2.07 km/h", "0.97", "2.51 km/h"],
+        ["C 現行", "3.94 km/h", "-3.39 km/h", "0.99", "1.70 km/h"],
+    ], widths=[1.05, 1.3, 1.2, 0.8, 1.6], font_size=8.5)
+    add_para(doc, "走行CではiPhone GPS自体がGoPro GPS9とRMSE 1.70 km/hで一致する。主な残差はGPSセンサー精度ではなく、GPS更新間に速度を低下させる物理モデルとGPS観測への弱い追従にある。")
+
+    add_heading(doc, "速度モデル更新", 1)
+    add_code_block(doc, "旧  v_k = max(0, v + (a_drive * 9.80665 - 0.025 * v) * dt)\n新  v_k = max(0, v + a_drive * 9.80665 * dt)\n新  Q_speed = 0.45 * dt")
+    add_para(doc, "加速度センサーは駆動力と走行抵抗を合成した正味加速度を観測する。定速走行で加速度が0 Gのとき、別の抵抗項を差し引くと速度が二重に減衰する。人工抵抗を削除し、高精度GPSが積分誤差を早く修正できるよう速度共分散の増加率を上げた。")
+    add_table(doc, ["抵抗係数", "速度ノイズ", "再生RMSE", "再生バイアス"], [
+        ["0", "0.45 dt", "2.35 km/h", "-1.42 km/h"],
+        ["0.0025", "0.45 dt", "2.41 km/h", "-1.51 km/h"],
+        ["0.005", "0.45 dt", "2.48 km/h", "-1.60 km/h"],
+    ], widths=[1.25, 1.3, 1.45, 1.45], font_size=8.5)
+
+    add_heading(doc, "イベント評価", 1)
+    add_table(doc, ["走行", "イベント", "アプリ速度", "GoPro速度", "判定"], [
+        ["A", "自動STOP", "0.00", "約0.3", "妥当"],
+        ["C", "手動START", "0.38", "0.42", "一致"],
+        ["C", "手動STOP", "44.27", "44.88", "走行中の手動終了"],
+    ], widths=[0.55, 1.3, 1.2, 1.2, 1.8], font_size=8.5)
+
+    add_heading(doc, "加速度と旋回", 1)
+    add_table(doc, ["走行", "前後G相関", "横G相関", "ヨー相関", "位置付け"], [
+        ["A", "0.85", "0.58", "0.52", "旧版"],
+        ["B", "0.84", "0.64", "0.41", "旧版"],
+        ["C", "0.66", "0.29", "0.31", "現行版"],
+    ], widths=[0.55, 1.15, 1.1, 1.05, 1.8], font_size=8.5)
+    add_para(doc, "走行Cの前後G RMSEは0.05 G、横G RMSEは0.03 Gで、絶対誤差は小さい。GoPro GRAV方向へGYROを単純射影したヨー比較は相関0.19へ低下した。GoProのIORIとCORIを含む座標変換を確認するまで、アプリ側ヨー定数は変更しない。")
+
+    add_heading(doc, "次回試験", 1)
+    add_numbered(doc, [
+        "iPhoneをオンラインで一度起動し、ホーム画面アプリを完全終了して再起動する。キャッシュv17を読み込む。",
+        "Sensor ON後、エンジンをアイドリングさせた状態でCalibrationを完了する。",
+        "自動STARTと自動STOPを最低2本ずつ取得する。手動STOPは自動停止評価から分ける。",
+        "10秒以上の定速区間で、推定速度がGPS更新間に低下しないことを確認する。",
+        "CSVのgyro_x_dps、gps_timestamp_ms、roll_rate_dpsが全サンプルで埋まることを確認する。",
+    ])
+    add_table(doc, ["評価項目", "目標"], [
+        ["GoPro GPSとの速度RMSE", "3 km/h以下"],
+        ["平均速度バイアス", "絶対値2 km/h以下"],
+        ["自動START", "実発進から150 ms以内を目標"],
+        ["自動STOP", "完全停止後1.5秒以内"],
+        ["定速中の人工減衰", "認めない"],
+    ], widths=[2.7, 3.5], font_size=8.5)
+
+    doc.core_properties.title = "Gym Ana 走行データ解析レポート 2026-10-04"
+    doc.core_properties.subject = "GoPro GPSと内蔵IMUによる速度モデル評価"
+    doc.core_properties.author = "Gym Ana project"
+    doc.save(LATEST_REPORT_DOCX)
 
 
 def main():

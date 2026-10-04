@@ -6,7 +6,8 @@ const RUN_STORE = "runs";
 const RAW_SAMPLE_LIMIT = 20000;
 const VARIANCE_WINDOW = 90;
 const RAD_TO_DEG = 180 / Math.PI;
-const DRAG_COEFF = 0.025;
+const DRAG_COEFF = 0;
+const SPEED_PROCESS_NOISE = 0.45;
 const CALIBRATION_MS = 4000;
 const AXIS_LOCK_G = 0.08;
 const MOTION_LOW_PASS_TAU_SEC = 0.08;
@@ -246,7 +247,7 @@ class MotionEkf {
     f[4][4] = 1 - rollBlend;
 
     const q = diag([
-      0.18 * dt,
+      SPEED_PROCESS_NOISE * dt,
       0.09 * dt,
       0.09 * dt,
       18 * dt,

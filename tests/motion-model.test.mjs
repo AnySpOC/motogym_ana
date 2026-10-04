@@ -321,6 +321,16 @@ for (const line of selectedCsvLines.slice(1)) {
   assert.equal(line.split(",").length, selectedHeaderColumns, "selected CSV rows must match the header width");
 }
 
+api.motionModel.reset();
+api.motionModel.setSpeed(10);
+for (let index = 0; index < 600; index += 1) {
+  api.motionModel.update({ longG: 0, latG: 0, yawRate: 0, bankDeg: 0 }, 1 / 60);
+}
+assert.ok(
+  Math.abs(api.motionModel.value().speedMs - 10) < 0.01,
+  "constant-speed motion must not decay without measured braking",
+);
+
 console.log(JSON.stringify({
   firstRunSpeedKmh: Number((firstRunSpeed * 3.6).toFixed(3)),
   acceleratedSpeedKmh: Number(acceleratedSpeedKmh.toFixed(3)),

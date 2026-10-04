@@ -16,11 +16,13 @@ stop, acceleration, braking, banking, and turning events.
 - `docs/DATA_ANALYSIS_2026-09-13.md` - analysis of the supplied ride log
 - `docs/generated/Gym_Ana_System_Design.docx` - illustrated Japanese system design document
 - `docs/generated/Gym_Ana_Data_Analysis_Report.docx` - illustrated Japanese ride-data analysis report
+- `docs/generated/Gym_Ana_Data_Analysis_2026-10-04.docx` - latest GoPro and iPhone comparison report
 - `docs/assets/` - use-case, architecture, activity, class, state, and analysis charts
 - `scripts/build_design_documents.py` - reproducible document and chart generator
 - `scripts/analyze_gopro_mp4.mjs` - GoPro GPMF sensor extraction and iPhone comparison
 - `scripts/analyze_video_motion.mjs` - forward-video motion and stop/move validation
 - `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
+- `docs/DATA_ANALYSIS_2026-10-04.md` - analysis and tuning from the latest field logs
 
 ## Local check on PC
 
@@ -183,7 +185,7 @@ Prediction model:
 
 ```text
 drive_g = 0.75 * measured_longitudinal_g + 0.25 * filtered_longitudinal_g
-speed_k = speed_{k-1} + (drive_g * g - drag * speed) * dt
+speed_k = speed_{k-1} + drive_g * g * dt
 longitudinal_g, lateral_g, yaw_rate = decayed random walk
 bank_deg = blended toward atan(lateral_g)
 GPS speed = periodic scalar observation when accuracy is usable
@@ -204,6 +206,11 @@ z = [
 
 The GPS observation is applied separately because it arrives much more slowly
 than DeviceMotion samples.
+
+No artificial drag is applied to speed. The accelerometer already observes net
+vehicle acceleration, so subtracting a separate drag term caused constant-speed
+runs to decay between GPS fixes. Speed process noise is `0.45 * dt`, allowing a
+fresh, accurate GPS observation to correct accumulated integration error sooner.
 
 ## GoPro GPX synchronization
 

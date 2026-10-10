@@ -7,12 +7,14 @@ const RAW_SAMPLE_LIMIT = 20000;
 const VARIANCE_WINDOW = 90;
 const RAD_TO_DEG = 180 / Math.PI;
 const DRAG_COEFF = 0;
-const SPEED_PROCESS_NOISE = 0.45;
+const SPEED_PROCESS_NOISE = 1.2;
+const GPS_SPEED_SIGMA_SCALE = 0.35;
 const CALIBRATION_MS = 4000;
 const AXIS_LOCK_G = 0.08;
 const MOTION_LOW_PASS_TAU_SEC = 0.08;
 const VIBRATION_LEVEL_TAU_SEC = 0.35;
 const START_CONFIRM_MS = 140;
+const AUTO_READY_HOLD_MS = 600;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
@@ -37,6 +39,7 @@ const text = {
   sensorReady: "\u30bb\u30f3\u30b5\u63a5\u7d9a",
   needPermission: "\u8a31\u53ef\u304c\u5fc5\u8981",
   armed: "\u767a\u9032\u5f85\u3061",
+  autoPreparing: "\u9759\u6b62\u78ba\u8a8d\u4e2d",
   running: "\u8d70\u884c\u4e2d",
   stopped: "\u8a08\u6e2c\u5b8c\u4e86",
   armDetail: "\u8a08\u6e2c\u5f85\u6a5f",
@@ -150,6 +153,8 @@ const state = {
   startCandidateAt: 0,
   startCandidateLastAt: 0,
   startCandidateVelocityMs: 0,
+  autoReadyCandidateAt: 0,
+  autoStartReady: false,
   zeroSpeedCandidateAt: 0,
   confidence: 0,
   sensorEnabled: false,
@@ -277,9 +282,10 @@ class MotionEkf {
   }
 
   updateGpsSpeed(speedMs, accuracyM, derived = false) {
-    const sigma = derived
+    const baseSigma = derived
       ? Math.min(5, Math.max(1.2, accuracyM * 0.25))
       : Math.min(3, Math.max(0.4, accuracyM * 0.06));
+    const sigma = Math.max(0.15, baseSigma * GPS_SPEED_SIGMA_SCALE);
     const innovationVariance = this.p[0][0] + sigma * sigma;
     const gains = this.p.map((row) => row[0] / innovationVariance);
     const residual = speedMs - this.x[0];
@@ -351,7 +357,9 @@ function armTimer() {
   state.lastBrakeAt = 0;
   state.currentRunId = "";
   state.measurementMode = "auto";
-  setMode("armed", text.armed);
+  state.autoReadyCandidateAt = 0;
+  state.autoStartReady = false;
+  setMode("armed", text.autoPreparing);
   addEvent("ARM", text.armDetail);
 }
 
@@ -554,6 +562,7 @@ function collectCalibrationSample(sample, t) {
 function maybeLockForwardAxis(acceleration) {
   if (state.forwardAxis) return;
   if (state.mode !== "armed" && state.mode !== "running") return;
+  if (state.mode === "armed" && !state.autoStartReady) return;
   const verticalPart = dotVector(acceleration, state.gravityVector);
   const horizontal = acceleration.map((value, index) => value - verticalPart * state.gravityVector[index]);
   if (vectorLength(horizontal) < AXIS_LOCK_G) return;
@@ -718,6 +727,25 @@ function estimateConfidence(sample, dt) {
 function detectEvents(t) {
   const profile = currentProfile();
   if (state.autoMeasurementEnabled && state.mode === "armed") {
+    const lowDynamics = Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06 && Math.abs(state.yawRate) < 4;
+    const gpsFresh = hasFreshGps();
+    const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
+    if (!state.autoStartReady) {
+      if (lowDynamics && (!gpsFresh || gpsStopped)) {
+        state.autoReadyCandidateAt ||= t;
+        if (t - state.autoReadyCandidateAt >= AUTO_READY_HOLD_MS) {
+          state.autoStartReady = true;
+          setMode("armed", text.armed);
+          addEvent("READY", "\u9759\u6b62\u78ba\u8a8d\u5b8c\u4e86");
+        }
+      } else {
+        state.autoReadyCandidateAt = 0;
+      }
+      state.startCandidateAt = 0;
+      state.startCandidateLastAt = 0;
+      state.startCandidateVelocityMs = 0;
+      return;
+    }
     if (state.longG > profile.startG) {
       if (!state.startCandidateAt) {
         state.startCandidateAt = t;
@@ -973,6 +1001,8 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.startCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
+  state.autoReadyCandidateAt = 0;
+  state.autoStartReady = false;
   state.gpsResyncPending = false;
   state.lastSensorGapSec = 0;
   state.zeroSpeedCandidateAt = 0;

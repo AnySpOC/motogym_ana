@@ -133,7 +133,45 @@ assert.equal(api.state.speedMs, 0, "Sensor ON must not integrate speed before a 
 assert.equal(api.state.samples.length, 0, "Sensor ON must not add graph samples");
 assert.equal(api.state.rawSamples.length, 0, "Sensor ON must not add run samples");
 
+api.onGpsPosition({
+  timestamp: 9000,
+  coords: {
+    latitude: 35,
+    longitude: 139,
+    accuracy: 5,
+    speed: 8,
+    heading: 90,
+  },
+});
 api.enableAutoMeasurement();
+
+for (let i = 0; i < 30; i += 1) {
+  clock += 1000 / 60;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0.4,
+    rawZ: 0,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+assert.equal(api.state.mode, "armed", "Auto must not START when enabled while GPS says the bike is moving");
+assert.equal(api.state.autoStartReady, false, "Auto must wait for a confirmed standstill");
+
+api.onGpsPosition({
+  timestamp: 9500,
+  coords: {
+    latitude: 35,
+    longitude: 139,
+    accuracy: 5,
+    speed: 0,
+    heading: 90,
+  },
+});
 
 for (let i = 0; i < 180; i += 1) {
   clock += 1000 / 60;
@@ -152,6 +190,7 @@ for (let i = 0; i < 180; i += 1) {
 }
 
 assert.equal(api.state.mode, "armed", "engine vibration must not trigger automatic START");
+assert.equal(api.state.autoStartReady, true, "stationary hold must make Auto ready for launch");
 assert.equal(api.state.forwardAxis, "", "engine vibration must not lock a false forward axis");
 assert.equal(api.state.speedMs, 0, "Auto standby must keep displayed speed at zero before START");
 assert.equal(api.state.samples.length, 0, "Auto standby must not add graph samples before START");

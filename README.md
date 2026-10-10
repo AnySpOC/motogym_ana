@@ -126,9 +126,10 @@ when storage pressure is high. Export important data after practice.
   current speed, while the START event itself remains zero speed at time zero.
 - For the best vibration baseline, perform the four-second calibration with the
   engine idling in the same state used while waiting for START.
-- `Auto待機` waits for sustained forward acceleration and then starts timing.
-  While armed, acceleration is used only for START detection; speed and run samples
-  begin at the confirmed START.
+- `Auto待機` first confirms low motion and, when GPS is available, a stopped GPS
+  speed for 0.6 seconds. It then waits for sustained forward acceleration and starts
+  timing. Enabling Auto while already moving cannot trigger START or lock the forward
+  axis. Speed and run samples begin at the confirmed START.
 - `Auto解除` cancels only the automatic launch wait.
 - `手動開始` starts timing immediately. If a usable GPS fix was received
   within 2.5 seconds, its speed initializes the run instead of forcing 0 km/h.
@@ -209,8 +210,10 @@ than DeviceMotion samples.
 
 No artificial drag is applied to speed. The accelerometer already observes net
 vehicle acceleration, so subtracting a separate drag term caused constant-speed
-runs to decay between GPS fixes. Speed process noise is `0.45 * dt`, allowing a
-fresh, accurate GPS observation to correct accumulated integration error sooner.
+runs to decay between GPS fixes. Speed process noise is `1.2 * dt`, and the GPS
+speed sigma is scaled by `0.35`, allowing a fresh, accurate GPS observation to
+correct accumulated integration error sooner. These values were replayed against
+the independent GoPro data from 2026-10-04 and 2026-10-10.
 
 ## GoPro GPX synchronization
 

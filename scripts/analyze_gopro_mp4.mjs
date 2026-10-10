@@ -377,7 +377,13 @@ function compareChannel(phoneSamples, phoneKey, goproSamples, scale, smoothingWi
   return candidates.sort((a, b) => b.correlation - a.correlation)[0] || null;
 }
 
-function replaySpeedModel(phoneSamples, dragCoefficient, speedProcessNoise) {
+function replaySpeedModel(
+  phoneSamples,
+  dragCoefficient,
+  speedProcessNoise,
+  gpsSigmaScale = 1,
+  gpsPredictionSec = 0,
+) {
   let speedMs = Math.max(0, (phoneSamples[0]?.appSpeedKmh || 0) / 3.6);
   let variance = 0.04;
   let previousTimeMs = phoneSamples[0]?.videoTimeMs || 0;
@@ -394,11 +400,16 @@ function replaySpeedModel(phoneSamples, dragCoefficient, speedProcessNoise) {
       previousGpsTimestamp = sample.gpsTimestampMs;
       const accuracy = Number.isFinite(sample.gpsAccuracyM) ? sample.gpsAccuracyM : 50;
       const derived = sample.gpsSource === "position";
-      const sigma = derived
+      const baseSigma = derived
         ? Math.min(5, Math.max(1.2, accuracy * 0.25))
         : Math.min(3, Math.max(0.4, accuracy * 0.06));
+      const sigma = Math.max(0.15, baseSigma * gpsSigmaScale);
       const gain = variance / (variance + sigma * sigma);
-      speedMs = Math.max(0, speedMs + gain * (sample.iphoneGpsSpeedKmh / 3.6 - speedMs));
+      const predictedGpsSpeedMs = Math.max(
+        0,
+        sample.iphoneGpsSpeedKmh / 3.6 + (sample.longG || 0) * 9.80665 * gpsPredictionSec,
+      );
+      speedMs = Math.max(0, speedMs + gain * (predictedGpsSpeedMs - speedMs));
       variance *= 1 - gain;
     }
     return { ...sample, replaySpeedKmh: speedMs * 3.6 };
@@ -408,14 +419,32 @@ function replaySpeedModel(phoneSamples, dragCoefficient, speedProcessNoise) {
 function evaluateSpeedTuning(phoneSamples, goproSpeed) {
   if (!goproSpeed.length || phoneSamples.filter((sample) => Number.isFinite(sample.gpsTimestampMs)).length < 10) return null;
   const candidates = [];
-  for (const dragCoefficient of [0, 0.0025, 0.005, 0.01, 0.015, 0.025]) {
-    for (const speedProcessNoise of [0.18, 0.3, 0.45]) {
-      const replay = replaySpeedModel(phoneSamples, dragCoefficient, speedProcessNoise);
-      const comparison = compareChannel(replay, "replaySpeedKmh", goproSpeed, 1, 1000);
-      if (comparison) candidates.push({ dragCoefficient, speedProcessNoise, ...comparison });
+  for (const dragCoefficient of [0, 0.005, 0.015, 0.025]) {
+    for (const speedProcessNoise of [0.3, 0.45, 0.8, 1.2]) {
+      for (const gpsSigmaScale of [0.35, 0.5, 0.75, 1]) {
+        for (const gpsPredictionSec of [0, 0.4, 0.8, 1.2]) {
+          const replay = replaySpeedModel(
+            phoneSamples,
+            dragCoefficient,
+            speedProcessNoise,
+            gpsSigmaScale,
+            gpsPredictionSec,
+          );
+          const comparison = compareChannel(replay, "replaySpeedKmh", goproSpeed, 1, 1000);
+          if (comparison) {
+            candidates.push({
+              dragCoefficient,
+              speedProcessNoise,
+              gpsSigmaScale,
+              gpsPredictionSec,
+              ...comparison,
+            });
+          }
+        }
+      }
     }
   }
-  return candidates.sort((a, b) => a.rmse - b.rmse).slice(0, 6);
+  return candidates.sort((a, b) => a.rmse - b.rmse).slice(0, 24);
 }
 
 function comparePhoneWithGopro(phone, telemetryStreams) {

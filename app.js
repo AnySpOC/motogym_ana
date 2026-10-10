@@ -41,6 +41,7 @@ const text = {
   armed: "\u767a\u9032\u5f85\u3061",
   autoPreparing: "\u9759\u6b62\u78ba\u8a8d\u4e2d",
   running: "\u8d70\u884c\u4e2d",
+  stopCandidate: "\u505c\u6b62\u5019\u88dc\u4e2d",
   stopped: "\u8a08\u6e2c\u5b8c\u4e86",
   armDetail: "\u8a08\u6e2c\u5f85\u6a5f",
   startDetail: "\u767a\u9032\u3092\u691c\u51fa",
@@ -57,8 +58,8 @@ const text = {
   sensorError: "iOS\u8a2d\u5b9a\u307e\u305f\u306fSafari\u306e\u30bb\u30f3\u30b5\u8a31\u53ef\u3092\u78ba\u8a8d",
   manualStop: "\u624b\u52d5\u505c\u6b62",
   manualStart: "\u624b\u52d5\u958b\u59cb",
-  autoOn: "\u81ea\u52d5\u8a08\u6e2cON",
-  autoOff: "\u81ea\u52d5\u8a08\u6e2cOFF",
+  autoOn: "\u81ea\u52d5\u8a08\u6e2c\u3092\u5f85\u6a5f",
+  autoOff: "\u81ea\u52d5\u5f85\u6a5f\u3092\u89e3\u9664",
   saved: "\u81ea\u52d5\u4fdd\u5b58\u6e08\u307f",
   storageReady: "\u81ea\u52d5\u4fdd\u5b58\u6709\u52b9",
   storageUnavailable: "\u81ea\u52d5\u4fdd\u5b58\u4e0d\u53ef",
@@ -155,6 +156,7 @@ const state = {
   startCandidateVelocityMs: 0,
   autoReadyCandidateAt: 0,
   autoStartReady: false,
+  autoStopCandidate: false,
   zeroSpeedCandidateAt: 0,
   confidence: 0,
   sensorEnabled: false,
@@ -359,6 +361,7 @@ function armTimer() {
   state.measurementMode = "auto";
   state.autoReadyCandidateAt = 0;
   state.autoStartReady = false;
+  state.autoStopCandidate = false;
   setMode("armed", text.autoPreparing);
   addEvent("ARM", text.armDetail);
 }
@@ -374,6 +377,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.startCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
+  state.autoStopCandidate = false;
   state.speedMs = Math.max(0, initialSpeedMs);
   motionModel.zeroSpeed();
   motionModel.setSpeed(state.speedMs);
@@ -388,6 +392,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
 function stopRun(reason = text.stopDetail) {
   if (state.mode !== "running") return;
   state.stoppedAt = nowMs();
+  state.autoStopCandidate = false;
   setMode("stopped", text.stopped);
   addEvent("STOP", reason);
   elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
@@ -779,13 +784,24 @@ function detectEvents(t) {
   const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
   const imuStopped = !gpsFresh && state.speedMs < IMU_STOP_SPEED_MS && recentlyBraked;
   const nearStopped = lowDynamics && (gpsStopped || imuStopped);
-  if (nearStopped) {
+  const canAutoStop = state.autoMeasurementEnabled
+    && state.measurementMode === "auto"
+    && nowMs() - state.startedAt > 1500;
+  if (nearStopped && canAutoStop) {
     state.lastStopCandidateAt ||= t;
-    if (state.autoMeasurementEnabled && state.measurementMode === "auto" && t - state.lastStopCandidateAt > STOP_HOLD_MS && nowMs() - state.startedAt > 1500) {
+    if (!state.autoStopCandidate) {
+      state.autoStopCandidate = true;
+      setMode("running", text.stopCandidate);
+    }
+    if (t - state.lastStopCandidateAt > STOP_HOLD_MS) {
       stopRun(text.stopHold);
     }
   } else {
     state.lastStopCandidateAt = 0;
+    if (state.autoStopCandidate) {
+      state.autoStopCandidate = false;
+      setMode("running", text.running);
+    }
   }
 }
 
@@ -836,6 +852,7 @@ function storeRawSample(t) {
     latBias: round(state.latBias, 5),
     yawBias: round(state.yawBias, 3),
     confidence: state.confidence,
+    autoStopCandidate: state.autoStopCandidate,
   });
   if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
 }
@@ -1003,6 +1020,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.startCandidateVelocityMs = 0;
   state.autoReadyCandidateAt = 0;
   state.autoStartReady = false;
+  state.autoStopCandidate = false;
   state.gpsResyncPending = false;
   state.lastSensorGapSec = 0;
   state.zeroSpeedCandidateAt = 0;
@@ -1164,8 +1182,8 @@ function render() {
     elements.calibrationButton.textContent = "Calibration";
     elements.calibrationButton.classList.remove("primary");
   }
-  elements.autoOnButton.textContent = "Auto待機";
-  elements.autoOffButton.textContent = "Auto解除";
+  elements.autoOnButton.textContent = "自動計測を待機";
+  elements.autoOffButton.textContent = "待機解除";
   elements.manualOnButton.textContent = "手動開始";
   elements.manualOffButton.textContent = "計測停止";
   elements.calibrationButton.disabled = !state.sensorEnabled || state.mode === "running";
@@ -1539,7 +1557,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -1564,6 +1582,7 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     "",
     fixed(event.vibrationG, 4),
+    "",
     "",
     "",
     "",
@@ -1603,6 +1622,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.latBias, 5),
     fixed(sample.yawBias, 3),
     sample.confidence,
+    sample.autoStopCandidate ? 1 : 0,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }

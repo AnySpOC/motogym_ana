@@ -191,6 +191,7 @@ for (let i = 0; i < 180; i += 1) {
 
 assert.equal(api.state.mode, "armed", "engine vibration must not trigger automatic START");
 assert.equal(api.state.autoStartReady, true, "stationary hold must make Auto ready for launch");
+assert.equal(elements.get("#rideState").textContent, "発進待ち", "Auto readiness must be visible to the rider");
 assert.equal(api.state.forwardAxis, "", "engine vibration must not lock a false forward axis");
 assert.equal(api.state.speedMs, 0, "Auto standby must keep displayed speed at zero before START");
 assert.equal(api.state.samples.length, 0, "Auto standby must not add graph samples before START");
@@ -295,6 +296,7 @@ api.onGpsPosition({
   },
 });
 
+let sawStopCandidate = false;
 for (let i = 0; i < 60; i += 1) {
   clock += 1000 / 60;
   api.handleMotionSample({
@@ -308,7 +310,12 @@ for (let i = 0; i < 60; i += 1) {
     yawRate: 0,
     bankDeg: 0,
   });
+  if (api.state.autoStopCandidate) {
+    sawStopCandidate = true;
+    assert.equal(elements.get("#rideState").textContent, "停止候補中");
+  }
 }
+assert.equal(sawStopCandidate, true, "automatic timing must expose its stop-candidate phase");
 assert.equal(api.state.speedMs, 0, "fresh zero GPS speed should clamp speed to zero");
 assert.equal(api.state.mode, "stopped", "fresh zero GPS speed should complete automatic timing");
 
@@ -335,6 +342,7 @@ const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
 assert.match(csvLines[0], /gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps/);
 assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
+assert.match(csvLines[0], /auto_stop_candidate/);
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
 }

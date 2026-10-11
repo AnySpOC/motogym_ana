@@ -29,6 +29,8 @@ function makeElement(selector) {
 const sandbox = {
   console,
   document: {
+    visibilityState: "visible",
+    addEventListener() {},
     querySelector(selector) {
       if (!elements.has(selector)) elements.set(selector, makeElement(selector));
       return elements.get(selector);
@@ -50,7 +52,8 @@ source = source.replace(/\nrender\(\);\s*\nloadRuns\(\);\s*$/, "\n");
 source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
-  calibrateAndProjectSample, motionModel, runToCsv, runsToCsv
+  calibrateAndProjectSample, motionModel, runToCsv, runsToCsv,
+  handleAppBackground
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -298,6 +301,7 @@ api.onGpsPosition({
 });
 
 let sawStopCandidate = false;
+let stopCandidateAt = 0;
 for (let i = 0; i < 60; i += 1) {
   clock += 1000 / 60;
   api.handleMotionSample({
@@ -313,12 +317,14 @@ for (let i = 0; i < 60; i += 1) {
   });
   if (api.state.autoStopCandidate) {
     sawStopCandidate = true;
+    stopCandidateAt ||= api.state.lastStopCandidateAt;
     assert.equal(elements.get("#rideState").textContent, "停止候補中");
   }
 }
 assert.equal(sawStopCandidate, true, "automatic timing must expose its stop-candidate phase");
 assert.equal(api.state.speedMs, 0, "fresh zero GPS speed should clamp speed to zero");
 assert.equal(api.state.mode, "stopped", "fresh zero GPS speed should complete automatic timing");
+assert.equal(api.state.stoppedAt, stopCandidateAt, "automatic timing should end at the first confirmed stop sample");
 
 api.onGpsPosition({
   timestamp: 12000,
@@ -337,6 +343,11 @@ api.startManualMeasurement();
 assert.equal(api.state.mode, "running");
 assert.equal(api.state.speedMs, 8, "manual timing should initialize from fresh GPS when already moving");
 assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh, 28.8);
+
+sandbox.document.visibilityState = "hidden";
+api.handleAppBackground();
+assert.equal(api.state.mode, "stopped", "backgrounding must interrupt an active measurement");
+assert.equal(api.state.events.find((event) => event.type === "STOP")?.detail, "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad");
 
 const csv = api.runToCsv({ events: api.state.events.slice(0, 1), samples: api.state.rawSamples.slice(0, 1) });
 const csvLines = csv.trim().split("\n");

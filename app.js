@@ -15,8 +15,9 @@ const MOTION_LOW_PASS_TAU_SEC = 0.08;
 const VIBRATION_LEVEL_TAU_SEC = 0.35;
 const BANK_OBSERVATION_VARIANCE = 30;
 const BANK_DYNAMICS_SCALE = 2;
-const START_CONFIRM_MS = 140;
+const START_CONFIRM_MS = 100;
 const AUTO_READY_HOLD_MS = 600;
+const CHECKPOINT_INTERVAL_MS = 15000;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
@@ -31,9 +32,9 @@ const CALIBRATION_MAX_GRAVITY_DRIFT_DEG = 7;
 const CALIBRATION_MAX_VIBRATION_G = 0.6;
 
 const sensitivityProfiles = {
-  calm: { startG: 0.26, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
-  normal: { startG: 0.2, accelG: 0.26, brakeG: -0.3, turnRate: 40, bankAngle: 20, deadbandG: 0.025 },
-  sharp: { startG: 0.14, accelG: 0.19, brakeG: -0.22, turnRate: 30, bankAngle: 15, deadbandG: 0.014 },
+  calm: { startG: 0.22, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
+  normal: { startG: 0.16, accelG: 0.26, brakeG: -0.3, turnRate: 40, bankAngle: 20, deadbandG: 0.025 },
+  sharp: { startG: 0.12, accelG: 0.19, brakeG: -0.22, turnRate: 30, bankAngle: 15, deadbandG: 0.014 },
 };
 
 const text = {
@@ -73,6 +74,8 @@ const text = {
   axisLocked: "\u524d\u5f8c\u8ef8\u3092\u691c\u51fa",
   gpsReady: "GPS\u53d6\u5f97",
   gpsUnavailable: "GPS\u672a\u53d6\u5f97",
+  backgroundStop: "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad",
+  backgroundArmCancelled: "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u767a\u9032\u5f85\u3061\u3092\u89e3\u9664",
 };
 
 const elements = {
@@ -192,10 +195,12 @@ const state = {
   lastBrakeAt: 0,
   gpsResyncPending: false,
   lastSensorGapSec: 0,
+  lastCheckpointAt: 0,
 };
 
 let dbPromise = null;
 let timerFrameId = null;
+let runSaveQueue = Promise.resolve();
 
 class MotionEkf {
   constructor() {
@@ -378,6 +383,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
   state.autoStopCandidate = false;
+  state.lastCheckpointAt = onsetAt;
   state.speedMs = Math.max(0, initialSpeedMs);
   motionModel.zeroSpeed();
   motionModel.setSpeed(state.speedMs);
@@ -389,12 +395,13 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   startTimerRenderLoop();
 }
 
-function stopRun(reason = text.stopDetail) {
+function stopRun(reason = text.stopDetail, stoppedAt = nowMs()) {
   if (state.mode !== "running") return;
-  state.stoppedAt = nowMs();
+  state.stoppedAt = Math.max(state.startedAt, Math.min(stoppedAt, nowMs()));
   state.autoStopCandidate = false;
   setMode("stopped", text.stopped);
   addEvent("STOP", reason);
+  state.events[0].timeMs = Math.round(state.stoppedAt - state.startedAt);
   elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
   saveCurrentRun();
   state.measurementMode = "none";
@@ -800,7 +807,7 @@ function detectEvents(t) {
       setMode("running", text.stopCandidate);
     }
     if (t - state.lastStopCandidateAt > STOP_HOLD_MS) {
-      stopRun(text.stopHold);
+      stopRun(text.stopHold, state.lastStopCandidateAt);
     }
   } else {
     state.lastStopCandidateAt = 0;
@@ -862,6 +869,10 @@ function storeRawSample(t) {
     autoStopCandidate: state.autoStopCandidate,
   });
   if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
+  if (t - state.lastCheckpointAt >= CHECKPOINT_INTERVAL_MS) {
+    state.lastCheckpointAt = t;
+    checkpointCurrentRun();
+  }
 }
 
 function onDeviceMotion(event) {
@@ -1433,11 +1444,15 @@ function dbDeleteMany(storeName, ids) {
 }
 
 function buildCurrentRun() {
+  const currentAt = nowMs();
+  const endedAt = state.currentRunId ? (state.stoppedAt || currentAt) : currentAt;
+  const durationMs = Math.round(state.currentRunId ? endedAt - state.startedAt : 0);
+  const endedAtEpochMs = Date.now() - Math.max(0, currentAt - endedAt);
   return buildRun({
     id: state.currentRunId || makeRunId(),
-    startedAtIso: state.currentRunId ? new Date(Date.now() - ((state.stoppedAt || nowMs()) - state.startedAt)).toISOString() : new Date().toISOString(),
-    endedAtIso: new Date().toISOString(),
-    durationMs: Math.round(state.currentRunId ? (state.stoppedAt || nowMs()) - state.startedAt : 0),
+    startedAtIso: state.currentRunId ? new Date(endedAtEpochMs - durationMs).toISOString() : new Date().toISOString(),
+    endedAtIso: new Date(endedAtEpochMs).toISOString(),
+    durationMs,
     calibration: {
       deviceOffsetX: round(state.deviceOffsetX, 5),
       deviceOffsetY: round(state.deviceOffsetY, 5),
@@ -1485,11 +1500,25 @@ function buildRun(run) {
   };
 }
 
+function queueRunSave(run) {
+  runSaveQueue = runSaveQueue
+    .catch(() => {})
+    .then(() => dbPut(RUN_STORE, run));
+  return runSaveQueue;
+}
+
+function checkpointCurrentRun() {
+  if (state.mode !== "running" || !state.currentRunId || !state.rawSamples.length) return Promise.resolve();
+  return queueRunSave(buildCurrentRun()).catch(() => {
+    setStorageStatus(text.storageUnavailable);
+  });
+}
+
 function saveCurrentRun() {
   addEvent("SAVE", text.saved);
   const run = buildCurrentRun();
   if (!run.samples.length && !run.events.length) return;
-  dbPut(RUN_STORE, run)
+  queueRunSave(run)
     .then(() => {
       return loadRuns();
     })
@@ -1497,6 +1526,24 @@ function saveCurrentRun() {
       addEvent("SAVE", text.storageUnavailable);
       setStorageStatus(text.storageUnavailable);
     });
+}
+
+function handleAppBackground(event) {
+  if (event?.type !== "pagehide" && document.visibilityState && document.visibilityState !== "hidden") return;
+  if (state.mode === "running") {
+    stopRun(text.backgroundStop, nowMs());
+    return;
+  }
+  if (state.mode === "armed") {
+    state.autoMeasurementEnabled = false;
+    state.measurementMode = "none";
+    state.autoStartReady = false;
+    state.autoReadyCandidateAt = 0;
+    state.startCandidateAt = 0;
+    setMode(state.sensorEnabled ? "sensor-on" : "idle", text.backgroundArmCancelled);
+    addEvent("AUTO", text.backgroundArmCancelled);
+    render();
+  }
 }
 
 function loadRuns() {
@@ -1760,6 +1807,9 @@ elements.historyList.addEventListener("click", (event) => {
   if (!button) return;
   exportStoredRun(button.dataset.run, button.dataset.action);
 });
+
+document.addEventListener("visibilitychange", handleAppBackground);
+window.addEventListener("pagehide", handleAppBackground);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

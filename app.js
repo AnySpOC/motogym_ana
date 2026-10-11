@@ -13,6 +13,8 @@ const CALIBRATION_MS = 4000;
 const AXIS_LOCK_G = 0.08;
 const MOTION_LOW_PASS_TAU_SEC = 0.08;
 const VIBRATION_LEVEL_TAU_SEC = 0.35;
+const BANK_OBSERVATION_VARIANCE = 30;
+const BANK_DYNAMICS_SCALE = 2;
 const START_CONFIRM_MS = 140;
 const AUTO_READY_HOLD_MS = 600;
 const ZERO_SPEED_HOLD_MS = 450;
@@ -122,6 +124,7 @@ const state = {
   lastStopCandidateAt: 0,
   speedMs: 0,
   bankDeg: 0,
+  gravityBankDeg: 0,
   yawRate: 0,
   longG: 0,
   latG: 0,
@@ -221,17 +224,15 @@ class MotionEkf {
   }
 
   update(measurement, dt) {
-    this.predict(dt, measurement.longG);
+    this.predict(dt, measurement.longG, measurement.rollRateDps);
     this.correct(measurement);
     return this.value();
   }
 
-  predict(dt, measuredLongG = null) {
+  predict(dt, measuredLongG = null, rollRateDps = 0) {
     const [v, longG, latG, yawRate, bankDeg] = this.x;
     const accelDecay = Math.exp(-dt / 0.7);
     const yawDecay = Math.exp(-dt / 0.5);
-    const rollBlend = Math.min(0.35, dt / 0.45);
-    const rollEqDeg = Math.atan(latG) * RAD_TO_DEG;
     const driveLongG = Number.isFinite(measuredLongG)
       ? 0.75 * measuredLongG + 0.25 * longG
       : longG;
@@ -241,7 +242,7 @@ class MotionEkf {
       longG * accelDecay,
       latG * accelDecay,
       yawRate * yawDecay,
-      bankDeg + (rollEqDeg - bankDeg) * rollBlend,
+      bankDeg - rollRateDps * dt,
     ];
 
     const f = identity(this.n);
@@ -250,15 +251,14 @@ class MotionEkf {
     f[1][1] = accelDecay;
     f[2][2] = accelDecay;
     f[3][3] = yawDecay;
-    f[4][2] = rollBlend * RAD_TO_DEG / (1 + latG * latG);
-    f[4][4] = 1 - rollBlend;
+    f[4][4] = 1;
 
     const q = diag([
       SPEED_PROCESS_NOISE * dt,
       0.09 * dt,
       0.09 * dt,
       18 * dt,
-      6 * dt,
+      1 * dt,
     ]);
 
     this.x = next;
@@ -273,7 +273,7 @@ class MotionEkf {
       [0, 0, 0, 0, 1],
     ];
     const z = [measurement.longG, measurement.latG, measurement.yawRate, measurement.bankDeg];
-    const r = diag([0.012, 0.012, 9, 12]);
+    const r = diag([0.012, 0.012, 9, measurement.bankVariance || BANK_OBSERVATION_VARIANCE]);
     const hx = matVec(h, this.x);
     const residual = z.map((value, index) => value - hx[index]);
     const s = add(mul(mul(h, this.p), transpose(h)), r);
@@ -441,11 +441,17 @@ function handleMotionSample(sample) {
     latG: cleanedLatG,
     yawRate: calibrated.yawRate,
     bankDeg: calibrated.bankDeg,
+    rollRateDps: state.rollRate,
+    bankVariance: BANK_OBSERVATION_VARIANCE * Math.exp(Math.min(
+      4,
+      BANK_DYNAMICS_SCALE * (Math.abs(cleanedLongG) + Math.abs(cleanedLatG) + state.vibrationG),
+    )),
   }, dt);
   state.longG = estimate.longG;
   state.latG = estimate.latG;
   state.yawRate = estimate.yawRate;
   state.bankDeg = estimate.bankDeg;
+  state.gravityBankDeg = calibrated.bankDeg;
   state.speedMs = estimate.speedMs;
   state.longBias = estimate.longBias;
   state.latBias = estimate.latBias;
@@ -526,16 +532,16 @@ function calibrateAndProjectSample(sample, t, dt) {
   }
 
   if (state.forwardAxis === "x") {
-    return { longG: state.forwardSign * x, latG: y, yawRate, bankDeg: sample.bankDeg };
+    return { longG: state.forwardSign * x, latG: y, yawRate, bankDeg: 0 };
   }
   if (state.forwardAxis === "y") {
-    return { longG: state.forwardSign * y, latG: x, yawRate, bankDeg: sample.bankDeg };
+    return { longG: state.forwardSign * y, latG: x, yawRate, bankDeg: 0 };
   }
 
   if (Math.abs(y) >= Math.abs(x)) {
-    return { longG: y, latG: x, yawRate, bankDeg: sample.bankDeg };
+    return { longG: y, latG: x, yawRate, bankDeg: 0 };
   }
-  return { longG: x, latG: y, yawRate, bankDeg: sample.bankDeg };
+  return { longG: x, latG: y, yawRate, bankDeg: 0 };
 }
 
 function collectCalibrationSample(sample, t) {
@@ -839,6 +845,7 @@ function storeRawSample(t) {
     gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
     gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
     bankDeg: round(state.bankDeg, 2),
+    gravityBankDeg: round(state.gravityBankDeg, 2),
     yawRate: round(state.yawRate, 2),
     gyroX: round(state.rawGyroVector[0], 3),
     gyroY: round(state.rawGyroVector[1], 3),
@@ -1031,6 +1038,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.rawGyroVector = [0, 0, 0];
   state.rollRate = 0;
   state.bankDeg = 0;
+  state.gravityBankDeg = 0;
   state.observedBankDeg = 0;
   state.longBias = 0;
   state.latBias = 0;
@@ -1557,7 +1565,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -1576,6 +1584,7 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     "",
     fixed(event.bankDeg, 1),
+    "",
     fixed(event.yawRate, 1),
     "",
     "",
@@ -1609,6 +1618,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.gpsTimestampMs, 0),
     fixed(sample.gpsAgeMs, 0),
     fixed(sample.bankDeg, 2),
+    fixed(sample.gravityBankDeg, 2),
     fixed(sample.yawRate, 2),
     fixed(sample.gyroX, 3),
     fixed(sample.gyroY, 3),

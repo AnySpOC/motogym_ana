@@ -70,9 +70,18 @@ function parseRunStart(filePath) {
 
 function firstGpxTime(gpxPath) {
   const gpxText = fs.readFileSync(gpxPath, "utf8");
-  const timeMatch = gpxText.match(/<time>([^<]+)<\/time>/);
-  if (!timeMatch) throw new Error(`No GPX time found in ${gpxPath}`);
-  return Date.parse(timeMatch[1]);
+  const trackPointPattern = /<trkpt\b[^>]*\blat="([^"]+)"[^>]*\blon="([^"]+)"[^>]*>[\s\S]*?<time>([^<]+)<\/time>[\s\S]*?<\/trkpt>/gi;
+  for (const match of gpxText.matchAll(trackPointPattern)) {
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+    const timestamp = Date.parse(match[3]);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)
+      && (Math.abs(latitude) > 1e-6 || Math.abs(longitude) > 1e-6)
+      && Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+  throw new Error(`No valid GPX track point time found in ${gpxPath}`);
 }
 
 function embeddedGpsVideoStart(telemetryStreams) {
@@ -113,6 +122,10 @@ function loadPhoneSamples(csvPath, videoStartMs, timingSource) {
       longG: number(cells, "long_g"),
       latG: number(cells, "lat_g"),
       yawRateDps: number(cells, "yaw_rate"),
+      rollRateDps: number(cells, "roll_rate_dps"),
+      bankDeg: number(cells, "bank_deg"),
+      gravityBankDeg: number(cells, "gravity_bank_deg"),
+      vibrationG: number(cells, "vibration_g"),
       appSpeedKmh: number(cells, "speed_kmh"),
       iphoneGpsSpeedKmh: number(cells, "gps_speed_kmh"),
       gpsAccuracyM: number(cells, "gps_accuracy_m"),
@@ -331,13 +344,51 @@ function projectGyroOntoGravity(gyroscope, gravity) {
   return projected;
 }
 
-function compareChannel(phoneSamples, phoneKey, goproSamples, scale, smoothingWindowMs) {
+function gravityTiltSamples(samples) {
+  const sums = [0, 0, 0];
+  let count = 0;
+  for (const sample of samples) {
+    const vector = numericVector(sample.value);
+    if (vector.length < 3) continue;
+    for (let axis = 0; axis < 3; axis += 1) sums[axis] += vector[axis];
+    count += 1;
+  }
+  if (!count) return null;
+  const means = sums.map((sum) => sum / count);
+  const verticalAxis = means.map(Math.abs).indexOf(Math.max(...means.map(Math.abs)));
+  const tiltAxes = [0, 1, 2].filter((axis) => axis !== verticalAxis);
+  const verticalSign = means[verticalAxis] < 0 ? -1 : 1;
+  const derived = [];
+  for (const sample of samples) {
+    const vector = numericVector(sample.value);
+    if (vector.length < 3) continue;
+    const vertical = vector[verticalAxis] * verticalSign;
+    derived.push({
+      cts: sample.cts,
+      value: tiltAxes.map((axis) => Math.atan2(vector[axis] * verticalSign, vertical) * 180 / Math.PI),
+    });
+  }
+  return { samples: derived, verticalAxis, tiltAxes, meanVector: means };
+}
+
+function compareChannel(
+  phoneSamples,
+  phoneKey,
+  goproSamples,
+  scale,
+  smoothingWindowMs,
+  fixedShiftSec = null,
+  fixedAxis = null,
+) {
   const vectorLength = numericVector(goproSamples.find((sample) => numericVector(sample.value).length)?.value).length;
   const candidates = [];
-  for (let axis = 0; axis < vectorLength; axis += 1) {
+  const shifts = Number.isFinite(fixedShiftSec)
+    ? [fixedShiftSec]
+    : Array.from({ length: 101 }, (_, index) => (index - 50) / 10);
+  const axes = Number.isInteger(fixedAxis) ? [fixedAxis] : Array.from({ length: vectorLength }, (_, axis) => axis);
+  for (const axis of axes) {
     for (const sign of [1, -1]) {
-      for (let step = -50; step <= 50; step += 1) {
-        const shiftSec = step / 10;
+      for (const shiftSec of shifts) {
         const phone = [];
         const gopro = [];
         for (let index = 0; index < phoneSamples.length; index += 6) {
@@ -360,6 +411,10 @@ function compareChannel(phoneSamples, phoneKey, goproSamples, scale, smoothingWi
         const centeredRmse = Math.sqrt(
           errors.reduce((sum, value) => sum + (value - bias) ** 2, 0) / errors.length,
         );
+        const phoneMean = phone.reduce((sum, value) => sum + value, 0) / phone.length;
+        const goproMean = gopro.reduce((sum, value) => sum + value, 0) / gopro.length;
+        const phoneStddev = Math.sqrt(phone.reduce((sum, value) => sum + (value - phoneMean) ** 2, 0) / phone.length);
+        const goproStddev = Math.sqrt(gopro.reduce((sum, value) => sum + (value - goproMean) ** 2, 0) / gopro.length);
         candidates.push({
           axis,
           sign,
@@ -370,6 +425,14 @@ function compareChannel(phoneSamples, phoneKey, goproSamples, scale, smoothingWi
           bias,
           rmse,
           centeredRmse,
+          phoneMean,
+          goproMean,
+          phoneStddev,
+          goproStddev,
+          phoneMin: Math.min(...phone),
+          phoneMax: Math.max(...phone),
+          goproMin: Math.min(...gopro),
+          goproMax: Math.max(...gopro),
         });
       }
     }
@@ -416,6 +479,46 @@ function replaySpeedModel(
   });
 }
 
+function replayBankModel(phoneSamples, rollSign, correctionTauSec, dynamicsScale) {
+  let bankDeg = phoneSamples.find((sample) => Number.isFinite(sample.bankDeg))?.bankDeg || 0;
+  let previousTimeMs = phoneSamples[0]?.videoTimeMs || 0;
+  return phoneSamples.map((sample) => {
+    const dt = Math.min(0.12, Math.max(0.005, (sample.videoTimeMs - previousTimeMs) / 1000));
+    previousTimeMs = sample.videoTimeMs;
+    const rollRateDps = Number.isFinite(sample.rollRateDps) ? sample.rollRateDps : 0;
+    const predicted = bankDeg + rollSign * rollRateDps * dt;
+    const observation = Number.isFinite(sample.bankDeg) ? sample.bankDeg : predicted;
+    const dynamics = Math.abs(sample.longG || 0) + Math.abs(sample.latG || 0) + (sample.vibrationG || 0);
+    const observationTrust = Math.exp(-dynamicsScale * dynamics);
+    const correctionGain = (1 - Math.exp(-dt / correctionTauSec)) * observationTrust;
+    bankDeg = predicted + correctionGain * (observation - predicted);
+    return { ...sample, replayBankDeg: bankDeg };
+  });
+}
+
+function evaluateBankTuning(phoneSamples, gravityTilt, imuShiftSec, rollTiltIndex) {
+  if (!gravityTilt?.samples.length || rollTiltIndex < 0) return null;
+  const candidates = [];
+  for (const rollSign of [1, -1]) {
+    for (const correctionTauSec of [0.3, 0.7, 1.5, 3, 6]) {
+      for (const dynamicsScale of [0, 2, 5, 10]) {
+        const replay = replayBankModel(phoneSamples, rollSign, correctionTauSec, dynamicsScale);
+        const comparison = compareChannel(
+          replay,
+          "replayBankDeg",
+          gravityTilt.samples,
+          1,
+          200,
+          imuShiftSec,
+          rollTiltIndex,
+        );
+        if (comparison) candidates.push({ rollSign, correctionTauSec, dynamicsScale, ...comparison });
+      }
+    }
+  }
+  return candidates.sort((a, b) => a.centeredRmse - b.centeredRmse).slice(0, 20);
+}
+
 function evaluateSpeedTuning(phoneSamples, goproSpeed) {
   if (!goproSpeed.length || phoneSamples.filter((sample) => Number.isFinite(sample.gpsTimestampMs)).length < 10) return null;
   const candidates = [];
@@ -452,7 +555,26 @@ function comparePhoneWithGopro(phone, telemetryStreams) {
   const acceleration = streamMap.ACCL?.samples || [];
   const gyroscope = streamMap.GYRO?.samples || [];
   const projectedYaw = projectGyroOntoGravity(gyroscope, streamMap.GRAV?.samples || []);
+  const gravityTilt = gravityTiltSamples(streamMap.GRAV?.samples || []);
   const gpsSpeed = gpsSpeedSamples(streamMap.GPS9?.samples || streamMap.GPS5?.samples || []);
+  const longitudinalComparison = acceleration.length
+    ? compareChannel(phone.samples, "longG", acceleration, 1 / 9.80665, 200)
+    : null;
+  const imuShiftSec = longitudinalComparison?.shiftSec ?? 0;
+  const rollTiltIndex = gravityTilt?.tiltAxes.indexOf(0) ?? -1;
+  const pitchTiltIndex = gravityTilt?.tiltAxes.indexOf(2) ?? -1;
+  const bankComparison = gravityTilt?.samples.length && rollTiltIndex >= 0
+    ? compareChannel(phone.samples, "bankDeg", gravityTilt.samples, 1, 200, imuShiftSec, rollTiltIndex)
+    : null;
+  if (bankComparison) {
+    bankComparison.goproVerticalAxis = gravityTilt.verticalAxis;
+    bankComparison.goproTiltAxis = gravityTilt.tiltAxes[bankComparison.axis];
+    bankComparison.goproMeanGravity = gravityTilt.meanVector;
+    bankComparison.referenceFrame = "GoPro GRAV [X,Z,Y]: roll=atan2(X,Z)";
+  }
+  const bankVsPitchComparison = gravityTilt?.samples.length && pitchTiltIndex >= 0
+    ? compareChannel(phone.samples, "bankDeg", gravityTilt.samples, 1, 200, imuShiftSec, pitchTiltIndex)
+    : null;
   return {
     csvStartUtc: phone.csvStartUtc,
     videoStartUtc: phone.videoStartUtc,
@@ -465,12 +587,19 @@ function comparePhoneWithGopro(phone, telemetryStreams) {
       videoTimeMs: undefined,
       goproGpsSpeedKmh: interpolateVector(gpsSpeed, event.videoTimeMs)?.[0] ?? null,
     })),
-    longitudinalG: acceleration.length ? compareChannel(phone.samples, "longG", acceleration, 1 / 9.80665, 200) : null,
+    imuShiftSec,
+    longitudinalG: longitudinalComparison,
     lateralG: acceleration.length ? compareChannel(phone.samples, "latG", acceleration, 1 / 9.80665, 200) : null,
     yawRateDps: gyroscope.length ? compareChannel(phone.samples, "yawRateDps", gyroscope, 180 / Math.PI, 100) : null,
     yawRateProjectedDps: projectedYaw.length
       ? compareChannel(phone.samples, "yawRateDps", projectedYaw, 180 / Math.PI, 100)
       : null,
+    rollRateDps: gyroscope.length
+      ? compareChannel(phone.samples, "rollRateDps", gyroscope, 180 / Math.PI, 100, imuShiftSec)
+      : null,
+    bankDegFromGravity: bankComparison,
+    bankDegVsGoproPitch: bankVsPitchComparison,
+    bankTuningCandidates: evaluateBankTuning(phone.samples, gravityTilt, imuShiftSec, rollTiltIndex),
     appSpeedKmh: gpsSpeed.length ? compareChannel(phone.samples, "appSpeedKmh", gpsSpeed, 1, 1000) : null,
     iphoneGpsSpeedKmh: gpsSpeed.length ? compareChannel(phone.samples, "iphoneGpsSpeedKmh", gpsSpeed, 1, 1000) : null,
     speedTuningCandidates: evaluateSpeedTuning(phone.samples, gpsSpeed),

@@ -111,6 +111,7 @@ const projectedGyro = api.calibrateAndProjectSample({
   bankDeg: 0,
 }, clock, 1 / 60);
 assert.equal(projectedGyro.yawRate, 10, "yaw rate must be projected onto the calibrated vehicle vertical axis");
+assert.equal(projectedGyro.bankDeg, 0, "phone mounting angle must not become bank before the vehicle axis is locked");
 api.state.gravityVector = [0, 0, 1];
 api.state.gyroOffsetVector = [0, 0, 0];
 
@@ -342,6 +343,7 @@ const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
 assert.match(csvLines[0], /gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps/);
 assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
+assert.match(csvLines[0], /bank_deg,gravity_bank_deg,yaw_rate/);
 assert.match(csvLines[0], /auto_stop_candidate/);
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
@@ -376,6 +378,36 @@ for (let index = 0; index < 600; index += 1) {
 assert.ok(
   Math.abs(api.motionModel.value().speedMs - 10) < 0.01,
   "constant-speed motion must not decay without measured braking",
+);
+
+api.motionModel.reset();
+for (let index = 0; index < 60; index += 1) {
+  api.motionModel.update({
+    longG: 0,
+    latG: 0,
+    yawRate: 0,
+    bankDeg: 0,
+    rollRateDps: -30,
+    bankVariance: 1e9,
+  }, 1 / 60);
+}
+assert.ok(
+  api.motionModel.value().bankDeg > 29,
+  "bank prediction must integrate roll rate with the calibrated sign",
+);
+for (let index = 0; index < 240; index += 1) {
+  api.motionModel.update({
+    longG: 0,
+    latG: 0,
+    yawRate: 0,
+    bankDeg: 0,
+    rollRateDps: 0,
+    bankVariance: 30,
+  }, 1 / 60);
+}
+assert.ok(
+  Math.abs(api.motionModel.value().bankDeg) < 3,
+  "trusted gravity observations must remove integrated bank drift",
 );
 
 console.log(JSON.stringify({

@@ -169,6 +169,8 @@ a_h = a_c - dot(a_c, g_d) * g_d
 
 Autoの静止確認完了後または手動計測中に、`|a_h| >= 0.08 G`となった最初の明確な加速で車体前方向と左右方向を決定する。静止確認前の衝撃や走行中のAuto操作では軸を確定しない。
 
+前後軸が未確定の間はバンク角を`0 deg`とし、端末固有の`DeviceOrientation.gamma`を車体バンク角として使用しない。これにより取付角度が初期バンクへ混入することを防ぐ。
+
 ```text
 e_forward = normalize(a_h)
 e_lateral = normalize(cross(g_d, e_forward))
@@ -176,11 +178,13 @@ longitudinal_g = dot(a_c, e_forward)
 lateral_g = dot(a_c, e_lateral)
 ```
 
-バンク角は現在重力方向`g_now`を使い、次式で求める。
+現在重力方向`g_now`から、バンク角の低周波観測値を次式で求める。
 
 ```text
-bank = atan2(dot(g_now, e_lateral), dot(g_now, g_d))
+bank_gravity = atan2(dot(g_now, e_lateral), dot(g_now, g_d))
 ```
+
+旋回中の加速度は重力方向へ混入するため、`bank_gravity`をそのまま最終バンク角にはしない。車体前後軸へ射影したジャイロ角速度を短周期の変化、重力角を長周期のドリフト補正として融合する。
 
 ## 7. 状態推定
 
@@ -208,7 +212,7 @@ v_k = max(0, v_(k-1) + a_drive * g0 * dt)
 a_long_k = a_long_(k-1) * exp(-dt / 0.7)
 a_lat_k = a_lat_(k-1) * exp(-dt / 0.7)
 yaw_k = yaw_(k-1) * exp(-dt / 0.5)
-bank_k = bank_(k-1) + blend * (atan(a_lat) - bank_(k-1))
+bank_k = bank_(k-1) - roll_rate * dt
 ```
 
 状態遷移ヤコビアン`F`で共分散を予測する。
@@ -217,7 +221,7 @@ bank_k = bank_(k-1) + blend * (atan(a_lat) - bank_(k-1))
 P_k^- = F P_(k-1) F^T + Q
 ```
 
-`Q`は速度、加速度、ヨー、バンクのモデル誤差を表す。2026-10-04と2026-10-10のログ再生に基づき、速度のプロセスノイズは`1.2 * dt`とする。これにより高精度GPSへの追従を速める。`dt`は`0.005`から`0.12 s`へ制限し、Safari停止復帰時の過大積分を防ぐ。
+`Q`は速度、加速度、ヨー、バンクのモデル誤差を表す。2026-10-04と2026-10-10のログ再生に基づき、速度のプロセスノイズは`1.2 * dt`とする。バンク角のプロセスノイズは`1.0 * dt`とする。`dt`は`0.005`から`0.12 s`へ制限し、Safari停止復帰時の過大積分を防ぐ。
 
 ### 7.3 IMU観測モデル
 
@@ -236,7 +240,14 @@ x = x + Ky
 P = (I - KH)P
 ```
 
-観測ノイズ対角値は`R = diag([0.012, 0.012, 9, 12])`である。
+観測ノイズ対角値は`R = diag([0.012, 0.012, 9, R_bank])`である。バンク角の基準観測分散は`30`とし、加減速、旋回、振動が大きいほど次式で増加させる。
+
+```text
+dynamics = |a_long| + |a_lat| + vibration_g
+R_bank = 30 * exp(min(4, 2 * dynamics))
+```
+
+これは2026-10-11のGoPro重力姿勢との比較で、ロールレート符号`-1`、補正時定数約`0.7 s`、運動量係数`2`がGPS同期の良好な2走行で共通して改善した結果に基づく。動的な旋回中はジャイロを優先し、低運動時に重力角へ戻す。
 
 DeviceMotionの角速度`beta`、`gamma`、`alpha`を端末X、Y、Z軸の3次元ベクトルとして取得する。静止キャリブレーションで各軸のバイアスを除去し、キャリブレーション時の重力方向へ射影した値を車体ヨーレートとして使う。
 
@@ -318,6 +329,7 @@ run
 | `gpsHeadingDeg` | deg | GPS方位 |
 | `gpsTimestampMs`, `gpsAgeMs` | ms | GPS測位時刻と受信時点の観測経過時間 |
 | `bankDeg` | deg | バンク角 |
+| `gravityBankDeg` | deg | 重力ベクトルだけから求めたバンク観測角。CSVでは`gravity_bank_deg` |
 | `yawRate` | deg/s | ヨーレート |
 | `gyroX`, `gyroY`, `gyroZ` | deg/s | 端末座標系の生3軸角速度 |
 | `rollRate` | deg/s | 車体前後軸へ射影した角速度 |

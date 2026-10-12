@@ -166,6 +166,24 @@ for (let i = 0; i < 30; i += 1) {
 assert.equal(api.state.mode, "armed", "Auto must not START when enabled while GPS says the bike is moving");
 assert.equal(api.state.autoStartReady, false, "Auto must wait for a confirmed standstill");
 
+api.state.gpsReceivedAt = 0;
+for (let i = 0; i < 50; i += 1) {
+  clock += 1000 / 60;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0,
+    rawZ: 0,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+assert.equal(api.state.autoStartReady, false, "Auto must not become ready before a fresh GPS standstill");
+assert.equal(elements.get("#rideState").textContent, "GPS\u9759\u6b62\u5f85\u3061");
+
 api.onGpsPosition({
   timestamp: 9500,
   coords: {
@@ -179,6 +197,12 @@ api.onGpsPosition({
 
 for (let i = 0; i < 180; i += 1) {
   clock += 1000 / 60;
+  if (i > 0 && i % 60 === 0) {
+    api.onGpsPosition({
+      timestamp: 9500 + i * (1000 / 60),
+      coords: { latitude: 35, longitude: 139, accuracy: 5, speed: 0, heading: 90 },
+    });
+  }
   const vibration = 0.22 * Math.sin(2 * Math.PI * 24 * clock / 1000);
   api.handleMotionSample({
     time: clock,
@@ -221,6 +245,8 @@ for (let i = 0; i < 120; i += 1) {
 }
 
 assert.equal(api.state.forwardAxis, "vector", "launch should lock the 3D forward axis");
+assert.ok(api.state.forwardVector[1] > 0.95, "forward-axis averaging should reject transverse vibration");
+assert.ok(Math.abs(api.state.forwardVector[0]) < 0.25, "forward-axis averaging should not lock to one noisy sample");
 assert.ok(firstRunSpeed !== null, "automatic start should trigger");
 assert.equal(api.state.events.find((event) => event.type === "START")?.timeMs, 0, "confirmed START should be backdated to its onset");
 assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh, 0, "START event must represent zero speed at onset");
@@ -347,7 +373,7 @@ assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh,
 sandbox.document.visibilityState = "hidden";
 api.handleAppBackground();
 assert.equal(api.state.mode, "stopped", "backgrounding must interrupt an active measurement");
-assert.equal(api.state.events.find((event) => event.type === "STOP")?.detail, "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad");
+assert.equal(api.state.events.find((event) => event.type === "INTERRUPT")?.detail, "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad");
 
 const csv = api.runToCsv({ events: api.state.events.slice(0, 1), samples: api.state.rawSamples.slice(0, 1) });
 const csvLines = csv.trim().split("\n");

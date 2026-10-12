@@ -266,6 +266,19 @@ function parseCsvLine(line) {
   return cells;
 }
 
+function firstValidGpxTime(gpxText) {
+  const pointPattern = /<trkpt\b[^>]*\blat="([^"]+)"[^>]*\blon="([^"]+)"[^>]*>[\s\S]*?<time>([^<]+)<\/time>[\s\S]*?<\/trkpt>/gi;
+  for (const match of gpxText.matchAll(pointPattern)) {
+    const latitude = Number(match[1]);
+    const longitude = Number(match[2]);
+    const timestamp = Date.parse(match[3]);
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)
+      && (Math.abs(latitude) > 1e-6 || Math.abs(longitude) > 1e-6)
+      && Number.isFinite(timestamp)) return timestamp;
+  }
+  return null;
+}
+
 function loadIphoneEvents(csvPath, videoStartMs, visualSamples, gpxSamples) {
   const match = path.basename(csvPath).match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/);
   if (!match) return [];
@@ -274,7 +287,7 @@ function loadIphoneEvents(csvPath, videoStartMs, visualSamples, gpxSamples) {
   const headers = parseCsvLine(lines[0]);
   const column = Object.fromEntries(headers.map((header, index) => [header, index]));
   return lines.slice(1).map(parseCsvLine)
-    .filter((cells) => cells[column.section] === "event" && ["START", "STOP"].includes(cells[column.type]))
+    .filter((cells) => cells[column.section] === "event" && ["START", "STOP", "INTERRUPT"].includes(cells[column.type]))
     .map((cells) => {
       const videoTimeSec = (csvStartMs - videoStartMs + Number(cells[column.time_ms])) / 1000;
       const nearest = visualSamples.reduce((best, sample) => (
@@ -307,8 +320,8 @@ async function main() {
   console.error(`Decoding ${path.basename(videoPath)} at ${args.fps} fps (${WIDTH}x${HEIGHT})`);
   const visualSamples = await decodeMotion(videoPath, args.fps);
   const gpxText = fs.readFileSync(gpxPath, "utf8");
-  const firstTime = gpxText.match(/<time>([^<]+)<\/time>/)?.[1];
-  if (!firstTime) throw new Error(`No GPX time found in ${gpxPath}`);
+  const firstTime = firstValidGpxTime(gpxText);
+  if (!Number.isFinite(firstTime)) throw new Error(`No valid GPX time found in ${gpxPath}`);
   const gpxSamples = loadGpx(gpxPath);
   const gpsSpeeds = visualSamples.map((sample) => interpolate(gpxSamples, sample.timeSec, "speedKmh"));
   const radius = Math.max(1, Math.round(args.fps / 2));
@@ -329,7 +342,7 @@ async function main() {
       flowStationaryClassifier: optimizeStationaryThreshold(flow, gpsSpeeds),
     },
     iphoneEvents: args.csv
-      ? loadIphoneEvents(path.resolve(args.csv), Date.parse(firstTime), visualSamples, gpxSamples)
+      ? loadIphoneEvents(path.resolve(args.csv), firstTime, visualSamples, gpxSamples)
       : [],
     visualSamples,
     privacy: "No video frames or GPS coordinates are included; only derived motion statistics are saved.",

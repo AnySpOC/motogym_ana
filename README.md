@@ -23,6 +23,7 @@ stop, acceleration, braking, banking, and turning events.
 - `scripts/analyze_video_motion.mjs` - forward-video motion and stop/move validation
 - `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
 - `docs/DATA_ANALYSIS_2026-10-04.md` - analysis and tuning from the latest field logs
+- `docs/DATA_ANALYSIS_2026-10-12.md` - gymkhana-like GoPro, GPS, IMU, and timing validation
 
 ## Local check on PC
 

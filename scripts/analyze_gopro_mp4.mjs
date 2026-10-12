@@ -107,7 +107,7 @@ function loadPhoneSamples(csvPath, videoStartMs, timingSource) {
     const cells = parseCsvLine(line);
     const timeMs = number(cells, "time_ms");
     if (timeMs === null) continue;
-    if (cells[index.section] === "event" && ["START", "STOP"].includes(cells[index.type])) {
+    if (cells[index.section] === "event" && ["START", "STOP", "INTERRUPT"].includes(cells[index.type])) {
       events.push({
         type: cells[index.type],
         detail: cells[index.detail],

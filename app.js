@@ -11,6 +11,9 @@ const SPEED_PROCESS_NOISE = 1.2;
 const GPS_SPEED_SIGMA_SCALE = 0.35;
 const CALIBRATION_MS = 4000;
 const AXIS_LOCK_G = 0.08;
+const AXIS_LOCK_HOLD_MS = 100;
+const AXIS_LOCK_MAX_GAP_MS = 80;
+const AXIS_LOCK_MIN_DIRECTION_DOT = 0.8;
 const MOTION_LOW_PASS_TAU_SEC = 0.08;
 const VIBRATION_LEVEL_TAU_SEC = 0.35;
 const BANK_OBSERVATION_VARIANCE = 30;
@@ -74,6 +77,8 @@ const text = {
   axisLocked: "\u524d\u5f8c\u8ef8\u3092\u691c\u51fa",
   gpsReady: "GPS\u53d6\u5f97",
   gpsUnavailable: "GPS\u672a\u53d6\u5f97",
+  gpsStandstill: "GPS\u9759\u6b62\u5f85\u3061",
+  gpsMoving: "\u505c\u8eca\u3057\u3066\u518d\u5f85\u6a5f",
   backgroundStop: "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad",
   backgroundArmCancelled: "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u767a\u9032\u5f85\u3061\u3092\u89e3\u9664",
 };
@@ -147,6 +152,9 @@ const state = {
   gravityVector: [0, 0, 1],
   forwardVector: null,
   lateralVector: null,
+  axisCandidateVector: [0, 0, 0],
+  axisCandidateStartedAt: 0,
+  axisCandidateLastAt: 0,
   calibrationActive: false,
   calibrationCompleted: false,
   calibrationState: "not-run",
@@ -358,11 +366,13 @@ function armTimer() {
   state.startedAt = 0;
   state.stoppedAt = 0;
   resetLiveSensorValues(true);
+  resetForwardAxis();
   state.samples = [];
   state.rawSamples = [];
   state.lastStopCandidateAt = 0;
   state.lastBrakeAt = 0;
   state.currentRunId = "";
+  state.events = [];
   state.measurementMode = "auto";
   state.autoReadyCandidateAt = 0;
   state.autoStartReady = false;
@@ -395,12 +405,12 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   startTimerRenderLoop();
 }
 
-function stopRun(reason = text.stopDetail, stoppedAt = nowMs()) {
+function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STOP") {
   if (state.mode !== "running") return;
   state.stoppedAt = Math.max(state.startedAt, Math.min(stoppedAt, nowMs()));
   state.autoStopCandidate = false;
   setMode("stopped", text.stopped);
-  addEvent("STOP", reason);
+  addEvent(eventType, reason);
   state.events[0].timeMs = Math.round(state.stoppedAt - state.startedAt);
   elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
   saveCurrentRun();
@@ -518,7 +528,9 @@ function calibrateAndProjectSample(sample, t, dt) {
   const rawAcceleration = [x, y, z];
   const acceleration = filterEngineVibration(rawAcceleration, dt);
 
-  maybeLockForwardAxis(acceleration);
+  const verticalPart = dotVector(acceleration, state.gravityVector);
+  const horizontalAcceleration = acceleration.map((value, index) => value - verticalPart * state.gravityVector[index]);
+  maybeLockForwardAxis(horizontalAcceleration, t);
 
   if (state.forwardVector && state.lateralVector) {
     const gravity = normalizeVector([
@@ -545,10 +557,7 @@ function calibrateAndProjectSample(sample, t, dt) {
     return { longG: state.forwardSign * y, latG: x, yawRate, bankDeg: 0 };
   }
 
-  if (Math.abs(y) >= Math.abs(x)) {
-    return { longG: y, latG: x, yawRate, bankDeg: 0 };
-  }
-  return { longG: x, latG: y, yawRate, bankDeg: 0 };
+  return { longG: vectorLength(horizontalAcceleration), latG: 0, yawRate, bankDeg: 0 };
 }
 
 function collectCalibrationSample(sample, t) {
@@ -577,17 +586,49 @@ function collectCalibrationSample(sample, t) {
   return true;
 }
 
-function maybeLockForwardAxis(acceleration) {
+function resetAxisCandidate() {
+  state.axisCandidateVector = [0, 0, 0];
+  state.axisCandidateStartedAt = 0;
+  state.axisCandidateLastAt = 0;
+}
+
+function resetForwardAxis() {
+  state.forwardAxis = "";
+  state.forwardSign = 1;
+  state.forwardVector = null;
+  state.lateralVector = null;
+  resetAxisCandidate();
+}
+
+function maybeLockForwardAxis(horizontal, t) {
   if (state.forwardAxis) return;
   if (state.mode !== "armed" && state.mode !== "running") return;
   if (state.mode === "armed" && !state.autoStartReady) return;
-  const verticalPart = dotVector(acceleration, state.gravityVector);
-  const horizontal = acceleration.map((value, index) => value - verticalPart * state.gravityVector[index]);
-  if (vectorLength(horizontal) < AXIS_LOCK_G) return;
-  state.forwardVector = normalizeVector(horizontal, [0, 1, 0]);
+  const magnitude = vectorLength(horizontal);
+  if (magnitude < AXIS_LOCK_G) {
+    if (state.axisCandidateLastAt && t - state.axisCandidateLastAt > AXIS_LOCK_MAX_GAP_MS) resetAxisCandidate();
+    return;
+  }
+
+  const direction = normalizeVector(horizontal, [0, 1, 0]);
+  const candidateDirection = normalizeVector(state.axisCandidateVector, direction);
+  const candidateExpired = !state.axisCandidateStartedAt || t - state.axisCandidateLastAt > AXIS_LOCK_MAX_GAP_MS;
+  const directionChanged = state.axisCandidateStartedAt
+    && dotVector(candidateDirection, direction) < AXIS_LOCK_MIN_DIRECTION_DOT;
+  if (candidateExpired || directionChanged) {
+    state.axisCandidateVector = horizontal.slice();
+    state.axisCandidateStartedAt = t;
+  } else {
+    state.axisCandidateVector = state.axisCandidateVector.map((value, index) => value + horizontal[index]);
+  }
+  state.axisCandidateLastAt = t;
+  if (t - state.axisCandidateStartedAt < AXIS_LOCK_HOLD_MS) return;
+
+  state.forwardVector = normalizeVector(state.axisCandidateVector, [0, 1, 0]);
   state.lateralVector = normalizeVector(crossVector(state.gravityVector, state.forwardVector), [1, 0, 0]);
   state.forwardAxis = "vector";
   state.forwardSign = 1;
+  resetAxisCandidate();
   addEvent("AXIS", `${text.axisLocked} 3D`);
 }
 
@@ -621,10 +662,7 @@ function startCalibration() {
   state.deviceOffsetZ = 0;
   state.yawOffset = 0;
   state.gyroOffsetVector = [0, 0, 0];
-  state.forwardAxis = "";
-  state.forwardSign = 1;
-  state.forwardVector = null;
-  state.lateralVector = null;
+  resetForwardAxis();
   setMode("calibrating", text.calibrating);
   render();
 }
@@ -749,7 +787,7 @@ function detectEvents(t) {
     const gpsFresh = hasFreshGps();
     const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
     if (!state.autoStartReady) {
-      if (lowDynamics && (!gpsFresh || gpsStopped)) {
+      if (lowDynamics && gpsStopped) {
         state.autoReadyCandidateAt ||= t;
         if (t - state.autoReadyCandidateAt >= AUTO_READY_HOLD_MS) {
           state.autoStartReady = true;
@@ -758,10 +796,21 @@ function detectEvents(t) {
         }
       } else {
         state.autoReadyCandidateAt = 0;
+        setMode("armed", !gpsFresh ? text.gpsStandstill : text.autoPreparing);
       }
       state.startCandidateAt = 0;
       state.startCandidateLastAt = 0;
       state.startCandidateVelocityMs = 0;
+      return;
+    }
+    if (!gpsFresh || (state.gpsSpeedMs >= GPS_STOP_SPEED_MS && !state.startCandidateAt)) {
+      state.autoStartReady = false;
+      state.autoReadyCandidateAt = 0;
+      state.startCandidateAt = 0;
+      state.startCandidateLastAt = 0;
+      state.startCandidateVelocityMs = 0;
+      resetForwardAxis();
+      setMode("armed", !gpsFresh ? text.gpsStandstill : text.gpsMoving);
       return;
     }
     if (state.longG > profile.startG) {
@@ -1051,6 +1100,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.bankDeg = 0;
   state.gravityBankDeg = 0;
   state.observedBankDeg = 0;
+  resetAxisCandidate();
   state.longBias = 0;
   state.latBias = 0;
   state.yawBias = 0;
@@ -1482,6 +1532,7 @@ function buildRun(run) {
     durationMs: run.durationMs,
     calibration: run.calibration || null,
     summary: {
+      status: events.some((event) => event.type === "INTERRUPT") ? "interrupted" : "complete",
       maxSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
       maxGpsSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.gpsSpeedKmh || 0), 0), 2),
       gpsSampleCount: samples.filter((sample) => Number.isFinite(sample.gpsSpeedKmh)).length,
@@ -1531,7 +1582,7 @@ function saveCurrentRun() {
 function handleAppBackground(event) {
   if (event?.type !== "pagehide" && document.visibilityState && document.visibilityState !== "hidden") return;
   if (state.mode === "running") {
-    stopRun(text.backgroundStop, nowMs());
+    stopRun(text.backgroundStop, nowMs(), "INTERRUPT");
     return;
   }
   if (state.mode === "armed") {
@@ -1574,13 +1625,14 @@ function renderHistory() {
   elements.historyList.innerHTML = state.savedRuns
     .map((run) => {
       const date = new Date(run.startedAtIso).toLocaleString();
+      const runStatus = run.summary?.status === "interrupted" ? "中断" : "完了";
       return `<article class="history-card">
         <label class="run-selector" aria-label="${escapeHtml(date)} を選択">
           <input type="checkbox" data-select-run="${escapeHtml(run.id)}"${state.selectedRunIds.has(run.id) ? " checked" : ""}>
         </label>
         <div>
           <strong>${formatTime(run.durationMs)}</strong>
-          <small>${escapeHtml(date)} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
+          <small>${escapeHtml(date)} / ${runStatus} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
         </div>
         <div class="history-actions">
           <button type="button" data-action="csv" data-run="${escapeHtml(run.id)}">CSV</button>

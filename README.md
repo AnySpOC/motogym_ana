@@ -117,6 +117,10 @@ when storage pressure is high. Export important data after practice.
 - `Sensor OFF` removes sensor listeners and resets live G / speed / variance values to zero.
 - `Calibration` explicitly starts a four-second stationary calibration. Automatic
   and manual timing remain disabled until calibration completes successfully.
+- The same four seconds learn a motorcycle-specific idle profile from the 95th
+  percentile of filtered acceleration and gyro noise. The learned profile adjusts
+  launch sensitivity, stationary limits, and the G deadband for the current bike
+  and mount. It is relearned after every Sensor ON instead of reusing a stale mount.
 - Completion requires at least 15 Hz input, a valid gravity magnitude, less than
   7 degrees of gravity-direction drift, low mean acceleration, and vibration below
   the abnormal-mount threshold. Failure remains visible with its reason.
@@ -127,8 +131,8 @@ when storage pressure is high. Export important data after practice.
   current speed, while the START event itself remains zero speed at time zero.
 - For the best vibration baseline, perform the four-second calibration with the
   engine idling in the same state used while waiting for START.
-- `Auto待機` first confirms low motion and, when GPS is available, a stopped GPS
-  speed for 0.6 seconds. It then waits for sustained forward acceleration and starts
+- `Auto待機` first confirms low motion and a fresh stopped GPS speed for 0.6 seconds.
+  It then waits for sustained forward acceleration and starts
   timing. Enabling Auto while already moving cannot trigger START or lock the forward
   axis. Speed and run samples begin at the confirmed START.
 - `Auto解除` cancels only the automatic launch wait.

@@ -33,6 +33,8 @@ const CALIBRATION_MIN_HZ = 15;
 const CALIBRATION_MAX_MEAN_G = 0.12;
 const CALIBRATION_MAX_GRAVITY_DRIFT_DEG = 7;
 const CALIBRATION_MAX_VIBRATION_G = 0.6;
+const LEARNED_START_G_MIN = 0.1;
+const LEARNED_START_G_MAX = 0.24;
 
 const sensitivityProfiles = {
   calm: { startG: 0.22, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
@@ -162,6 +164,7 @@ const state = {
   calibrationFailure: "",
   calibrationStartedAt: 0,
   calibrationSamples: [],
+  bikeProfile: null,
   filteredAcceleration: [0, 0, 0],
   vibrationEnergy: 0,
   vibrationG: 0,
@@ -651,6 +654,7 @@ function startCalibration() {
   state.calibrationFailure = "";
   state.calibrationStartedAt = nowMs();
   state.calibrationSamples = [];
+  state.bikeProfile = null;
   state.filteredAcceleration = [0, 0, 0];
   state.vibrationEnergy = 0;
   state.vibrationG = 0;
@@ -694,6 +698,7 @@ function finishCalibration() {
     state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityY, 0) / count,
     state.calibrationSamples.reduce((sum, sample) => sum + sample.gravityZ, 0) / count,
   ], [0, 0, 1]);
+  state.bikeProfile = quality.bikeProfile;
   state.yawOffset = dotVector(state.gyroOffsetVector, state.gravityVector);
   state.calibrationActive = false;
   state.calibrationCompleted = true;
@@ -737,6 +742,32 @@ function evaluateCalibration(samples, durationMs) {
   const gravityLast = normalizeVector(gravityMean(samples.slice(midpoint)), [0, 0, 1]);
   const gravityDot = Math.max(-1, Math.min(1, dotVector(gravityFirst, gravityLast)));
   const gravityDriftDeg = Math.acos(gravityDot) * RAD_TO_DEG;
+  const gravityUnit = normalizeVector(gravity, [0, 0, 1]);
+  const sampleDt = 1 / Math.max(CALIBRATION_MIN_HZ, sampleRateHz);
+  const filterAlpha = 1 - Math.exp(-sampleDt / MOTION_LOW_PASS_TAU_SEC);
+  let filtered = [0, 0, 0];
+  const filteredHorizontalG = linearSamples.map((sample) => {
+    const centered = [sample.x - linearMean[0], sample.y - linearMean[1], sample.z - linearMean[2]];
+    filtered = filtered.map((value, index) => value + filterAlpha * (centered[index] - value));
+    const vertical = dotVector(filtered, gravityUnit);
+    return vectorLength(filtered.map((value, index) => value - vertical * gravityUnit[index]));
+  });
+  const gyroMean = ["gyroX", "gyroY", "gyroZ"].map((key) => mean(samples, key));
+  const yawNoise = samples.map((sample) => Math.abs(dotVector([
+    sample.gyroX - gyroMean[0],
+    sample.gyroY - gyroMean[1],
+    sample.gyroZ - gyroMean[2],
+  ], gravityUnit)));
+  const filteredNoiseP95G = percentile(filteredHorizontalG, 0.95);
+  const yawNoiseP95Dps = percentile(yawNoise, 0.95);
+  const bikeProfile = {
+    filteredNoiseP95G,
+    yawNoiseP95Dps,
+    startGNormal: clamp(Math.max(LEARNED_START_G_MIN, filteredNoiseP95G * 4), LEARNED_START_G_MIN, LEARNED_START_G_MAX),
+    stationaryG: clamp(0.04 + filteredNoiseP95G * 1.5, 0.04, 0.09),
+    stationaryYawRate: clamp(4 + yawNoiseP95Dps * 1.5, 4, 12),
+    deadbandG: clamp(filteredNoiseP95G * 1.25, 0.008, 0.05),
+  };
 
   let reason = "";
   if (meanLinearG > CALIBRATION_MAX_MEAN_G) reason = "発進せず静止してください";
@@ -752,11 +783,15 @@ function evaluateCalibration(samples, durationMs) {
     gravityMagnitudeG,
     gravityDriftDeg,
     vibrationRmsG,
+    bikeProfile,
   };
 }
 
 function applyZeroSpeedUpdate(t) {
-  const lowDynamics = Math.abs(state.longG) < 0.035 && Math.abs(state.latG) < 0.04 && Math.abs(state.yawRate) < 3.5;
+  const profile = currentProfile();
+  const lowDynamics = Math.abs(state.longG) < profile.stationaryG
+    && Math.abs(state.latG) < profile.stationaryG
+    && Math.abs(state.yawRate) < profile.stationaryYawRate;
   const gpsFresh = hasFreshGps();
   const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
   const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
@@ -783,7 +818,9 @@ function estimateConfidence(sample, dt) {
 function detectEvents(t) {
   const profile = currentProfile();
   if (state.autoMeasurementEnabled && state.mode === "armed") {
-    const lowDynamics = Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06 && Math.abs(state.yawRate) < 4;
+    const lowDynamics = Math.abs(state.longG) < profile.stationaryG
+      && Math.abs(state.latG) < profile.stationaryG
+      && Math.abs(state.yawRate) < profile.stationaryYawRate;
     const gpsFresh = hasFreshGps();
     const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
     if (!state.autoStartReady) {
@@ -840,7 +877,9 @@ function detectEvents(t) {
   if (Math.abs(state.yawRate) > profile.turnRate) addEdgeEvent("TURN", state.yawRate > 0 ? text.rightTurn : text.leftTurn);
   if (Math.abs(state.bankDeg) > profile.bankAngle) addEdgeEvent("BANK", state.bankDeg > 0 ? text.rightBank : text.leftBank);
 
-  const lowDynamics = Math.abs(state.longG) < 0.05 && Math.abs(state.latG) < 0.06 && Math.abs(state.yawRate) < 4;
+  const lowDynamics = Math.abs(state.longG) < profile.stationaryG
+    && Math.abs(state.latG) < profile.stationaryG
+    && Math.abs(state.yawRate) < profile.stationaryYawRate;
   const gpsFresh = hasFreshGps();
   const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
   const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
@@ -1011,6 +1050,7 @@ function disableSensors() {
   state.calibrationQuality = null;
   state.calibrationFailure = "";
   state.calibrationSamples = [];
+  state.bikeProfile = null;
   state.forwardAxis = "";
   state.forwardSign = 1;
   state.forwardVector = null;
@@ -1236,8 +1276,8 @@ function render() {
     elements.calibrationButton.textContent = "Calibrating";
     elements.calibrationButton.classList.add("primary");
   } else if (state.calibrationState === "complete") {
-    elements.calibrationStatus.textContent = "完了";
-    elements.calibrationDetail.textContent = `振動 ${state.calibrationQuality.vibrationRmsG.toFixed(3)} g / ${state.calibrationQuality.sampleRateHz.toFixed(0)} Hz`;
+    elements.calibrationStatus.textContent = "車体学習済";
+    elements.calibrationDetail.textContent = `発進 ${currentProfile().startG.toFixed(2)} g / 振動 ${state.calibrationQuality.vibrationRmsG.toFixed(3)} g`;
     elements.calibrationButton.textContent = "Recalibrate";
     elements.calibrationButton.classList.remove("primary");
   } else if (state.calibrationState === "failed") {
@@ -1296,7 +1336,18 @@ function drawLine(key, color, scale) {
 }
 
 function currentProfile() {
-  return sensitivityProfiles[state.sensitivity] || sensitivityProfiles.normal;
+  const base = sensitivityProfiles[state.sensitivity] || sensitivityProfiles.normal;
+  if (!state.bikeProfile) {
+    return { ...base, stationaryG: 0.05, stationaryYawRate: 4 };
+  }
+  const sensitivityScale = base.startG / sensitivityProfiles.normal.startG;
+  return {
+    ...base,
+    startG: clamp(state.bikeProfile.startGNormal * sensitivityScale, 0.08, 0.3),
+    deadbandG: Math.max(base.deadbandG, state.bikeProfile.deadbandG),
+    stationaryG: state.bikeProfile.stationaryG,
+    stationaryYawRate: state.bikeProfile.stationaryYawRate,
+  };
 }
 
 function applyDeadband(value, deadband) {
@@ -1328,6 +1379,17 @@ function rollingVariance(values) {
   if (values.length < 2) return 0;
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
   return values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (values.length - 1);
+}
+
+function percentile(values, ratio) {
+  if (!values.length) return 0;
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * ratio) - 1))];
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function dotVector(a, b) {
@@ -1515,6 +1577,7 @@ function buildCurrentRun() {
       forwardVector: state.forwardVector?.map((value) => round(value, 5)) || null,
       lateralVector: state.lateralVector?.map((value) => round(value, 5)) || null,
       quality: state.calibrationQuality,
+      bikeProfile: state.bikeProfile,
     },
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),

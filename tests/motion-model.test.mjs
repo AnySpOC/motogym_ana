@@ -53,7 +53,7 @@ source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
   calibrateAndProjectSample, motionModel, runToCsv, runsToCsv,
-  handleAppBackground
+  handleAppBackground, evaluateCalibration, currentProfile
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -100,6 +100,30 @@ for (let i = 0; i < 250; i += 1) {
 assert.equal(api.state.calibrationCompleted, true, "static calibration should complete");
 assert.equal(api.state.calibrationState, "complete");
 assert.deepEqual(Array.from(api.state.gravityVector), [0, 0, 1]);
+assert.ok(api.state.bikeProfile, "calibration should learn a motorcycle-specific stationary profile");
+assert.equal(api.state.bikeProfile.startGNormal, 0.1, "a quiet motorcycle should use the responsive safe floor");
+assert.equal(api.currentProfile().startG, 0.1, "normal sensitivity should use the learned launch threshold");
+
+const vibratingCalibration = Array.from({ length: 240 }, (_, index) => {
+  const phase = 2 * Math.PI * 8 * index / 60;
+  return {
+    x: 0.18 * Math.sin(phase),
+    y: 0.14 * Math.sin(phase + 0.7),
+    z: 0.04 * Math.sin(phase + 1.2),
+    linearAvailable: true,
+    gyroX: 2 * Math.sin(phase),
+    gyroY: 1.5 * Math.sin(phase + 0.4),
+    gyroZ: 3 * Math.sin(phase + 0.8),
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+  };
+});
+const vibratingQuality = api.evaluateCalibration(vibratingCalibration, 4000);
+assert.equal(vibratingQuality.passed, true, "normal idling vibration should remain calibratable");
+assert.ok(vibratingQuality.bikeProfile.startGNormal > 0.1, "higher vibration should raise the learned launch threshold");
+assert.ok(vibratingQuality.bikeProfile.startGNormal <= 0.24, "learned launch threshold must stay bounded");
+assert.ok(vibratingQuality.bikeProfile.stationaryYawRate > 4, "gyro noise should widen only the learned stationary band");
 
 api.state.gravityVector = [1, 0, 0];
 api.state.gyroOffsetVector = [1, 2, 3];

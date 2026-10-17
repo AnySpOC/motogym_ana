@@ -235,6 +235,20 @@ correlation, and the best clock shift. It also derives course yaw rate from GPX
 above 2.5 m/s and reports the best yaw sign and time alignment. Exact coordinates
 remain in the local source files and are not required in a public issue.
 
+## Multi-run replay evaluation
+
+To scan existing CSV and GPX files recursively, reject low-quality pairings, and
+compare 400 speed-model settings with date-held-out cross-validation, run:
+
+```powershell
+npm run evaluate:existing -- --root C:\Users\foxho\Videos
+```
+
+Add `--json <file>` to retain the machine-readable result. The evaluator fixes
+each run's GPS time offset before comparing candidates, so each candidate is
+scored against the same reference samples. See
+`docs/EXISTING_DATA_REPLAY_2026-10-17.md` for the latest result and limitations.
+
 ## GoPro MP4 sensor comparison
 
 Original GoPro MP4 files contain a `gpmd` telemetry track. It provides a much

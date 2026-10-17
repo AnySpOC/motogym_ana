@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node tests/motion-model.test.mjs",
     "analyze:gopro": "node scripts/analyze_gopro_mp4.mjs",
-    "analyze:video": "node scripts/analyze_video_motion.mjs"
+    "analyze:video": "node scripts/analyze_video_motion.mjs",
+    "evaluate:existing": "node scripts/evaluate_existing_runs.mjs"
   },
   "dependencies": {
     "gopro-telemetry": "1.2.11",

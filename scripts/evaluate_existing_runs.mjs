@@ -154,6 +154,39 @@ function matchTrack(run, tracks) {
     .sort((a, b) => b.overlap - a.overlap)[0] || null;
 }
 
+function continuousSegments(run, maximumGapSec = 2, minimumDurationSec = 10) {
+  const groups = [];
+  let current = [];
+  for (const sample of run.samples) {
+    if (current.length && sample.t - current.at(-1).t > maximumGapSec * 1000) {
+      groups.push(current);
+      current = [];
+    }
+    current.push(sample);
+  }
+  if (current.length) groups.push(current);
+  return groups
+    .filter((samples) => samples.length >= 20
+      && samples.at(-1).t - samples[0].t >= minimumDurationSec * 1000)
+    .map((samples, index) => {
+      const segmentSamples = samples.map((sample, sampleIndex) => sampleIndex === 0
+        && Number.isFinite(sample.gpsSpeedKmh)
+        ? { ...sample, appSpeedKmh: sample.gpsSpeedKmh }
+        : sample);
+      return {
+        ...run,
+        name: groups.length > 1 ? `${run.name}#${index + 1}` : run.name,
+        sourceName: run.name,
+        segment: index + 1,
+        startMs: segmentSamples[0].t,
+        endMs: segmentSamples.at(-1).t,
+        samples: segmentSamples,
+        events: run.events.filter((event) => event.t >= segmentSamples[0].t - 1000
+          && event.t <= segmentSamples.at(-1).t + 1000),
+      };
+    });
+}
+
 function interpolate(points, targetMs) {
   let low = 0;
   let high = points.length - 1;
@@ -229,15 +262,45 @@ function bestGpsOffset(run, track) {
 
 function replaySpeed(samples, candidate) {
   let speedMs = Math.max(0, (samples[0]?.appSpeedKmh || 0) / 3.6);
-  let variance = 0.04;
+  let filteredLongG = 0;
+  let p00 = 0.04;
+  let p01 = 0;
+  let p10 = 0;
+  let p11 = 0.08;
   let previousTimeMs = samples[0]?.t || 0;
   let previousGpsTimestamp = null;
   return samples.map((sample) => {
     const dt = Math.min(0.12, Math.max(0.005, (sample.t - previousTimeMs) / 1000));
     previousTimeMs = sample.t;
     const transition = Math.max(0, 1 - candidate.drag * dt);
-    speedMs = Math.max(0, speedMs + (sample.longG * 9.80665 - candidate.drag * speedMs) * dt);
-    variance = transition * transition * variance + candidate.processNoise * dt;
+    const accelDecay = Math.exp(-dt / 0.7);
+    const speedFromLongG = 0.25 * 9.80665 * dt;
+    const driveLongG = 0.75 * sample.longG + 0.25 * filteredLongG;
+    speedMs = Math.max(0, speedMs + (driveLongG * 9.80665 - candidate.drag * speedMs) * dt);
+    filteredLongG *= accelDecay;
+
+    const m00 = transition * p00 + speedFromLongG * p10;
+    const m01 = transition * p01 + speedFromLongG * p11;
+    const m10 = accelDecay * p10;
+    const m11 = accelDecay * p11;
+    p00 = m00 * transition + m01 * speedFromLongG + candidate.processNoise * dt;
+    p01 = m01 * accelDecay;
+    p10 = m10 * transition + m11 * speedFromLongG;
+    p11 = m11 * accelDecay + 0.09 * dt;
+
+    const accelerationResidual = sample.longG - filteredLongG;
+    const accelerationInnovation = p11 + 0.012;
+    const accelerationSpeedGain = p01 / accelerationInnovation;
+    const accelerationGain = p11 / accelerationInnovation;
+    filteredLongG += accelerationGain * accelerationResidual;
+    speedMs = Math.max(0, speedMs + accelerationSpeedGain * accelerationResidual);
+    const accelerationP10 = p10;
+    const accelerationP11 = p11;
+    p00 -= accelerationSpeedGain * accelerationP10;
+    p01 -= accelerationSpeedGain * accelerationP11;
+    p10 -= accelerationGain * accelerationP10;
+    p11 -= accelerationGain * accelerationP11;
+
     if (Number.isFinite(sample.gpsSpeedKmh) && sample.gpsTimestamp !== previousGpsTimestamp) {
       previousGpsTimestamp = sample.gpsTimestamp;
       const accuracy = Number.isFinite(sample.gpsAccuracyM) ? sample.gpsAccuracyM : 50;
@@ -246,13 +309,75 @@ function replaySpeed(samples, candidate) {
         ? Math.min(5, Math.max(1.2, accuracy * 0.25))
         : Math.min(3, Math.max(0.4, accuracy * 0.06));
       const sigma = Math.max(0.15, baseSigma * candidate.gpsSigmaScale);
-      const gain = variance / (variance + sigma * sigma);
+      const innovationVariance = p00 + sigma * sigma;
+      const speedGain = p00 / innovationVariance;
+      const accelerationGainFromGps = p10 / innovationVariance;
       const observationMs = Math.max(0, sample.gpsSpeedKmh / 3.6
         + sample.longG * 9.80665 * candidate.gpsPredictionSec);
-      speedMs = Math.max(0, speedMs + gain * (observationMs - speedMs));
-      variance *= 1 - gain;
+      const residual = observationMs - speedMs;
+      speedMs = Math.max(0, speedMs + speedGain * residual);
+      filteredLongG += accelerationGainFromGps * residual;
+      const speedP00 = p00;
+      const speedP01 = p01;
+      p00 -= speedGain * speedP00;
+      p01 -= speedGain * speedP01;
+      p10 -= accelerationGainFromGps * speedP00;
+      p11 -= accelerationGainFromGps * speedP01;
     }
     return { ...sample, replaySpeedKmh: speedMs * 3.6 };
+  });
+}
+
+function replayDelayCompensatedSpeed(samples, candidate) {
+  let speedMs = Math.max(0, (samples[0]?.appSpeedKmh || 0) / 3.6);
+  let biasG = 0;
+  let previousTimeMs = samples[0]?.t || 0;
+  let previousGpsTimestamp = null;
+  let previousGpsTimeMs = null;
+  let cumulativeAccelMs = 0;
+  const history = [];
+
+  const cumulativeAt = (targetMs) => {
+    if (!history.length || targetMs <= history[0].t) return history[0]?.cumulativeAccelMs || 0;
+    let low = 0;
+    let high = history.length - 1;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      if (history[middle].t < targetMs) low = middle + 1;
+      else high = middle - 1;
+    }
+    if (low >= history.length) return history.at(-1).cumulativeAccelMs;
+    const left = history[Math.max(0, low - 1)];
+    const right = history[low];
+    if (right.t <= left.t) return right.cumulativeAccelMs;
+    const weight = (targetMs - left.t) / (right.t - left.t);
+    return left.cumulativeAccelMs
+      + (right.cumulativeAccelMs - left.cumulativeAccelMs) * weight;
+  };
+
+  return samples.map((sample) => {
+    const dt = Math.min(0.12, Math.max(0.005, (sample.t - previousTimeMs) / 1000));
+    previousTimeMs = sample.t;
+    const accelerationMs2 = (sample.longG * candidate.accelScale - biasG) * 9.80665;
+    cumulativeAccelMs += accelerationMs2 * dt;
+    history.push({ t: sample.t, cumulativeAccelMs });
+    speedMs = Math.max(0, speedMs + accelerationMs2 * dt);
+
+    if (Number.isFinite(sample.gpsSpeedKmh) && sample.gpsTimestamp !== previousGpsTimestamp) {
+      previousGpsTimestamp = sample.gpsTimestamp;
+      const historyStartMs = sample.t - candidate.lagSec * 1000;
+      const accelerationSinceObservation = cumulativeAccelMs - cumulativeAt(historyStartMs);
+      const observationMs = Math.max(0, sample.gpsSpeedKmh / 3.6 + accelerationSinceObservation);
+      const residualMs = speedMs - observationMs;
+      if (previousGpsTimeMs !== null && candidate.biasGain > 0) {
+        const gpsIntervalSec = Math.min(3, Math.max(0.3, (sample.t - previousGpsTimeMs) / 1000));
+        biasG = Math.max(-0.06, Math.min(0.06,
+          biasG + candidate.biasGain * residualMs / (9.80665 * gpsIntervalSec)));
+      }
+      previousGpsTimeMs = sample.t;
+      speedMs = Math.max(0, speedMs + candidate.gpsGain * (observationMs - speedMs));
+    }
+    return { ...sample, replaySpeedKmh: speedMs * 3.6, replayBiasG: biasG };
   });
 }
 
@@ -264,6 +389,18 @@ function candidates() {
         for (const gpsPredictionSec of [0, 0.4, 0.8, 1.2]) {
           result.push({ drag, processNoise, gpsSigmaScale, gpsPredictionSec });
         }
+      }
+    }
+  }
+  return result;
+}
+
+function delayCompensatedCandidates() {
+  const result = [];
+  for (const lagSec of [0, 0.5, 1, 1.5, 2]) {
+    for (const gpsGain of [0.35, 0.5, 0.7, 0.9, 1]) {
+      for (const biasGain of [0, 0.03, 0.08, 0.15]) {
+        for (const accelScale of [0.8, 1]) result.push({ lagSec, gpsGain, biasGain, accelScale });
       }
     }
   }
@@ -308,23 +445,30 @@ function main() {
       excluded.push({ csv: run.name, reason: "no GPX overlap" });
       continue;
     }
-    const sync = bestGpsOffset(run, match.track);
-    if (!sync) {
-      excluded.push({ csv: run.name, gpx: match.track.name, reason: "too few comparable GPS samples" });
-      continue;
+    const segments = continuousSegments(run);
+    let acceptedSegments = 0;
+    for (const segment of segments) {
+      const segmentOverlap = overlapSec(segment, match.track);
+      const sync = bestGpsOffset(segment, match.track);
+      const trusted = sync && segmentOverlap >= 10 && sync.metrics.correlation >= 0.7
+        && sync.metrics.rmse <= 8;
+      if (trusted) {
+        matched.push({ run: segment, track: match.track, overlap: segmentOverlap, sync, trusted: true });
+        acceptedSegments += 1;
+      } else {
+        excluded.push({
+          csv: segment.name,
+          gpx: match.track.name,
+          reason: sync
+            ? `quality gate (overlap=${round(segmentOverlap, 1)}s, GPS RMSE=${round(sync.metrics.rmse)} km/h, corr=${round(sync.metrics.correlation)})`
+            : "too few comparable GPS samples",
+        });
+      }
     }
-    const maxGapSec = run.samples.slice(1).reduce(
-      (maximum, sample, index) => Math.max(maximum, (sample.t - run.samples[index].t) / 1000), 0,
-    );
-    const trusted = match.overlap >= 10 && sync.metrics.correlation >= 0.7
-      && sync.metrics.rmse <= 8 && maxGapSec <= 2;
-    const item = { run, track: match.track, overlap: match.overlap, sync, maxGapSec, trusted };
-    if (trusted) matched.push(item);
-    else excluded.push({
-      csv: run.name,
-      gpx: match.track.name,
-      reason: `quality gate (overlap=${round(match.overlap, 1)}s, GPS RMSE=${round(sync.metrics.rmse)} km/h, corr=${round(sync.metrics.correlation)}, max gap=${round(maxGapSec)}s)`,
-    });
+    if (!segments.length) excluded.push({ csv: run.name, gpx: match.track.name, reason: "no continuous segment >= 10 s" });
+    else if (!acceptedSegments && !excluded.some((item) => item.csv.startsWith(run.name))) {
+      excluded.push({ csv: run.name, gpx: match.track.name, reason: "no segment passed quality gate" });
+    }
   }
 
   const evaluated = candidates().map((candidate) => {
@@ -354,6 +498,44 @@ function main() {
       currentTest: aggregate(testIndexes.map((index) => current.perRun[index])),
     };
   });
+
+  const realTimeCurrentPerRun = matched.map((item) => compare(
+    replaySpeed(item.run.samples, CURRENT), item.track.points, 0, "replaySpeedKmh",
+  ));
+  const realTimeEvaluated = delayCompensatedCandidates().map((candidate) => {
+    const perRun = matched.map((item) => compare(
+      replayDelayCompensatedSpeed(item.run.samples, candidate), item.track.points, 0, "replaySpeedKmh",
+    ));
+    return { candidate, perRun, aggregate: aggregate(perRun) };
+  });
+  realTimeEvaluated.sort((a, b) => (a.aggregate.macroRmse + a.aggregate.macroAbsBias * 0.15)
+    - (b.aggregate.macroRmse + b.aggregate.macroAbsBias * 0.15));
+  const realTimeCrossValidation = dates.map((heldOutDate) => {
+    const trainingIndexes = matched.map((item, index) => item.run.date !== heldOutDate ? index : -1).filter((i) => i >= 0);
+    const testIndexes = matched.map((item, index) => item.run.date === heldOutDate ? index : -1).filter((i) => i >= 0);
+    const ranked = realTimeEvaluated.map((item) => ({
+      ...item,
+      training: aggregate(trainingIndexes.map((index) => item.perRun[index])),
+    })).sort((a, b) => (a.training.macroRmse + a.training.macroAbsBias * 0.15)
+      - (b.training.macroRmse + b.training.macroAbsBias * 0.15));
+    const selected = ranked[0];
+    return {
+      heldOutDate,
+      candidate: selected.candidate,
+      training: selected.training,
+      test: aggregate(testIndexes.map((index) => selected.perRun[index])),
+      currentTest: aggregate(testIndexes.map((index) => realTimeCurrentPerRun[index])),
+    };
+  });
+  const alignedImprovementRatio = (current.aggregate.rmse - evaluated[0].aggregate.rmse)
+    / current.aggregate.rmse;
+  const realTimeCurrentAggregate = aggregate(realTimeCurrentPerRun);
+  const realTimeImprovementRatio = (realTimeCurrentAggregate.rmse - realTimeEvaluated[0].aggregate.rmse)
+    / realTimeCurrentAggregate.rmse;
+  const alignedAccepted = alignedImprovementRatio >= 0.1
+    && crossValidation.every((fold) => fold.test.rmse <= fold.currentTest.rmse);
+  const realTimeAccepted = realTimeImprovementRatio >= 0.1
+    && realTimeCrossValidation.every((fold) => fold.test.rmse <= fold.currentTest.rmse);
 
   const recordedAggregate = aggregate(matched.map((item) => compare(
     item.run.samples, item.track.points, item.sync.offsetSec, "appSpeedKmh",
@@ -400,14 +582,36 @@ function main() {
     method: {
       candidateCount: evaluated.length,
       objective: "macro RMSE + 0.15 * macro absolute bias",
-      qualityGate: "overlap >= 10 s, iPhone GPS correlation >= 0.7, GPS RMSE <= 8 km/h, max sample gap <= 2 s",
+      qualityGate: "continuous segment >= 10 s, overlap >= 10 s, iPhone GPS correlation >= 0.7, GPS RMSE <= 8 km/h",
       note: "The GPS-derived per-run time offset is fixed before candidate comparison.",
     },
     current: { candidate: CURRENT, aggregate: current.aggregate },
     best: { candidate: evaluated[0].candidate, aggregate: evaluated[0].aggregate },
+    decision: {
+      accepted: alignedAccepted,
+      improvementRatio: alignedImprovementRatio,
+      rule: "overall RMSE improvement >= 10% and no held-out date worse than current",
+      recommendation: alignedAccepted ? "candidate is eligible for on-device validation" : "keep current settings",
+    },
     baselines: { recordedAppSpeed: recordedAggregate, iphoneGpsSpeed: iphoneGpsAggregate },
     topCandidates: evaluated.slice(0, 10).map((item) => ({ candidate: item.candidate, aggregate: item.aggregate })),
     crossValidation,
+    realTimeEvaluation: {
+      note: "Zero-shift UTC evaluation; unlike waveform alignment, this retains observable speed latency.",
+      candidateCount: realTimeEvaluated.length,
+      current: { candidate: CURRENT, aggregate: realTimeCurrentAggregate },
+      best: { candidate: realTimeEvaluated[0].candidate, aggregate: realTimeEvaluated[0].aggregate },
+      decision: {
+        accepted: realTimeAccepted,
+        improvementRatio: realTimeImprovementRatio,
+        rule: "overall RMSE improvement >= 10% and no held-out date worse than current",
+        recommendation: realTimeAccepted ? "candidate is eligible for on-device validation" : "keep current settings",
+      },
+      topCandidates: realTimeEvaluated.slice(0, 10).map((item) => ({
+        candidate: item.candidate, aggregate: item.aggregate,
+      })),
+      crossValidation: realTimeCrossValidation,
+    },
     runs: runSummary,
     excluded,
     limitations: [

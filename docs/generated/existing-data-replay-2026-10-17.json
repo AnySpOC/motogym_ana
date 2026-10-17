@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-10-17T11:54:26.074Z",
+  "generatedAt": "2026-10-17T12:15:16.133Z",
   "root": "C:\\Users\\foxho\\Videos",
   "method": {
     "candidateCount": 400,
     "objective": "macro RMSE + 0.15 * macro absolute bias",
-    "qualityGate": "overlap >= 10 s, iPhone GPS correlation >= 0.7, GPS RMSE <= 8 km/h, max sample gap <= 2 s",
+    "qualityGate": "continuous segment >= 10 s, overlap >= 10 s, iPhone GPS correlation >= 0.7, GPS RMSE <= 8 km/h",
     "note": "The GPS-derived per-run time offset is fixed before candidate comparison."
   },
   "current": {
@@ -15,193 +15,199 @@
       "gpsPredictionSec": 0
     },
     "aggregate": {
-      "runs": 4,
-      "count": 5623,
-      "rmse": 4.11867372099323,
-      "macroRmse": 3.830422854038891,
-      "macroAbsBias": 0.7677536916654395
+      "runs": 8,
+      "count": 8597,
+      "rmse": 3.9588537304251195,
+      "macroRmse": 3.5211439669434443,
+      "macroAbsBias": 0.761929389750571
     }
   },
   "best": {
     "candidate": {
-      "drag": 0.025,
-      "processNoise": 0.3,
+      "drag": 0.015,
+      "processNoise": 1.8,
       "gpsSigmaScale": 0.25,
       "gpsPredictionSec": 0
     },
     "aggregate": {
-      "runs": 4,
-      "count": 5623,
-      "rmse": 4.068401266754116,
-      "macroRmse": 3.714780645942517,
-      "macroAbsBias": 0.5212183227571641
+      "runs": 8,
+      "count": 8597,
+      "rmse": 3.9301942299350143,
+      "macroRmse": 3.518684074972083,
+      "macroAbsBias": 0.728071770864205
     }
+  },
+  "decision": {
+    "accepted": false,
+    "improvementRatio": 0.007239343113348,
+    "rule": "overall RMSE improvement >= 10% and no held-out date worse than current",
+    "recommendation": "keep current settings"
   },
   "baselines": {
     "recordedAppSpeed": {
-      "runs": 4,
-      "count": 5623,
-      "rmse": 4.648290081329931,
-      "macroRmse": 4.127917202263099,
-      "macroAbsBias": 0.8276613848763537
+      "runs": 8,
+      "count": 8597,
+      "rmse": 4.642672957273155,
+      "macroRmse": 4.857240813712472,
+      "macroAbsBias": 1.5310673454325352
     },
     "iphoneGpsSpeed": {
-      "runs": 4,
-      "count": 5623,
-      "rmse": 3.8278625734594707,
-      "macroRmse": 3.155563022301163,
-      "macroAbsBias": 0.46102620395690763
+      "runs": 8,
+      "count": 8597,
+      "rmse": 3.6792351290453977,
+      "macroRmse": 2.936640226080839,
+      "macroAbsBias": 0.5030662672246388
     }
   },
   "topCandidates": [
     {
       "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.3,
+        "drag": 0.015,
+        "processNoise": 1.8,
         "gpsSigmaScale": 0.25,
         "gpsPredictionSec": 0
       },
       "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.068401266754116,
-        "macroRmse": 3.714780645942517,
-        "macroAbsBias": 0.5212183227571641
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9301942299350143,
+        "macroRmse": 3.518684074972083,
+        "macroAbsBias": 0.728071770864205
       }
     },
     {
       "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.3,
+        "drag": 0.015,
+        "processNoise": 1.8,
         "gpsSigmaScale": 0.35,
         "gpsPredictionSec": 0
       },
       "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.1063098988490845,
-        "macroRmse": 3.7212178521232695,
-        "macroAbsBias": 0.5340706392727899
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9281323947813,
+        "macroRmse": 3.518290370551558,
+        "macroAbsBias": 0.7311818513820778
       }
     },
     {
       "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.45,
-        "gpsSigmaScale": 0.25,
-        "gpsPredictionSec": 0
-      },
-      "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.054887755747704,
-        "macroRmse": 3.7247322433531163,
-        "macroAbsBias": 0.5117363626437934
-      }
-    },
-    {
-      "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.45,
-        "gpsSigmaScale": 0.35,
-        "gpsPredictionSec": 0
-      },
-      "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.080751407904908,
-        "macroRmse": 3.7288491795185554,
-        "macroAbsBias": 0.5209668405245849
-      }
-    },
-    {
-      "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.8,
-        "gpsSigmaScale": 0.25,
-        "gpsPredictionSec": 0
-      },
-      "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.043502249569778,
-        "macroRmse": 3.7350392553953355,
-        "macroAbsBias": 0.5040094211643723
-      }
-    },
-    {
-      "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.3,
-        "gpsSigmaScale": 0.5,
-        "gpsPredictionSec": 0
-      },
-      "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.187156770390643,
-        "macroRmse": 3.7295401816457243,
-        "macroAbsBias": 0.5518551358276531
-      }
-    },
-    {
-      "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.8,
-        "gpsSigmaScale": 0.35,
-        "gpsPredictionSec": 0
-      },
-      "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.058396765565426,
-        "macroRmse": 3.7372625237528565,
-        "macroAbsBias": 0.5096501783251615
-      }
-    },
-    {
-      "candidate": {
-        "drag": 0.025,
+        "drag": 0.015,
         "processNoise": 1.2,
         "gpsSigmaScale": 0.25,
         "gpsPredictionSec": 0
       },
       "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.03872999292479,
-        "macroRmse": 3.7395296300016394,
-        "macroAbsBias": 0.5012925254425079
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9293479746968014,
+        "macroRmse": 3.5186069058089453,
+        "macroAbsBias": 0.7332459901151227
       }
     },
     {
       "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.45,
-        "gpsSigmaScale": 0.5,
-        "gpsPredictionSec": 0
-      },
-      "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.135390824662172,
-        "macroRmse": 3.735344021742973,
-        "macroAbsBias": 0.5294907705245234
-      }
-    },
-    {
-      "candidate": {
-        "drag": 0.025,
+        "drag": 0.015,
         "processNoise": 1.2,
         "gpsSigmaScale": 0.35,
         "gpsPredictionSec": 0
       },
       "aggregate": {
-        "runs": 4,
-        "count": 5623,
-        "rmse": 4.048790357807549,
-        "macroRmse": 3.7409975674913425,
-        "macroAbsBias": 0.5052403046360819
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9276049107385744,
+        "macroRmse": 3.518679868922638,
+        "macroAbsBias": 0.7374906786109918
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.005,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9482321055421687,
+        "macroRmse": 3.517791355127071,
+        "macroAbsBias": 0.7439120743001004
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.005,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9468470335128636,
+        "macroRmse": 3.517822850963591,
+        "macroAbsBias": 0.7471988444580084
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 0.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9288480651464575,
+        "macroRmse": 3.5189961692787297,
+        "macroAbsBias": 0.7407346883263694
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.005,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9477616705949763,
+        "macroRmse": 3.51777415830036,
+        "macroAbsBias": 0.7492564512612198
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.5,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9279555403222073,
+        "macroRmse": 3.519751085643282,
+        "macroAbsBias": 0.7428389424869019
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.005,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9469606468742846,
+        "macroRmse": 3.518432432615815,
+        "macroAbsBias": 0.7537568389668403
       }
     }
   ],
@@ -209,131 +215,513 @@
     {
       "heldOutDate": "2026-10-03",
       "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.3,
+        "drag": 0.015,
+        "processNoise": 1.8,
         "gpsSigmaScale": 0.25,
         "gpsPredictionSec": 0
       },
       "training": {
-        "runs": 3,
-        "count": 4189,
-        "rmse": 4.296320588403099,
-        "macroRmse": 3.8483701964938253,
-        "macroAbsBias": 0.6315198230468043
+        "runs": 5,
+        "count": 5328,
+        "rmse": 4.01449384205626,
+        "macroRmse": 3.516575759000169,
+        "macroAbsBias": 0.7999340260578296
       },
       "test": {
-        "runs": 1,
-        "count": 1434,
-        "rmse": 3.31401199428859,
-        "macroRmse": 3.31401199428859,
-        "macroAbsBias": 0.19031382188824345
+        "runs": 3,
+        "count": 3269,
+        "rmse": 3.7887803255962007,
+        "macroRmse": 3.5221979349252734,
+        "macroAbsBias": 0.6083013455414975
       },
       "currentTest": {
-        "runs": 1,
-        "count": 1434,
-        "rmse": 3.3907635865865555,
-        "macroRmse": 3.3907635865865555,
-        "macroAbsBias": 0.3692078415051678
+        "runs": 3,
+        "count": 3269,
+        "rmse": 3.7825747176079907,
+        "macroRmse": 3.5125217099244193,
+        "macroAbsBias": 0.6437134393022935
       }
     },
     {
       "heldOutDate": "2026-10-04",
       "candidate": {
         "drag": 0.025,
-        "processNoise": 0.3,
-        "gpsSigmaScale": 0.25,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.35,
         "gpsPredictionSec": 0
       },
       "training": {
-        "runs": 3,
-        "count": 4881,
-        "rmse": 4.1347806666755496,
-        "macroRmse": 3.7525812169802477,
-        "macroAbsBias": 0.5590763108298857
+        "runs": 5,
+        "count": 6716,
+        "rmse": 4.084822091913229,
+        "macroRmse": 3.70337011460603,
+        "macroAbsBias": 0.6636998844420445
       },
       "test": {
-        "runs": 1,
-        "count": 742,
-        "rmse": 3.6013789328293244,
-        "macroRmse": 3.6013789328293244,
-        "macroAbsBias": 0.40764435853899905
+        "runs": 3,
+        "count": 1881,
+        "rmse": 3.2374794994555964,
+        "macroRmse": 3.230027990652894,
+        "macroAbsBias": 0.801215510050605
       },
       "currentTest": {
-        "runs": 1,
-        "count": 742,
-        "rmse": 3.7216722609333206,
-        "macroRmse": 3.7216722609333206,
-        "macroAbsBias": 0.8406421510975911
+        "runs": 3,
+        "count": 1881,
+        "rmse": 3.21524844559932,
+        "macroRmse": 3.1665705760085037,
+        "macroAbsBias": 0.7212985607568277
       }
     },
     {
       "heldOutDate": "2026-10-10",
       "candidate": {
-        "drag": 0.025,
-        "processNoise": 0.3,
-        "gpsSigmaScale": 1,
+        "drag": 0.005,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.5,
         "gpsPredictionSec": 0
       },
       "training": {
-        "runs": 3,
-        "count": 2289,
-        "rmse": 3.222436838293559,
-        "macroRmse": 3.354456435410032,
-        "macroAbsBias": 0.26221102554689274
+        "runs": 7,
+        "count": 5263,
+        "rmse": 3.5496062193532327,
+        "macroRmse": 3.380686048207917,
+        "macroAbsBias": 0.7576672837534392
       },
       "test": {
         "runs": 1,
         "count": 3334,
-        "rmse": 5.375403413192605,
-        "macroRmse": 5.375403413192605,
-        "macroAbsBias": 1.7252826759091733
+        "rmse": 4.514461986593996,
+        "macroRmse": 4.514461986593996,
+        "macroAbsBias": 0.8620295985398317
       },
       "currentTest": {
         "runs": 1,
         "count": 3334,
-        "rmse": 4.48464587363555,
-        "macroRmse": 4.48464587363555,
-        "macroAbsBias": 0.840265923493541
+        "rmse": 4.4833414888423295,
+        "macroRmse": 4.4833414888423295,
+        "macroAbsBias": 0.8366463433769606
       }
     },
     {
       "heldOutDate": "2026-10-12",
       "candidate": {
-        "drag": 0.025,
+        "drag": 0,
         "processNoise": 1.8,
         "gpsSigmaScale": 0.25,
         "gpsPredictionSec": 0
       },
       "training": {
-        "runs": 3,
-        "count": 5510,
-        "rmse": 4.04377257035753,
-        "macroRmse": 3.7854705826747463,
-        "macroAbsBias": 0.41269234143629707
+        "runs": 7,
+        "count": 8484,
+        "rmse": 3.9632116120454506,
+        "macroRmse": 3.5001515834550117,
+        "macroAbsBias": 0.6938404179988549
       },
       "test": {
         "runs": 1,
         "count": 113,
-        "rmse": 3.611594600788039,
-        "macroRmse": 3.611594600788039,
-        "macroAbsBias": 0.7626493707966183
+        "rmse": 3.659683722344183,
+        "macroRmse": 3.659683722344183,
+        "macroAbsBias": 1.158088724998677
       },
       "currentTest": {
         "runs": 1,
         "count": 113,
-        "rmse": 3.724609695000138,
-        "macroRmse": 3.724609695000138,
-        "macroAbsBias": 1.0208988505654577
+        "rmse": 3.648533388906454,
+        "macroRmse": 3.648533388906454,
+        "macroAbsBias": 1.1637527744502445
       }
     }
   ],
+  "realTimeEvaluation": {
+    "note": "Zero-shift UTC evaluation; unlike waveform alignment, this retains observable speed latency.",
+    "candidateCount": 200,
+    "current": {
+      "candidate": {
+        "drag": 0,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8627,
+        "rmse": 5.204825336002725,
+        "macroRmse": 5.36589042170047,
+        "macroAbsBias": 1.3954070411093602
+      }
+    },
+    "best": {
+      "candidate": {
+        "lagSec": 0.5,
+        "gpsGain": 1,
+        "biasGain": 0.03,
+        "accelScale": 0.8
+      },
+      "aggregate": {
+        "runs": 8,
+        "count": 8627,
+        "rmse": 5.168162316371005,
+        "macroRmse": 5.2955627515546,
+        "macroAbsBias": 1.1593386843493745
+      }
+    },
+    "decision": {
+      "accepted": false,
+      "improvementRatio": 0.007044044183022888,
+      "rule": "overall RMSE improvement >= 10% and no held-out date worse than current",
+      "recommendation": "keep current settings"
+    },
+    "topCandidates": [
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.168162316371005,
+          "macroRmse": 5.2955627515546,
+          "macroAbsBias": 1.1593386843493745
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.082495801237741,
+          "macroRmse": 5.306095831240281,
+          "macroAbsBias": 1.179671567614246
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.08,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.094646392625261,
+          "macroRmse": 5.318163712762575,
+          "macroAbsBias": 1.1709981476884626
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 1
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.1035468222200455,
+          "macroRmse": 5.319914643259306,
+          "macroAbsBias": 1.199579322320772
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 0.9,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.242870141452807,
+          "macroRmse": 5.325252055651252,
+          "macroAbsBias": 1.197155702760817
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.15,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.09847207995262,
+          "macroRmse": 5.332352188288624,
+          "macroAbsBias": 1.166448241272773
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.08,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.204672050385574,
+          "macroRmse": 5.339860672130207,
+          "macroAbsBias": 1.1573304083762181
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.08,
+          "accelScale": 1
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.119641812624566,
+          "macroRmse": 5.344143715923925,
+          "macroAbsBias": 1.194234262159234
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.129869878361739,
+          "macroRmse": 5.330401012025608,
+          "macroAbsBias": 1.3246042160654754
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 0.9,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.149430669411523,
+          "macroRmse": 5.348615523308202,
+          "macroAbsBias": 1.2144824926218016
+        }
+      }
+    ],
+    "crossValidation": [
+      {
+        "heldOutDate": "2026-10-03",
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 5,
+          "count": 5343,
+          "rmse": 5.175576659620632,
+          "macroRmse": 5.074440016472564,
+          "macroAbsBias": 1.1410245321917838
+        },
+        "test": {
+          "runs": 3,
+          "count": 3284,
+          "rmse": 5.156076549230968,
+          "macroRmse": 5.664100643357995,
+          "macroAbsBias": 1.1898622712786928
+        },
+        "currentTest": {
+          "runs": 3,
+          "count": 3284,
+          "rmse": 5.200308291838923,
+          "macroRmse": 5.662491795778802,
+          "macroAbsBias": 1.3737179291379782
+        }
+      },
+      {
+        "heldOutDate": "2026-10-04",
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 5,
+          "count": 6731,
+          "rmse": 5.327312883056778,
+          "macroRmse": 5.959031223121089,
+          "macroAbsBias": 0.7687219206038937
+        },
+        "test": {
+          "runs": 3,
+          "count": 1896,
+          "rmse": 4.096867504085434,
+          "macroRmse": 4.217870178105602,
+          "macroAbsBias": 1.8645876459648332
+        },
+        "currentTest": {
+          "runs": 3,
+          "count": 1896,
+          "rmse": 3.9261489164294,
+          "macroRmse": 4.054040464777236,
+          "macroAbsBias": 1.8492385276014847
+        }
+      },
+      {
+        "heldOutDate": "2026-10-10",
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 7,
+          "count": 5293,
+          "rmse": 4.749148747795202,
+          "macroRmse": 5.227610463049167,
+          "macroAbsBias": 1.3048983377792704
+        },
+        "test": {
+          "runs": 1,
+          "count": 3334,
+          "rmse": 5.771228771092633,
+          "macroRmse": 5.771228771092633,
+          "macroAbsBias": 0.14042111034010354
+        },
+        "currentTest": {
+          "runs": 1,
+          "count": 3334,
+          "rmse": 5.699354600012013,
+          "macroRmse": 5.699354600012013,
+          "macroAbsBias": 0.9957251446047268
+        }
+      },
+      {
+        "heldOutDate": "2026-10-12",
+        "candidate": {
+          "lagSec": 1,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 7,
+          "count": 8514,
+          "rmse": 5.31383981223014,
+          "macroRmse": 4.748404590346158,
+          "macroAbsBias": 1.0842405062656182
+        },
+        "test": {
+          "runs": 1,
+          "count": 113,
+          "rmse": 10.591004412563713,
+          "macroRmse": 10.591004412563713,
+          "macroAbsBias": 2.1611845587635243
+        },
+        "currentTest": {
+          "runs": 1,
+          "count": 113,
+          "rmse": 8.07817199192364,
+          "macroRmse": 8.07817199192364,
+          "macroAbsBias": 0.4986618140517662
+        }
+      }
+    ]
+  },
   "runs": [
+    {
+      "csv": "gym-ana-2026-10-03T04-40-23-225Z.csv#1",
+      "gpx": "GX010054.gpx",
+      "date": "2026-10-03",
+      "samples": 11340,
+      "overlapSec": 158.8,
+      "gpsOffsetSec": -1.5,
+      "iphoneGps": {
+        "rmse": 4.39,
+        "bias": 0.664,
+        "correlation": 0.967
+      },
+      "appRecorded": {
+        "rmse": 3.679,
+        "bias": -0.165,
+        "correlation": 0.972
+      },
+      "currentReplay": {
+        "rmse": 4.485,
+        "bias": 0.677
+      },
+      "bestReplay": {
+        "rmse": 4.506,
+        "bias": 0.512
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "手動開始",
+          "utc": "2026-10-03T04:40:23.225Z",
+          "gpxSpeedKmh": null
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-03T06-17-54-082Z.csv#1",
+      "gpx": "GX010057.gpx",
+      "date": "2026-10-03",
+      "samples": 3037,
+      "overlapSec": 50.6,
+      "gpsOffsetSec": -2.4,
+      "iphoneGps": {
+        "rmse": 1.496,
+        "bias": -0.284,
+        "correlation": 0.998
+      },
+      "appRecorded": {
+        "rmse": 5.916,
+        "bias": -2.536,
+        "correlation": 0.975
+      },
+      "currentReplay": {
+        "rmse": 2.665,
+        "bias": -0.887
+      },
+      "bestReplay": {
+        "rmse": 2.69,
+        "bias": -1.071
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "手動開始",
+          "utc": "2026-10-03T06:17:54.082Z",
+          "gpxSpeedKmh": 17.705
+        }
+      ]
+    },
     {
       "csv": "gym-ana-2026-10-03T08-01-28-345Z.csv",
       "gpx": "GX010060.gpx",
       "date": "2026-10-03",
       "samples": 8599,
-      "overlapSec": 143.4,
+      "overlapSec": 143.3,
       "gpsOffsetSec": -1,
       "iphoneGps": {
         "rmse": 3.235,
@@ -346,12 +734,12 @@
         "correlation": 0.883
       },
       "currentReplay": {
-        "rmse": 3.391,
-        "bias": 0.369
+        "rmse": 3.388,
+        "bias": 0.367
       },
       "bestReplay": {
-        "rmse": 3.314,
-        "bias": 0.19
+        "rmse": 3.371,
+        "bias": 0.241
       },
       "events": [
         {
@@ -373,7 +761,7 @@
       "gpx": "GX010063.gpx",
       "date": "2026-10-04",
       "samples": 9790,
-      "overlapSec": 163.3,
+      "overlapSec": 163.2,
       "gpsOffsetSec": -1.3,
       "iphoneGps": {
         "rmse": 3.443,
@@ -386,12 +774,12 @@
         "correlation": 0.928
       },
       "currentReplay": {
-        "rmse": 3.722,
-        "bias": 0.841
+        "rmse": 3.72,
+        "bias": 0.842
       },
       "bestReplay": {
-        "rmse": 3.601,
-        "bias": 0.408
+        "rmse": 3.645,
+        "bias": 0.597
       },
       "events": [
         {
@@ -409,11 +797,79 @@
       ]
     },
     {
+      "csv": "gym-ana-2026-10-04T03-28-34-761Z.csv#1",
+      "gpx": "GX010063.gpx",
+      "date": "2026-10-04",
+      "samples": 1089,
+      "overlapSec": 18.2,
+      "gpsOffsetSec": -1.8,
+      "iphoneGps": {
+        "rmse": 2.446,
+        "bias": 0.378,
+        "correlation": 0.994
+      },
+      "appRecorded": {
+        "rmse": 9.296,
+        "bias": -4.21,
+        "correlation": 0.837
+      },
+      "currentReplay": {
+        "rmse": 2.966,
+        "bias": -0.504
+      },
+      "bestReplay": {
+        "rmse": 3.068,
+        "bias": -0.651
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "手動開始",
+          "utc": "2026-10-04T03:28:34.761Z",
+          "gpxSpeedKmh": 37.052
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-04T03-28-34-761Z.csv#2",
+      "gpx": "GX010063.gpx",
+      "date": "2026-10-04",
+      "samples": 5740,
+      "overlapSec": 95.7,
+      "gpsOffsetSec": -1.5,
+      "iphoneGps": {
+        "rmse": 2.539,
+        "bias": -0.855,
+        "correlation": 0.991
+      },
+      "appRecorded": {
+        "rmse": 3.617,
+        "bias": -1.927,
+        "correlation": 0.983
+      },
+      "currentReplay": {
+        "rmse": 2.814,
+        "bias": -0.818
+      },
+      "bestReplay": {
+        "rmse": 2.877,
+        "bias": -1.054
+      },
+      "events": [
+        {
+          "type": "STOP",
+          "detail": "手動停止",
+          "utc": "2026-10-04T03:30:40.225Z",
+          "gpxSpeedKmh": 0.081
+        }
+      ]
+    },
+    {
       "csv": "gym-ana-2026-10-10T06-46-03-006Z.csv",
       "gpx": "GX010068.gpx",
       "date": "2026-10-10",
       "samples": 20000,
-      "overlapSec": 336.8,
+      "overlapSec": 333.4,
       "gpsOffsetSec": -1.6,
       "iphoneGps": {
         "rmse": 4.179,
@@ -422,24 +878,18 @@
       },
       "appRecorded": {
         "rmse": 5.365,
-        "bias": 1.866,
+        "bias": 1.865,
         "correlation": 0.942
       },
       "currentReplay": {
-        "rmse": 4.485,
-        "bias": 0.84
+        "rmse": 4.483,
+        "bias": 0.837
       },
       "bestReplay": {
-        "rmse": 4.46,
-        "bias": 0.756
+        "rmse": 4.413,
+        "bias": 0.698
       },
       "events": [
-        {
-          "type": "START",
-          "detail": "発進を検出",
-          "utc": "2026-10-10T06:46:03.006Z",
-          "gpxSpeedKmh": 25.052
-        },
         {
           "type": "STOP",
           "detail": "手動停止",
@@ -453,7 +903,7 @@
       "gpx": "GX010075.gpx",
       "date": "2026-10-12",
       "samples": 677,
-      "overlapSec": 11.4,
+      "overlapSec": 11.3,
       "gpsOffsetSec": -2.4,
       "iphoneGps": {
         "rmse": 1.765,
@@ -461,17 +911,17 @@
         "correlation": 0.922
       },
       "appRecorded": {
-        "rmse": 4.43,
-        "bias": 0.801,
-        "correlation": 0.783
+        "rmse": 4.268,
+        "bias": 0.9,
+        "correlation": 0.781
       },
       "currentReplay": {
-        "rmse": 3.725,
-        "bias": 1.021
+        "rmse": 3.649,
+        "bias": 1.164
       },
       "bestReplay": {
-        "rmse": 3.483,
-        "bias": 0.731
+        "rmse": 3.58,
+        "bias": 0.999
       },
       "events": [
         {
@@ -491,19 +941,9 @@
   ],
   "excluded": [
     {
-      "csv": "gym-ana-2026-10-03T04-40-23-225Z.csv",
-      "gpx": "GX010054.gpx",
-      "reason": "quality gate (overlap=207.1s, GPS RMSE=4.39 km/h, corr=0.967, max gap=53.535s)"
-    },
-    {
-      "csv": "gym-ana-2026-10-03T06-17-54-082Z.csv",
+      "csv": "gym-ana-2026-10-03T06-17-54-082Z.csv#2",
       "gpx": "GX010057.gpx",
-      "reason": "quality gate (overlap=489.8s, GPS RMSE=7.634 km/h, corr=0.938, max gap=231.071s)"
-    },
-    {
-      "csv": "gym-ana-2026-10-04T03-28-34-761Z.csv",
-      "gpx": "GX010063.gpx",
-      "reason": "quality gate (overlap=125.4s, GPS RMSE=2.533 km/h, corr=0.99, max gap=11.597s)"
+      "reason": "quality gate (overlap=52.1s, GPS RMSE=10.455 km/h, corr=0.608)"
     },
     {
       "csv": "gym-ana-2026-10-04T06-20-50-924Z.csv",
@@ -516,7 +956,7 @@
     {
       "csv": "gym-ana-2026-10-12T06-03-25-549Z.csv",
       "gpx": "GX010074.gpx",
-      "reason": "quality gate (overlap=12s, GPS RMSE=4.567 km/h, corr=0.392, max gap=0.029s)"
+      "reason": "quality gate (overlap=11.9s, GPS RMSE=4.567 km/h, corr=0.392)"
     }
   ],
   "limitations": [

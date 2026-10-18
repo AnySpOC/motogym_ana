@@ -20,6 +20,7 @@ function parseArgs(argv) {
     else if (arg === "--out") args.out = argv[++index];
     else if (arg === "--csv") args.csv = argv[++index];
     else if (arg === "--gpx") args.gpx = argv[++index];
+    else if (arg === "--gpx-out") args.gpxOut = argv[++index];
     else if (arg === "--streams") args.streams = argv[++index].split(",").map((item) => item.trim()).filter(Boolean);
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
@@ -31,7 +32,7 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/analyze_gopro_mp4.mjs --mp4 <video.mp4> [--out <summary.json>]",
-    "  [--csv <gym-ana.csv>] [--gpx <video.gpx>]",
+    "  [--csv <gym-ana.csv>] [--gpx <video.gpx>] [--gpx-out <extracted.gpx>]",
     "  [--streams ACCL,GYRO,GRAV,CORI,GPS5,GPS9]",
     "",
     "The JSON summary never includes GPS coordinates or full sensor samples.",
@@ -62,7 +63,20 @@ function parseCsvLine(line) {
   return cells;
 }
 
-function parseRunStart(filePath) {
+function parseRunStart(filePath, lines = null) {
+  if (lines?.length) {
+    const headers = parseCsvLine(lines[0]);
+    const startedAtIndex = headers.indexOf("started_at_iso");
+    if (startedAtIndex >= 0) {
+      const starts = new Set();
+      for (const line of lines.slice(1)) {
+        const value = parseCsvLine(line)[startedAtIndex];
+        if (value && Number.isFinite(Date.parse(value))) starts.add(value);
+      }
+      if (starts.size === 1) return Date.parse([...starts][0]);
+      if (starts.size > 1) throw new Error("Selected CSV contains multiple runs; export or analyze one run at a time.");
+    }
+  }
   const match = path.basename(filePath).match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/);
   if (!match) throw new Error(`Run start is not encoded in ${path.basename(filePath)}`);
   return Date.parse(`${match[1]}T${match[2]}:${match[3]}:${match[4]}.${match[5]}Z`);
@@ -92,9 +106,47 @@ function embeddedGpsVideoStart(telemetryStreams) {
   return Number.isFinite(sampleEpochMs) ? sampleEpochMs - sample.cts : null;
 }
 
+function writeGpx(filePath, telemetryStreams) {
+  const gps = telemetryStreams.find(({ key }) => key === "GPS9" || key === "GPS5")?.stream?.samples || [];
+  const videoStartMs = embeddedGpsVideoStart(telemetryStreams);
+  if (!Number.isFinite(videoStartMs) || !gps.length) throw new Error("No dated GPS telemetry available for GPX export.");
+  const points = [];
+  for (const sample of gps) {
+    const value = numericVector(sample.value);
+    if (value.length < 2 || !Number.isFinite(sample.cts)) continue;
+    const [latitude, longitude, elevation] = value;
+    const pdop = value[7];
+    const fix = value[8];
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)
+      || (Math.abs(latitude) < 1e-6 && Math.abs(longitude) < 1e-6)
+      || (Number.isFinite(fix) && fix < 2)) continue;
+    const optional = [
+      Number.isFinite(elevation) ? `        <ele>${elevation}</ele>` : null,
+      Number.isFinite(pdop) ? `        <pdop>${pdop}</pdop>` : null,
+    ].filter(Boolean);
+    points.push([
+      `      <trkpt lat="${latitude}" lon="${longitude}">`,
+      ...optional,
+      `        <time>${new Date(videoStartMs + sample.cts).toISOString()}</time>`,
+      "      </trkpt>",
+    ].join("\n"));
+  }
+  const xml = [
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<gpx version=\"1.1\" creator=\"motogym_ana\" xmlns=\"http://www.topografix.com/GPX/1/1\">",
+    "  <trk><name>GoPro embedded GPS</name><trkseg>",
+    ...points,
+    "  </trkseg></trk>",
+    "</gpx>",
+    "",
+  ].join("\n");
+  fs.writeFileSync(path.resolve(filePath), xml, "utf8");
+  return { path: path.resolve(filePath), pointCount: points.length };
+}
+
 function loadPhoneSamples(csvPath, videoStartMs, timingSource) {
-  const csvStartMs = parseRunStart(csvPath);
   const lines = fs.readFileSync(csvPath, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  const csvStartMs = parseRunStart(csvPath, lines);
   const headers = parseCsvLine(lines[0]);
   const index = Object.fromEntries(headers.map((header, position) => [header, position]));
   const number = (cells, key) => {
@@ -212,17 +264,27 @@ function summarizeAxis(samples, axis) {
 
 function summarizeStream(key, stream) {
   const samples = Array.isArray(stream.samples) ? stream.samples : [];
-  const times = samples.map((sample) => sample.cts).filter(Number.isFinite);
-  const firstVector = samples.map((sample) => numericVector(sample.value)).find((value) => value.length) || [];
-  const durationMs = times.length > 1 ? Math.max(...times) - Math.min(...times) : 0;
-  const sampleRateHz = durationMs > 0 ? (times.length - 1) * 1000 / durationMs : null;
+  let firstCtsMs = Infinity;
+  let lastCtsMs = -Infinity;
+  let timedSampleCount = 0;
+  let firstVector = [];
+  for (const sample of samples) {
+    if (Number.isFinite(sample.cts)) {
+      firstCtsMs = Math.min(firstCtsMs, sample.cts);
+      lastCtsMs = Math.max(lastCtsMs, sample.cts);
+      timedSampleCount += 1;
+    }
+    if (!firstVector.length) firstVector = numericVector(sample.value);
+  }
+  const durationMs = timedSampleCount > 1 ? lastCtsMs - firstCtsMs : 0;
+  const sampleRateHz = durationMs > 0 ? (timedSampleCount - 1) * 1000 / durationMs : null;
   const gpsStream = key.startsWith("GPS");
   return {
     name: stream.name || key,
     units: stream.units || stream.sticky?.units || null,
     sampleCount: samples.length,
-    firstCtsMs: times.length ? Math.min(...times) : null,
-    lastCtsMs: times.length ? Math.max(...times) : null,
+    firstCtsMs: timedSampleCount ? firstCtsMs : null,
+    lastCtsMs: timedSampleCount ? lastCtsMs : null,
     sampleRateHz,
     vectorLength: firstVector.length,
     axes: gpsStream ? null : firstVector.map((_, axis) => summarizeAxis(samples, axis)),
@@ -639,6 +701,8 @@ async function main() {
     ? await goproTelemetry(extracted, { stream: selected, repeatSticky: true, tolerant: true })
     : {};
   const telemetryStreams = findStreams(telemetry);
+  const embeddedVideoStartMs = embeddedGpsVideoStart(telemetryStreams);
+  const gpxExport = args.gpxOut ? writeGpx(args.gpxOut, telemetryStreams) : null;
   const streams = telemetryStreams.map(({ deviceId, deviceName, key, stream }) => ({
     deviceId,
     deviceName,
@@ -651,6 +715,9 @@ async function main() {
     videoDurationSec: extracted.timing.videoDuration,
     videoFrameRateHz: extracted.timing.frameDuration ? 1 / extracted.timing.frameDuration : null,
     telemetryStart: extracted.timing.start instanceof Date ? extracted.timing.start.toISOString() : extracted.timing.start,
+    embeddedGpsVideoStartUtc: Number.isFinite(embeddedVideoStartMs)
+      ? new Date(embeddedVideoStartMs).toISOString() : null,
+    gpxExport,
     gpmfPayloadCount: extracted.timing.samples?.length || 0,
     availableStreams: available,
     streams,

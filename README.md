@@ -247,7 +247,9 @@ npm run evaluate:existing -- --root C:\Users\foxho\Videos
 Add `--json <file>` to retain the machine-readable result. The evaluator fixes
 each run's GPS time offset before comparing candidates, so each candidate is
 scored against the same reference samples. See
-`docs/EXISTING_DATA_REPLAY_2026-10-17.md` for the latest result and limitations.
+`docs/EXISTING_DATA_REPLAY_2026-10-18.md` for the latest result and limitations.
+Repeat `--root` to combine folders; duplicate CSV and GPX recordings are removed
+by their time range and sample count.
 
 ## GoPro MP4 sensor comparison
 

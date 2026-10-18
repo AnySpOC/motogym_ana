@@ -7,15 +7,16 @@ const EARTH_RADIUS_M = 6_371_000;
 const CURRENT = { drag: 0, processNoise: 1.2, gpsSigmaScale: 0.35, gpsPredictionSec: 0 };
 
 function parseArgs(argv) {
-  const options = { root: "C:\\Users\\foxho\\Videos", json: null };
+  const options = { roots: [], json: null };
   for (let i = 2; i < argv.length; i += 1) {
-    if (argv[i] === "--root") options.root = argv[++i];
+    if (argv[i] === "--root") options.roots.push(argv[++i]);
     else if (argv[i] === "--json") options.json = argv[++i];
     else if (argv[i] === "--help") {
-      console.log("Usage: node scripts/evaluate_existing_runs.mjs [--root DIR] [--json FILE]");
+      console.log("Usage: node scripts/evaluate_existing_runs.mjs [--root DIR ...] [--json FILE]");
       process.exit(0);
     } else throw new Error(`Unknown option: ${argv[i]}`);
   }
+  if (!options.roots.length) options.roots.push("C:\\Users\\foxho\\Videos");
   return options;
 }
 
@@ -46,7 +47,20 @@ function parseCsvLine(line) {
   return values;
 }
 
-function parseRunStart(file) {
+function parseRunStart(file, lines = null) {
+  if (lines?.length) {
+    const headers = parseCsvLine(lines[0]);
+    const startedAtIndex = headers.indexOf("started_at_iso");
+    if (startedAtIndex >= 0) {
+      const starts = new Set();
+      for (const line of lines.slice(1)) {
+        const value = parseCsvLine(line)[startedAtIndex];
+        if (value && Number.isFinite(Date.parse(value))) starts.add(value);
+      }
+      if (starts.size === 1) return Date.parse([...starts][0]);
+      if (starts.size > 1) throw new Error(`Selected CSV contains multiple runs: ${file}`);
+    }
+  }
   const match = path.basename(file).match(/(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/);
   if (!match) throw new Error(`Run start is not encoded in ${file}`);
   return Date.parse(`${match[1]}T${match[2]}:${match[3]}:${match[4]}.${match[5]}Z`);
@@ -60,8 +74,8 @@ function number(cells, index, key) {
 }
 
 function loadCsv(file) {
-  const startMs = parseRunStart(file);
   const lines = fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  const startMs = parseRunStart(file, lines);
   const headers = parseCsvLine(lines[0]);
   const index = Object.fromEntries(headers.map((header, position) => [header, position]));
   const samples = [];
@@ -435,8 +449,23 @@ function round(value, digits = 3) {
 
 function main() {
   const options = parseArgs(process.argv);
-  const runs = walk(options.root, ".csv").map(loadCsv);
-  const tracks = walk(options.root, ".gpx").map(loadGpx).filter((track) => track.points.length >= 20);
+  const runsByIdentity = new Map();
+  const tracksByIdentity = new Map();
+  for (const root of options.roots) {
+    for (const file of walk(root, ".csv")) {
+      const run = loadCsv(file);
+      const identity = `${run.startMs}|${run.endMs}|${run.samples.length}`;
+      if (!runsByIdentity.has(identity)) runsByIdentity.set(identity, run);
+    }
+    for (const file of walk(root, ".gpx")) {
+      const track = loadGpx(file);
+      if (track.points.length < 20) continue;
+      const identity = `${track.startMs}|${track.endMs}|${track.points.length}`;
+      if (!tracksByIdentity.has(identity)) tracksByIdentity.set(identity, track);
+    }
+  }
+  const runs = [...runsByIdentity.values()];
+  const tracks = [...tracksByIdentity.values()];
   const matched = [];
   const excluded = [];
   for (const run of runs) {
@@ -578,7 +607,7 @@ function main() {
   });
   const output = {
     generatedAt: new Date().toISOString(),
-    root: path.resolve(options.root),
+    roots: options.roots.map((root) => path.resolve(root)),
     method: {
       candidateCount: evaluated.length,
       objective: "macro RMSE + 0.15 * macro absolute bias",

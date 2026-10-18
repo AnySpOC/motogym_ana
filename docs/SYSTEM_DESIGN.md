@@ -86,6 +86,8 @@ iPhone sensors
 | `sw.js` | アプリシェルのオフラインキャッシュ |
 | `manifest.webmanifest` | ホーム画面追加用PWA情報 |
 | `tests/motion-model.test.mjs` | 推定器とCSV形式の回帰テスト |
+| `tests/app-simulation-harness.mjs` | 本番`app.js`へ仮想IMU/GPSを入力する60 Hz試験環境 |
+| `tests/automatic-timing.simulation.test.mjs` | 自動START/STOP、連続走行、振動、取付方向の合成時系列試験 |
 
 ## 5. 動作状態
 
@@ -377,7 +379,7 @@ run
 
 ### 11.1 自動試験
 
-`tests/motion-model.test.mjs`で次を検証する。
+`npm test`は単体回帰と60 Hz合成時系列シミュレーションを連続実行し、いずれかのAssertionが不成立なら終了コード1を返す。`tests/motion-model.test.mjs`で次を検証する。
 
 - 4秒静止後にキャリブレーションが完了すること
 - 静かな車体では発進しきい値が安全下限まで下がり、振動増加時はしきい値と停止判定幅が自動的に上がること
@@ -395,6 +397,8 @@ run
 - 走行中の手動開始で新鮮なGPS速度が初期値になること
 - 0.5秒超のIMU欠測で`GAP`を記録し、次のGPSで`SYNC`すること
 - CSVの全行が同じ列数になること
+
+`tests/automatic-timing.simulation.test.mjs`は本番の`app.js`を仮想iPhone環境で動かし、エンジン振動中の誤START、走行中Auto ON、GPS未取得、START検出遅延、短時間停止、正式STOP、保存、再待機、連続2走、Sensor OFF、3種類の取付方向を検証する。外部データを使わず決定論的に再実行できる。詳細な入力と合格基準は`docs/SIMULATION_TESTS.md`に定義する。
 
 ### 11.2 iPhone実機試験
 

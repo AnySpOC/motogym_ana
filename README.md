@@ -21,6 +21,8 @@ stop, acceleration, braking, banking, and turning events.
 - `scripts/build_design_documents.py` - reproducible document and chart generator
 - `scripts/analyze_gopro_mp4.mjs` - GoPro GPMF sensor extraction and iPhone comparison
 - `scripts/analyze_video_motion.mjs` - forward-video motion and stop/move validation
+- `tests/automatic-timing.simulation.test.mjs` - deterministic 60 Hz automatic timing scenarios
+- `docs/SIMULATION_TESTS.md` - simulation matrix, acceptance criteria, and limitations
 - `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
 - `docs/DATA_ANALYSIS_2026-10-04.md` - analysis and tuning from the latest field logs
 - `docs/DATA_ANALYSIS_2026-10-12.md` - gymkhana-like GoPro, GPS, IMU, and timing validation
@@ -40,6 +42,19 @@ http://127.0.0.1:4173
 
 Use this only for desktop layout checks. iPhone sensor checks need Safari on
 iPhone.
+
+## Automated tests
+
+Run the complete deterministic regression suite, including synthetic 60 Hz
+iPhone motion/GPS scenarios:
+
+```powershell
+npm test
+```
+
+Use `npm run test:simulation` for automatic START/STOP scenarios only. See
+[`docs/SIMULATION_TESTS.md`](docs/SIMULATION_TESTS.md) for the scenario matrix
+and acceptance criteria.
 
 ## iPhone check
 

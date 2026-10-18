@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-18T10:31:58.398Z",
+  "generatedAt": "2026-10-18T10:36:46.544Z",
   "appVersion": "v25",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
@@ -91,6 +91,33 @@
           "median": 211,
           "p95": 300,
           "max": 333
+        },
+        "bySampleHz": {
+          "30": {
+            "trials": 7,
+            "p95StartLatencyMs": 300,
+            "maxStartLatencyMs": 333
+          },
+          "45": {
+            "trials": 2,
+            "p95StartLatencyMs": 222,
+            "maxStartLatencyMs": 222
+          },
+          "60": {
+            "trials": 5,
+            "p95StartLatencyMs": 233,
+            "maxStartLatencyMs": 233
+          },
+          "90": {
+            "trials": 6,
+            "p95StartLatencyMs": 211,
+            "maxStartLatencyMs": 233
+          },
+          "100": {
+            "trials": 4,
+            "p95StartLatencyMs": 190,
+            "maxStartLatencyMs": 210
+          }
         }
       },
       "error": null
@@ -121,7 +148,12 @@
     "robustnessStartLatencyP95Ms": 300,
     "recordedStartGpsSpeedKmh": 0.442,
     "recordedStopGpsSpeedKmh": 0.841,
-    "recordedSpeedRmseKmh": 2.322
+    "recordedSpeedRmseKmh": 2.322,
+    "soakTrials": 200,
+    "soakFalseStarts": 0,
+    "soakMissedStarts": 0,
+    "soakStartLatencyP95Ms": 289,
+    "soakStartLatencyMaxMs": 333
   },
   "fieldGate": {
     "passed": false,

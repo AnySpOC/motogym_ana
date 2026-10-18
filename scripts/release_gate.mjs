@@ -51,6 +51,9 @@ const checks = [
   runCheck("recordedLog", "tests/recorded-log-regression.test.mjs"),
 ];
 const byName = Object.fromEntries(checks.map((check) => [check.name, check]));
+const soakEvidence = fs.existsSync("docs/generated/ROBUSTNESS_SOAK_LATEST.json")
+  ? JSON.parse(fs.readFileSync("docs/generated/ROBUSTNESS_SOAK_LATEST.json", "utf8"))
+  : null;
 const softwareGatePassed = checks.every((check) => check.passed);
 const report = {
   generatedAt: new Date().toISOString(),
@@ -74,6 +77,11 @@ const report = {
     recordedStartGpsSpeedKmh: byName.recordedLog.data?.startGpsSpeedKmh ?? null,
     recordedStopGpsSpeedKmh: byName.recordedLog.data?.stopGpsSpeedKmh ?? null,
     recordedSpeedRmseKmh: byName.recordedLog.data?.speedRmseKmh ?? null,
+    soakTrials: soakEvidence?.summary?.trials ?? null,
+    soakFalseStarts: soakEvidence?.summary?.falseStarts ?? null,
+    soakMissedStarts: soakEvidence?.summary?.missedStarts ?? null,
+    soakStartLatencyP95Ms: soakEvidence?.summary?.startLatencyMs?.p95 ?? null,
+    soakStartLatencyMaxMs: soakEvidence?.summary?.startLatencyMs?.max ?? null,
   },
   fieldGate: {
     passed: false,
@@ -106,6 +114,9 @@ const markdown = `# リリース判定レポート
 | 実走START時GPS | ${acceptance.recordedStartGpsSpeedKmh ?? "-"} km/h |
 | 実走STOP時GPS | ${acceptance.recordedStopGpsSpeedKmh ?? "-"} km/h |
 | 実走速度RMSE | ${acceptance.recordedSpeedRmseKmh ?? "-"} km/h |
+| 長時間耐性試験 | ${acceptance.soakTrials ?? "-"}条件 |
+| 長時間耐性の誤START / 未検知 | ${acceptance.soakFalseStarts ?? "-"}件 / ${acceptance.soakMissedStarts ?? "-"}件 |
+| 長時間耐性 START遅延 P95 / 最大 | ${acceptance.soakStartLatencyP95Ms ?? "-"} ms / ${acceptance.soakStartLatencyMaxMs ?? "-"} ms |
 
 ## 判定
 

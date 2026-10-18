@@ -1,0 +1,167 @@
+{
+  "generatedAt": "2026-10-18T10:36:29.306Z",
+  "summary": {
+    "seed": 20261019,
+    "trials": 200,
+    "passed": true,
+    "falseStarts": 0,
+    "readyFailures": 0,
+    "missedStarts": 0,
+    "detectionRate": 1,
+    "startLatencyMs": {
+      "min": 160,
+      "median": 200,
+      "p95": 289,
+      "max": 333
+    },
+    "bySampleHz": {
+      "30": {
+        "trials": 47,
+        "p95StartLatencyMs": 300,
+        "maxStartLatencyMs": 333
+      },
+      "45": {
+        "trials": 35,
+        "p95StartLatencyMs": 244,
+        "maxStartLatencyMs": 289
+      },
+      "60": {
+        "trials": 41,
+        "p95StartLatencyMs": 233,
+        "maxStartLatencyMs": 233
+      },
+      "90": {
+        "trials": 50,
+        "p95StartLatencyMs": 222,
+        "maxStartLatencyMs": 256
+      },
+      "100": {
+        "trials": 27,
+        "p95StartLatencyMs": 200,
+        "maxStartLatencyMs": 220
+      }
+    }
+  },
+  "slowestTrials": [
+    {
+      "trial": 112,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.136,
+      "vibrationHz": 10.7,
+      "gpsIntervalMs": 670,
+      "launchG": 0.194,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 333
+    },
+    {
+      "trial": 187,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.11,
+      "vibrationHz": 8.9,
+      "gpsIntervalMs": 1009,
+      "launchG": 0.206,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 333
+    },
+    {
+      "trial": 3,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.123,
+      "vibrationHz": 11.3,
+      "gpsIntervalMs": 317,
+      "launchG": 0.221,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 7,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.069,
+      "vibrationHz": 9,
+      "gpsIntervalMs": 788,
+      "launchG": 0.161,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 29,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.13,
+      "vibrationHz": 8.6,
+      "gpsIntervalMs": 420,
+      "launchG": 0.187,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 33,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.124,
+      "vibrationHz": 8.1,
+      "gpsIntervalMs": 848,
+      "launchG": 0.249,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 75,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.111,
+      "vibrationHz": 12,
+      "gpsIntervalMs": 1565,
+      "launchG": 0.181,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 81,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.095,
+      "vibrationHz": 11.8,
+      "gpsIntervalMs": 1630,
+      "launchG": 0.175,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 177,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.031,
+      "vibrationHz": 8.4,
+      "gpsIntervalMs": 994,
+      "launchG": 0.168,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
+      "trial": 199,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.117,
+      "vibrationHz": 9.6,
+      "gpsIntervalMs": 316,
+      "launchG": 0.234,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    }
+  ]
+}

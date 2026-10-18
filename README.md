@@ -63,6 +63,10 @@ Run the randomized robustness sweep with `npm run test:robustness`. Run
 `npm run release:gate` to execute every software gate and update the JSON and
 Markdown reports in `docs/generated/`.
 
+Use `npm run test:soak` before an iPhone release candidate. It runs 200 seeded
+conditions and stores the compact evidence in
+`docs/generated/ROBUSTNESS_SOAK_LATEST.json`.
+
 ## iPhone check
 
 1. Put the PC and iPhone on the same Wi-Fi.

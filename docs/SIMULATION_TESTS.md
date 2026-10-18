@@ -14,11 +14,14 @@ npm test
 
 ```powershell
 npm run test:robustness
+npm run test:soak
 npm run test:recorded
 npm run release:gate
 ```
 
 `test:robustness`は固定seedで24条件を生成する。サンプリング周期30〜100 Hz、取付方向、アイドリング振動、GPS更新間隔、発進Gを変化させ、誤START 0件、未検知0件、START遅延P95 300 ms以下を要求する。`test:recorded`は位置と絶対時刻を除去した10月18日の実車ログを監査する。`release:gate`は全結果を`docs/generated/RELEASE_GATE_LATEST.md`とJSONへまとめる。
+
+`test:soak`は同じ分布を200条件へ拡大し、証跡を`docs/generated/ROBUSTNESS_SOAK_LATEST.json`へ保存する。2026-10-18の実行では誤START 0件、未検知0件、P95 289 msだった。最大333 msは30 Hz群で発生し、60 Hz群の最大は233 msだった。通常のリリースゲートは短時間で再実行できる24条件を必須とし、200条件結果を追加証跡として読み込む。
 
 ## 3. 合成シナリオと合格基準
 
@@ -44,6 +47,7 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 | 単体回帰 | `npm run test:unit` | フィルタ、較正、CSV、イベント |
 | 合成時系列 | `npm run test:simulation` | START/STOP状態遷移、振動、GPSガード、連続走行、取付方向 |
 | 耐性スイープ | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
+| 長時間耐性 | `npm run test:soak` | 200条件とサンプリング周期別遅延 |
 | 匿名実走固定データ | `npm run test:recorded` | 10月18日の正常START/STOP、GPS速度、停止候補 |
 | 既存ログ再生 | `npm run evaluate:existing -- --root <データルート> --json <出力JSON>` | 複数日の速度誤差、候補係数の過学習 |
 | iPhone実機 | 閉鎖コースで定型手順 | iOS権限、実振動、GPS遅延、取付、保存、画面動作 |

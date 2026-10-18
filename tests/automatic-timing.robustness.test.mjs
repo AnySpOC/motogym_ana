@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import {
   createSimulationHarness,
 } from "./app-simulation-harness.mjs";
 
 function parseOptions(argv) {
-  const options = { trials: 24, seed: 20261018 };
+  const options = { trials: 24, seed: 20261018, json: null, summaryOnly: false };
   for (let index = 2; index < argv.length; index += 1) {
     if (argv[index] === "--trials") options.trials = Number(argv[++index]);
     else if (argv[index] === "--seed") options.seed = Number(argv[++index]);
+    else if (argv[index] === "--json") options.json = argv[++index];
+    else if (argv[index] === "--summary-only") options.summaryOnly = true;
     else throw new Error(`Unknown option: ${argv[index]}`);
   }
   if (!Number.isInteger(options.trials) || options.trials < 1) throw new Error("--trials must be a positive integer");
@@ -146,7 +150,31 @@ const summary = {
   },
 };
 
-console.log(JSON.stringify({ summary, trials }, null, 2));
+summary.bySampleHz = Object.fromEntries(sampleRates.map((sampleHz) => {
+  const matching = trials.filter((trial) => trial.sampleHz === sampleHz);
+  const matchingLatencies = matching.map((trial) => trial.startLatencyMs).filter(Number.isFinite);
+  return [sampleHz, {
+    trials: matching.length,
+    p95StartLatencyMs: matchingLatencies.length ? percentile(matchingLatencies, 0.95) : null,
+    maxStartLatencyMs: matchingLatencies.length ? Math.max(...matchingLatencies) : null,
+  }];
+}));
+
+const output = { summary, trials };
+if (options.json) {
+  const artifact = {
+    generatedAt: new Date().toISOString(),
+    summary,
+    slowestTrials: trials
+      .slice()
+      .sort((a, b) => b.startLatencyMs - a.startLatencyMs)
+      .slice(0, 10),
+  };
+  fs.mkdirSync(path.dirname(options.json), { recursive: true });
+  fs.writeFileSync(options.json, `${JSON.stringify(artifact, null, 2)}\n`);
+}
+
+console.log(JSON.stringify(options.summaryOnly ? { summary } : output, null, 2));
 assert.equal(falseStarts, 0, "randomized vibration must not cause false START");
 assert.equal(readyFailures, 0, "randomized stationary conditions must reach ready state");
 assert.equal(missedStarts, 0, "all randomized launches must be detected");

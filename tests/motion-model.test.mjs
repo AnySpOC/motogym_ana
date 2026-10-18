@@ -449,6 +449,8 @@ assert.match(csvLines[0], /gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps/);
 assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
 assert.match(csvLines[0], /bank_deg,gravity_bank_deg,yaw_rate/);
 assert.match(csvLines[0], /auto_stop_candidate/);
+assert.match(csvLines[0], /app_version,schema_version,phase,sensor_interval_ms/);
+assert.match(csvLines[0], /auto_start_ready,start_candidate_hold_ms,start_threshold_g/);
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
 }

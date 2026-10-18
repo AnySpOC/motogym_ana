@@ -22,7 +22,10 @@ stop, acceleration, braking, banking, and turning events.
 - `scripts/analyze_gopro_mp4.mjs` - GoPro GPMF sensor extraction and iPhone comparison
 - `scripts/analyze_video_motion.mjs` - forward-video motion and stop/move validation
 - `tests/automatic-timing.simulation.test.mjs` - deterministic 60 Hz automatic timing scenarios
+- `tests/automatic-timing.robustness.test.mjs` - seeded vibration, GPS, cadence, and mounting sweep
+- `tests/recorded-log-regression.test.mjs` - anonymized October 18 motorcycle log gate
 - `docs/SIMULATION_TESTS.md` - simulation matrix, acceptance criteria, and limitations
+- `scripts/release_gate.mjs` - combined software release gate and report generator
 - `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
 - `docs/DATA_ANALYSIS_2026-10-04.md` - analysis and tuning from the latest field logs
 - `docs/DATA_ANALYSIS_2026-10-12.md` - gymkhana-like GoPro, GPS, IMU, and timing validation
@@ -55,6 +58,10 @@ npm test
 Use `npm run test:simulation` for automatic START/STOP scenarios only. See
 [`docs/SIMULATION_TESTS.md`](docs/SIMULATION_TESTS.md) for the scenario matrix
 and acceptance criteria.
+
+Run the randomized robustness sweep with `npm run test:robustness`. Run
+`npm run release:gate` to execute every software gate and update the JSON and
+Markdown reports in `docs/generated/`.
 
 ## iPhone check
 
@@ -98,6 +105,12 @@ the fastest way to test this prototype on your own iPhone.
 
 Runs are saved automatically on the iPhone with IndexedDB when STOP is detected.
 The app stores both event data and raw sensor time series for each run.
+
+Auto timing also keeps the latest five seconds in a fixed memory buffer. When
+START is detected, those samples are stored with negative `time_ms` values. If
+Auto waiting is cancelled without START, the buffer is saved as a `no-start`
+diagnostic run. Pre-start samples omit latitude and longitude. At 60 Hz this
+adds about 300 rows to a saved run without allowing the wait buffer to grow.
 
 Saved per run:
 

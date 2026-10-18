@@ -12,6 +12,14 @@ npm test
 
 単体回帰だけを実行する場合は`npm run test:unit`、自動計測シミュレーションだけを実行する場合は`npm run test:simulation`を使う。外部CSV、GoPro、ネットワーク、実機は不要である。Assertionが1件でも不成立なら終了コード1となる。
 
+```powershell
+npm run test:robustness
+npm run test:recorded
+npm run release:gate
+```
+
+`test:robustness`は固定seedで24条件を生成する。サンプリング周期30〜100 Hz、取付方向、アイドリング振動、GPS更新間隔、発進Gを変化させ、誤START 0件、未検知0件、START遅延P95 300 ms以下を要求する。`test:recorded`は位置と絶対時刻を除去した10月18日の実車ログを監査する。`release:gate`は全結果を`docs/generated/RELEASE_GATE_LATEST.md`とJSONへまとめる。
+
 ## 3. 合成シナリオと合格基準
 
 | シナリオ | 入力 | 合格基準 |
@@ -19,6 +27,7 @@ npm test
 | エンジン振動中の静止 | GPS 0、24 Hz振動を5秒 | 誤START 0件、発進待ちを維持 |
 | 走行中にAuto ON | GPS 21.6 km/h、加速度あり | 静止確認せずSTARTしない |
 | GPS未取得 | 静止IMUを3.2秒 | 発進可能状態にならない |
+| 未発進終了 | STARTせずAuto OFF | 直前データを`no-start`として保存し、座標を含めない |
 | 通常発進 | 0.28 Gを継続 | START検出300 ms以内 |
 | 短時間停止 | GPS 0、低運動500 ms | STOPせず走行を維持 |
 | 正式停止 | GPS 0、低運動950 ms以上 | STOPし、候補先頭へ終了時刻を戻す |
@@ -34,6 +43,8 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 |---|---|---|
 | 単体回帰 | `npm run test:unit` | フィルタ、較正、CSV、イベント |
 | 合成時系列 | `npm run test:simulation` | START/STOP状態遷移、振動、GPSガード、連続走行、取付方向 |
+| 耐性スイープ | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
+| 匿名実走固定データ | `npm run test:recorded` | 10月18日の正常START/STOP、GPS速度、停止候補 |
 | 既存ログ再生 | `npm run evaluate:existing -- --root <データルート> --json <出力JSON>` | 複数日の速度誤差、候補係数の過学習 |
 | iPhone実機 | 閉鎖コースで定型手順 | iOS権限、実振動、GPS遅延、取付、保存、画面動作 |
 
@@ -44,7 +55,8 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 ## 6. 実機試験への昇格条件
 
 1. `npm test`が全件合格する。
-2. 既存ログ評価で現行モデルを悪化させない。
-3. 実機で静止30秒の誤STARTが0件である。
-4. 連続3走すべてでSTART・STOP・再待機・保存が成立する。
-5. START時刻を動画または目視基準と比較し、遅延300 ms以内を目標とする。
+2. `npm run test:robustness`で誤START・未検知が0件、P95遅延300 ms以下となる。
+3. 匿名実走固定データと既存ログ評価で現行モデルを悪化させない。
+4. 実機で静止30秒の誤STARTが0件である。
+5. 連続3走すべてでSTART・STOP・再待機・保存が成立する。
+6. START時刻を動画または目視基準と比較し、遅延300 ms以内を目標とする。

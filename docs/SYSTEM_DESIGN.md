@@ -88,6 +88,9 @@ iPhone sensors
 | `tests/motion-model.test.mjs` | 推定器とCSV形式の回帰テスト |
 | `tests/app-simulation-harness.mjs` | 本番`app.js`へ仮想IMU/GPSを入力する60 Hz試験環境 |
 | `tests/automatic-timing.simulation.test.mjs` | 自動START/STOP、連続走行、振動、取付方向の合成時系列試験 |
+| `tests/automatic-timing.robustness.test.mjs` | 振動、GPS周期、センサー周期、取付方向を変える固定seed耐性試験 |
+| `tests/recorded-log-regression.test.mjs` | 座標と絶対時刻を除去した実走固定データの回帰試験 |
+| `scripts/release_gate.mjs` | 全ソフトウェア試験の実行とリリース判定レポート生成 |
 
 ## 5. 動作状態
 
@@ -319,6 +322,8 @@ START時にも速度状態と速度関連共分散をゼロへ戻し、発進待
 
 自動STOPした走行はスナップショットをIndexedDBへ保存してから、AutoをONのまま新しい`armed`状態へ移る。毎回GPS停止と低運動を600 ms再確認し、次の発進を新しい走行として記録する。手動停止、Sensor OFF、画面切替による`INTERRUPT`では自動再待機しない。
 
+Auto待機中は直近5秒の推定値と判定診断値を固定長リングバッファへ保持する。START成立時はSTART候補先頭を0 msとして、発進前を負の`time_ms`で走行データへ移す。STARTしないままAuto OFF、Sensor OFF、画面切替となった場合は、直前5秒を`NO_START`イベント付きの`no-start`診断走行として保存する。待機中の診断サンプルは緯度・経度を保存しない。
+
 ### ナビ併用とバックグラウンド
 
 GoProはモデル評価用の独立した正解データであり、本番計測には不要である。iOSのWebアプリは、ナビアプリなどを前面にするとモーションセンサーの継続取得を保証できない。そのため本アプリは走行中に画面切替を検知すると、その時点を`INTERRUPT`として「ナビ/画面切替で計測中断」を記録し端末へ保存する。通常の`STOP`と区別し、走行サマリーの`status`を`interrupted`とする。発進待ち中の画面切替ではAuto待機を解除する。OS終了時の損失を小さくするため、走行中は15秒ごとにも同一走行IDでIndexedDBへ復旧用チェックポイントを保存する。本番ではナビを先に開始し、音声案内を利用して本アプリを前面に戻してからAuto待機を開始する。
@@ -372,7 +377,8 @@ run
 - 複数走行CSVは`run_id`と`started_at_iso`で走行を識別する。
 - 選択削除は確認後にIndexedDBから対象だけを削除する。
 - JSONはキャリブレーションベクトルを含むため、詳細解析ではJSONを優先する。
-- Service Workerは`moto-gym-ana-v24`としてアプリシェルをキャッシュする。
+- ログschema v2は`appVersion`、実サンプリング周期、GPS鮮度、STARTしきい値、静止しきい値、START候補保持時間、発進待機状態、軸確定状態を保存する。
+- Service Workerは`moto-gym-ana-v25`としてアプリシェルをキャッシュする。
 - iOSは容量圧迫時にWebデータを削除する可能性があるため、重要データは走行後に出力する。
 
 ## 11. 試験設計
@@ -399,6 +405,8 @@ run
 - CSVの全行が同じ列数になること
 
 `tests/automatic-timing.simulation.test.mjs`は本番の`app.js`を仮想iPhone環境で動かし、エンジン振動中の誤START、走行中Auto ON、GPS未取得、START検出遅延、短時間停止、正式STOP、保存、再待機、連続2走、Sensor OFF、3種類の取付方向を検証する。外部データを使わず決定論的に再実行できる。詳細な入力と合格基準は`docs/SIMULATION_TESTS.md`に定義する。
+
+固定seed耐性試験は24条件を生成し、30〜100 Hzで誤START 0件、未検知0件、START遅延P95 300 ms以下を合格条件とする。匿名実走固定データは10月18日の自動START/STOPを位置情報なしで保持する。`npm run release:gate`は単体、合成、耐性、実走固定データを実行し、ソフトウェア合格と実機確認待ちを分離して報告する。
 
 ### 11.2 iPhone実機試験
 

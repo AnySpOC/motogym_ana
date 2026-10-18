@@ -1,9 +1,13 @@
 const G = 9.80665;
+const APP_VERSION = "v25";
+const LOG_SCHEMA_VERSION = 2;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
 const RUN_STORE = "runs";
 const RAW_SAMPLE_LIMIT = 20000;
+const PRESTART_BUFFER_MS = 5000;
+const PRESTART_SAMPLE_LIMIT = 600;
 const VARIANCE_WINDOW = 90;
 const RAD_TO_DEG = 180 / Math.PI;
 const DRAG_COEFF = 0;
@@ -19,6 +23,7 @@ const VIBRATION_LEVEL_TAU_SEC = 0.35;
 const BANK_OBSERVATION_VARIANCE = 30;
 const BANK_DYNAMICS_SCALE = 2;
 const START_CONFIRM_MS = 100;
+const PRESTART_RETENTION_MS = PRESTART_BUFFER_MS + AXIS_LOCK_HOLD_MS + START_CONFIRM_MS + 250;
 const AUTO_READY_HOLD_MS = 600;
 const CHECKPOINT_INTERVAL_MS = 15000;
 const ZERO_SPEED_HOLD_MS = 450;
@@ -199,6 +204,7 @@ const state = {
   samples: [],
   varianceSamples: [],
   rawSamples: [],
+  preStartSamples: [],
   events: [],
   savedRuns: [],
   selectedRunIds: new Set(),
@@ -372,6 +378,7 @@ function armTimer() {
   resetForwardAxis();
   state.samples = [];
   state.rawSamples = [];
+  state.preStartSamples = [];
   state.lastStopCandidateAt = 0;
   state.lastBrakeAt = 0;
   state.currentRunId = "";
@@ -385,10 +392,17 @@ function armTimer() {
 }
 
 function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), initialSpeedMs = 0) {
+  const detectedAt = nowMs();
+  const bufferedSamples = mode === "auto"
+    ? state.preStartSamples
+      .filter((entry) => entry.t >= onsetAt - PRESTART_BUFFER_MS && entry.t < detectedAt)
+      .map((entry) => ({ ...entry.sample, timeMs: Math.round(entry.t - onsetAt) }))
+    : [];
   state.startedAt = onsetAt;
   state.stoppedAt = 0;
   state.samples = [];
-  state.rawSamples = [];
+  state.rawSamples = bufferedSamples;
+  state.preStartSamples = [];
   state.events = state.events.filter((event) => event.type === "ARM");
   state.currentRunId = makeRunId();
   state.measurementMode = mode;
@@ -496,10 +510,11 @@ function handleMotionSample(sample) {
 
   state.confidence = estimateConfidence({ ...sample, longG: calibrated.longG, latG: calibrated.latG, yawRate: calibrated.yawRate }, dt);
 
+  if (state.mode === "armed" && state.autoMeasurementEnabled) storePreStartSample(t, sampleIntervalSec);
   detectEvents(t);
   if (state.mode === "running") {
     storeSample(t);
-    storeRawSample(t);
+    storeRawSample(t, sampleIntervalSec);
   }
   render();
 }
@@ -663,6 +678,7 @@ function startCalibration() {
   state.calibrationFailure = "";
   state.calibrationStartedAt = nowMs();
   state.calibrationSamples = [];
+  state.preStartSamples = [];
   state.bikeProfile = null;
   state.filteredAcceleration = [0, 0, 0];
   state.vibrationEnergy = 0;
@@ -933,18 +949,26 @@ function storeSample(t) {
   if (state.samples.length > 420) state.samples.shift();
 }
 
-function storeRawSample(t) {
-  if (!state.currentRunId || state.stoppedAt) return;
-  state.rawSamples.push({
-    timeMs: Math.round(t - state.startedAt),
+function buildRawSample(t, sampleIntervalSec, phase) {
+  const profile = currentProfile();
+  return {
+    timeMs: 0,
+    phase,
+    sensorIntervalMs: round(sampleIntervalSec * 1000, 2),
+    autoStartReady: state.autoStartReady,
+    startCandidateHoldMs: state.startCandidateAt ? Math.max(0, Math.round(t - state.startCandidateAt)) : 0,
+    startThresholdG: round(profile.startG, 4),
+    stationaryThresholdG: round(profile.stationaryG, 4),
+    gpsFresh: hasFreshGps(),
+    forwardAxisLocked: Boolean(state.forwardAxis),
     longG: round(state.longG, 4),
     latG: round(state.latG, 4),
     speedKmh: round(state.speedMs * 3.6, 3),
     gpsSpeedKmh: Number.isFinite(state.gpsSpeedMs) ? round(state.gpsSpeedMs * 3.6, 3) : null,
     gpsAccuracyM: Number.isFinite(state.gpsAccuracyM) ? round(state.gpsAccuracyM, 1) : null,
     gpsSource: state.gpsSource,
-    latitude: Number.isFinite(state.gpsLatitude) ? round(state.gpsLatitude, 7) : null,
-    longitude: Number.isFinite(state.gpsLongitude) ? round(state.gpsLongitude, 7) : null,
+    latitude: phase === "prestart" ? null : (Number.isFinite(state.gpsLatitude) ? round(state.gpsLatitude, 7) : null),
+    longitude: phase === "prestart" ? null : (Number.isFinite(state.gpsLongitude) ? round(state.gpsLongitude, 7) : null),
     gpsHeadingDeg: Number.isFinite(state.gpsHeadingDeg) ? round(state.gpsHeadingDeg, 1) : null,
     gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
     gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
@@ -964,6 +988,26 @@ function storeRawSample(t) {
     yawBias: round(state.yawBias, 3),
     confidence: state.confidence,
     autoStopCandidate: state.autoStopCandidate,
+  };
+}
+
+function storePreStartSample(t, sampleIntervalSec) {
+  state.preStartSamples.push({
+    t,
+    sample: buildRawSample(t, sampleIntervalSec, "prestart"),
+  });
+  const oldest = t - PRESTART_RETENTION_MS;
+  while (state.preStartSamples.length
+    && (state.preStartSamples[0].t < oldest || state.preStartSamples.length > PRESTART_SAMPLE_LIMIT)) {
+    state.preStartSamples.shift();
+  }
+}
+
+function storeRawSample(t, sampleIntervalSec) {
+  if (!state.currentRunId || state.stoppedAt) return;
+  state.rawSamples.push({
+    ...buildRawSample(t, sampleIntervalSec, "running"),
+    timeMs: Math.round(t - state.startedAt),
   });
   if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
   if (t - state.lastCheckpointAt >= CHECKPOINT_INTERVAL_MS) {
@@ -1044,6 +1088,8 @@ function enableSensors() {
 function disableSensors() {
   if (state.mode === "running") {
     stopRun(text.sensorDisabled);
+  } else if (state.mode === "armed") {
+    saveArmedDiagnostic(text.sensorDisabled);
   }
   if (state.sensorListenersAttached) {
     window.removeEventListener("devicemotion", onDeviceMotion);
@@ -1067,6 +1113,7 @@ function disableSensors() {
   stopGps();
   state.samples = [];
   state.rawSamples = [];
+  state.preStartSamples = [];
   resetLiveSensorValues();
   elements.permissionButton.classList.remove("primary");
   elements.sensorOffButton.classList.add("primary");
@@ -1093,12 +1140,14 @@ function enableAutoMeasurement() {
 }
 
 function disableAutoMeasurement() {
+  if (state.mode === "armed") saveArmedDiagnostic(text.autoOff);
   state.autoMeasurementEnabled = false;
   if (state.mode === "armed") {
     state.measurementMode = "none";
     resetLiveSensorValues(true);
     state.samples = [];
     state.rawSamples = [];
+    state.preStartSamples = [];
     setMode(state.sensorEnabled ? "sensor-on" : "idle", state.sensorEnabled ? text.sensorOn : text.idle);
   }
   addEvent("AUTO", text.autoOff);
@@ -1588,6 +1637,15 @@ function buildCurrentRun() {
       quality: state.calibrationQuality,
       bikeProfile: state.bikeProfile,
     },
+    appVersion: APP_VERSION,
+    schemaVersion: LOG_SCHEMA_VERSION,
+    diagnostics: {
+      preStartBufferMs: PRESTART_BUFFER_MS,
+      sensitivity: state.sensitivity,
+      startThresholdG: round(currentProfile().startG, 4),
+      stationaryThresholdG: round(currentProfile().stationaryG, 4),
+      stationaryYawRateDps: round(currentProfile().stationaryYawRate, 2),
+    },
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),
   });
@@ -1596,15 +1654,28 @@ function buildCurrentRun() {
 function buildRun(run) {
   const samples = run.samples || [];
   const events = run.events || [];
+  const sampleIntervals = samples
+    .map((sample) => sample.sensorIntervalMs)
+    .filter((value) => Number.isFinite(value) && value > 0 && value < 1000);
+  const medianIntervalMs = sampleIntervals.length ? percentile(sampleIntervals, 0.5) : null;
   const maxByAbs = (key) => samples.reduce((max, sample) => Math.max(max, Math.abs(sample[key] || 0)), 0);
   return {
     id: run.id,
     startedAtIso: run.startedAtIso,
     endedAtIso: run.endedAtIso,
     durationMs: run.durationMs,
+    appVersion: run.appVersion || "legacy",
+    schemaVersion: run.schemaVersion || 1,
     calibration: run.calibration || null,
+    diagnostics: {
+      ...(run.diagnostics || {}),
+      preStartSampleCount: samples.filter((sample) => sample.phase === "prestart").length,
+      observedSampleRateHz: medianIntervalMs ? round(1000 / medianIntervalMs, 1) : null,
+    },
     summary: {
-      status: events.some((event) => event.type === "INTERRUPT") ? "interrupted" : "complete",
+      status: run.diagnostics?.noStartAttempt
+        ? "no-start"
+        : (events.some((event) => event.type === "INTERRUPT") ? "interrupted" : "complete"),
       maxSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
       maxGpsSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.gpsSpeedKmh || 0), 0), 2),
       gpsSampleCount: samples.filter((sample) => Number.isFinite(sample.gpsSpeedKmh)).length,
@@ -1651,6 +1722,49 @@ function saveCurrentRun() {
     });
 }
 
+function saveArmedDiagnostic(reason) {
+  if (!state.preStartSamples.length) return;
+  const endedAt = nowMs();
+  const entries = state.preStartSamples.filter((entry) => entry.t >= endedAt - PRESTART_BUFFER_MS);
+  const buffered = entries.map((entry) => ({ ...entry.sample, timeMs: Math.round(entry.t - endedAt) }));
+  if (buffered.length < 30) return;
+  const profile = currentProfile();
+  const run = buildRun({
+    id: makeRunId(),
+    startedAtIso: new Date(Date.now() - (endedAt - entries[0].t)).toISOString(),
+    endedAtIso: new Date().toISOString(),
+    durationMs: 0,
+    appVersion: APP_VERSION,
+    schemaVersion: LOG_SCHEMA_VERSION,
+    calibration: {
+      gravityVector: state.gravityVector.map((value) => round(value, 5)),
+      bikeProfile: state.bikeProfile,
+    },
+    diagnostics: {
+      noStartAttempt: true,
+      reason,
+      preStartBufferMs: PRESTART_BUFFER_MS,
+      sensitivity: state.sensitivity,
+      startThresholdG: round(profile.startG, 4),
+      stationaryThresholdG: round(profile.stationaryG, 4),
+      stationaryYawRateDps: round(profile.stationaryYawRate, 2),
+    },
+    events: [{
+      timeMs: 0,
+      type: "NO_START",
+      detail: reason,
+      longG: round(state.longG, 3),
+      latG: round(state.latG, 3),
+      speedKmh: 0,
+      bankDeg: round(state.bankDeg, 1),
+      yawRate: round(state.yawRate, 1),
+      vibrationG: round(state.vibrationG, 4),
+    }],
+    samples: buffered,
+  });
+  queueRunSave(run).then(loadRuns).catch(() => setStorageStatus(text.storageUnavailable));
+}
+
 function handleAppBackground(event) {
   if (event?.type !== "pagehide" && document.visibilityState && document.visibilityState !== "hidden") return;
   if (state.mode === "running") {
@@ -1658,11 +1772,13 @@ function handleAppBackground(event) {
     return;
   }
   if (state.mode === "armed") {
+    saveArmedDiagnostic(text.backgroundArmCancelled);
     state.autoMeasurementEnabled = false;
     state.measurementMode = "none";
     state.autoStartReady = false;
     state.autoReadyCandidateAt = 0;
     state.startCandidateAt = 0;
+    state.preStartSamples = [];
     setMode(state.sensorEnabled ? "sensor-on" : "idle", text.backgroundArmCancelled);
     addEvent("AUTO", text.backgroundArmCancelled);
     render();
@@ -1697,7 +1813,9 @@ function renderHistory() {
   elements.historyList.innerHTML = state.savedRuns
     .map((run) => {
       const date = new Date(run.startedAtIso).toLocaleString();
-      const runStatus = run.summary?.status === "interrupted" ? "中断" : "完了";
+      const runStatus = run.summary?.status === "interrupted"
+        ? "中断"
+        : (run.summary?.status === "no-start" ? "未発進診断" : "完了");
       return `<article class="history-card">
         <label class="run-selector" aria-label="${escapeHtml(date)} を選択">
           <input type="checkbox" data-select-run="${escapeHtml(run.id)}"${state.selectedRunIds.has(run.id) ? " checked" : ""}>
@@ -1736,7 +1854,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -1762,6 +1880,16 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     "",
     fixed(event.vibrationG, 4),
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    run.appVersion || "legacy",
+    run.schemaVersion || 1,
     "",
     "",
     "",
@@ -1804,6 +1932,16 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.yawBias, 3),
     sample.confidence,
     sample.autoStopCandidate ? 1 : 0,
+    run.appVersion || "legacy",
+    run.schemaVersion || 1,
+    sample.phase || "running",
+    fixed(sample.sensorIntervalMs, 2),
+    sample.autoStartReady ? 1 : 0,
+    fixed(sample.startCandidateHoldMs, 0),
+    fixed(sample.startThresholdG, 4),
+    fixed(sample.stationaryThresholdG, 4),
+    sample.gpsFresh ? 1 : 0,
+    sample.forwardAxisLocked ? 1 : 0,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }
@@ -1896,6 +2034,7 @@ elements.clearButton.addEventListener("click", () => {
   if (state.mode === "running") return;
   state.samples = [];
   state.rawSamples = [];
+  state.preStartSamples = [];
   state.events = [];
   state.speedMs = 0;
   state.startedAt = 0;

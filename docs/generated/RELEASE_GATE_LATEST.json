@@ -1,0 +1,135 @@
+{
+  "generatedAt": "2026-10-18T10:31:58.398Z",
+  "appVersion": "v25",
+  "softwareGatePassed": true,
+  "releaseStatus": "FIELD_VALIDATION_REQUIRED",
+  "checks": [
+    {
+      "name": "unit",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": {
+        "firstRunSpeedKmh": 0.756,
+        "acceleratedSpeedKmh": 19.879,
+        "manualStartSpeedKmh": 28.8,
+        "calibrationCompleted": true
+      },
+      "error": null
+    },
+    {
+      "name": "deterministicSimulation",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": {
+        "passed": 8,
+        "failed": 0,
+        "scenarios": [
+          {
+            "name": "stationary-engine-vibration",
+            "passed": true,
+            "simulatedMs": 5000,
+            "falseStarts": 0
+          },
+          {
+            "name": "moving-auto-enable-guard",
+            "passed": true,
+            "startLatencyMs": 183
+          },
+          {
+            "name": "missing-gps-guard",
+            "passed": true,
+            "simulatedMs": 3200,
+            "falseStarts": 0
+          },
+          {
+            "name": "two-run-auto-cycle",
+            "passed": true,
+            "firstStartLatencyMs": 200,
+            "stopConfirmationMs": 983,
+            "secondStartLatencyMs": 200,
+            "savedRuns": 1,
+            "preStartSamples": 306
+          },
+          {
+            "name": "sensor-off-cancels-auto",
+            "passed": true,
+            "savedRuns": 1
+          },
+          {
+            "name": "mounting-screen-up",
+            "passed": true,
+            "startLatencyMs": 183
+          },
+          {
+            "name": "mounting-right-edge-down",
+            "passed": true,
+            "startLatencyMs": 183
+          },
+          {
+            "name": "mounting-top-edge-down",
+            "passed": true,
+            "startLatencyMs": 183
+          }
+        ]
+      },
+      "error": null
+    },
+    {
+      "name": "robustnessSimulation",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": {
+        "seed": 20261018,
+        "trials": 24,
+        "passed": true,
+        "falseStarts": 0,
+        "readyFailures": 0,
+        "missedStarts": 0,
+        "detectionRate": 1,
+        "startLatencyMs": {
+          "min": 160,
+          "median": 211,
+          "p95": 300,
+          "max": 333
+        }
+      },
+      "error": null
+    },
+    {
+      "name": "recordedLog",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": {
+        "passed": true,
+        "fixture": "2026-10-18-auto-start-stop",
+        "sourceSamples": 3776,
+        "retainedSamples": 1297,
+        "startGpsSpeedKmh": 0.442,
+        "stopGpsSpeedKmh": 0.841,
+        "speedRmseKmh": 2.322,
+        "autoStopCandidateSamples": 57
+      },
+      "error": null
+    }
+  ],
+  "acceptance": {
+    "deterministicScenariosPassed": 8,
+    "deterministicScenariosFailed": 0,
+    "robustnessTrials": 24,
+    "robustnessFalseStarts": 0,
+    "robustnessMissedStarts": 0,
+    "robustnessStartLatencyP95Ms": 300,
+    "recordedStartGpsSpeedKmh": 0.442,
+    "recordedStopGpsSpeedKmh": 0.841,
+    "recordedSpeedRmseKmh": 2.322
+  },
+  "fieldGate": {
+    "passed": false,
+    "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
+    "required": [
+      "30 seconds stationary with zero false STARTs",
+      "three consecutive closed-course runs with START, STOP, rearm, and persistence",
+      "START latency within 300 ms against video or an observer reference"
+    ]
+  }
+}

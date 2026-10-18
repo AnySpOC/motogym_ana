@@ -77,6 +77,14 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   harness.runFor(3200);
   assert.equal(harness.api.state.autoStartReady, false, "missing GPS must keep automatic timing unarmed");
   assert.equal(harness.api.state.mode, "armed");
+  harness.api.disableAutoMeasurement();
+  await harness.flushStorage();
+  const diagnosticRuns = harness.savedRuns();
+  assert.equal(diagnosticRuns.length, 1, "cancelling an undetected START must preserve diagnostics");
+  assert.equal(diagnosticRuns[0].summary.status, "no-start");
+  assert.equal(diagnosticRuns[0].events[0].type, "NO_START");
+  assert.ok(diagnosticRuns[0].samples.every((sample) => sample.timeMs <= 0));
+  assert.ok(diagnosticRuns[0].samples.every((sample) => sample.latitude === null && sample.longitude === null));
   record("missing-gps-guard", { simulatedMs: 3200, falseStarts: 0 });
 }
 
@@ -85,6 +93,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   calibrateStationary(harness);
   armAtStandstill(harness);
   assert.equal(harness.api.state.autoStartReady, true);
+  harness.runFor(4500, () => ({}), { gpsEveryMs: 500, gpsSpeed: 0 });
   const firstStart = launch(harness);
   assert.ok(firstStart.latencyMs <= 300, `START latency ${firstStart.latencyMs} ms exceeds 300 ms`);
 
@@ -113,6 +122,15 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   const saved = harness.savedRuns();
   assert.equal(saved.length, 1, "the completed first run must be persisted");
   const firstRun = saved[0];
+  const preStartSamples = firstRun.samples.filter((sample) => sample.phase === "prestart");
+  assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
+  assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
+  assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
+  assert.equal(firstRun.appVersion, "v25");
+  assert.equal(firstRun.schemaVersion, 2);
+  assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);
+  assert.ok(firstRun.diagnostics.observedSampleRateHz >= 59);
+  assert.ok(preStartSamples.every((sample) => Number.isFinite(sample.startThresholdG)));
   const stopEvent = firstRun.events.find((event) => event.type === "STOP");
   assert.ok(stopEvent, "the persisted run must contain STOP");
   assert.equal(firstRun.durationMs, stopEvent.timeMs, "run duration must use the backdated STOP onset");
@@ -131,6 +149,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
     stopConfirmationMs: Math.round(stopConfirmationMs),
     secondStartLatencyMs: Math.round(secondStart.latencyMs),
     savedRuns: saved.length,
+    preStartSamples: preStartSamples.length,
   });
 }
 

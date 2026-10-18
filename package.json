@@ -3,9 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:unit && npm run test:simulation",
+    "test": "npm run test:unit && npm run test:simulation && npm run test:recorded",
     "test:unit": "node tests/motion-model.test.mjs",
     "test:simulation": "node tests/automatic-timing.simulation.test.mjs",
+    "test:robustness": "node tests/automatic-timing.robustness.test.mjs",
+    "test:recorded": "node tests/recorded-log-regression.test.mjs",
+    "release:gate": "node scripts/release_gate.mjs",
     "analyze:gopro": "node scripts/analyze_gopro_mp4.mjs",
     "analyze:video": "node scripts/analyze_video_motion.mjs",
     "evaluate:existing": "node scripts/evaluate_existing_runs.mjs"

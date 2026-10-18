@@ -351,7 +351,6 @@ api.onGpsPosition({
 });
 
 let sawStopCandidate = false;
-let stopCandidateAt = 0;
 for (let i = 0; i < 60; i += 1) {
   clock += 1000 / 60;
   api.handleMotionSample({
@@ -367,14 +366,58 @@ for (let i = 0; i < 60; i += 1) {
   });
   if (api.state.autoStopCandidate) {
     sawStopCandidate = true;
-    stopCandidateAt ||= api.state.lastStopCandidateAt;
     assert.equal(elements.get("#rideState").textContent, "停止候補中");
   }
 }
 assert.equal(sawStopCandidate, true, "automatic timing must expose its stop-candidate phase");
 assert.equal(api.state.speedMs, 0, "fresh zero GPS speed should clamp speed to zero");
-assert.equal(api.state.mode, "stopped", "fresh zero GPS speed should complete automatic timing");
-assert.equal(api.state.stoppedAt, stopCandidateAt, "automatic timing should end at the first confirmed stop sample");
+assert.equal(api.state.mode, "armed", "automatic timing must rearm after a completed run");
+assert.equal(api.state.measurementMode, "auto", "automatic timing mode must remain enabled between runs");
+assert.equal(api.state.currentRunId, "", "the completed run must be detached before the next start");
+assert.ok(api.state.events.some((event) => event.type === "ARM"), "automatic rearm must create a fresh ARM event");
+
+api.onGpsPosition({
+  timestamp: 11500,
+  coords: {
+    latitude: 35,
+    longitude: 139,
+    accuracy: 5,
+    speed: 0,
+    heading: 90,
+  },
+});
+for (let i = 0; i < 45; i += 1) {
+  clock += 1000 / 60;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0,
+    rawZ: 0,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+assert.equal(api.state.autoStartReady, true, "automatic rearm must confirm standstill again");
+
+for (let i = 0; i < 12; i += 1) {
+  clock += 1000 / 60;
+  api.handleMotionSample({
+    time: clock,
+    rawX: 0,
+    rawY: 0.28,
+    rawZ: 0,
+    gravityX: 0,
+    gravityY: 0,
+    gravityZ: 1,
+    yawRate: 0,
+    bankDeg: 0,
+  });
+}
+assert.equal(api.state.mode, "running", "a second launch must start without pressing Auto again");
+assert.ok(api.state.currentRunId, "the second automatic run must receive a run id");
 
 api.onGpsPosition({
   timestamp: 12000,
@@ -386,18 +429,18 @@ api.onGpsPosition({
     heading: 90,
   },
 });
-assert.equal(api.state.gpsSpeedMs, 8);
-assert.equal(api.state.speedMs, 0, "GPS must not change the completed run after measurement stops");
+assert.equal(api.state.gpsSpeedMs, 8, "GPS must keep updating during the next automatic run");
 
+sandbox.document.visibilityState = "hidden";
+api.handleAppBackground();
+assert.equal(api.state.mode, "stopped", "backgrounding must interrupt an active measurement without rearming");
+assert.equal(api.state.events.find((event) => event.type === "INTERRUPT")?.detail, "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad");
+
+sandbox.document.visibilityState = "visible";
 api.startManualMeasurement();
 assert.equal(api.state.mode, "running");
 assert.equal(api.state.speedMs, 8, "manual timing should initialize from fresh GPS when already moving");
 assert.equal(api.state.events.find((event) => event.type === "START")?.speedKmh, 28.8);
-
-sandbox.document.visibilityState = "hidden";
-api.handleAppBackground();
-assert.equal(api.state.mode, "stopped", "backgrounding must interrupt an active measurement");
-assert.equal(api.state.events.find((event) => event.type === "INTERRUPT")?.detail, "\u30ca\u30d3/\u753b\u9762\u5207\u66ff\u3067\u8a08\u6e2c\u4e2d\u65ad");
 
 const csv = api.runToCsv({ events: api.state.events.slice(0, 1), samples: api.state.rawSamples.slice(0, 1) });
 const csvLines = csv.trim().split("\n");

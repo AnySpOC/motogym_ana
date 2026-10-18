@@ -410,6 +410,11 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
 
 function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STOP") {
   if (state.mode !== "running") return;
+  const shouldRearmAuto = eventType === "STOP"
+    && reason === text.stopHold
+    && state.autoMeasurementEnabled
+    && state.measurementMode === "auto"
+    && state.sensorEnabled;
   state.stoppedAt = Math.max(state.startedAt, Math.min(stoppedAt, nowMs()));
   state.autoStopCandidate = false;
   setMode("stopped", text.stopped);
@@ -417,7 +422,11 @@ function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STO
   state.events[0].timeMs = Math.round(state.stoppedAt - state.startedAt);
   elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
   saveCurrentRun();
-  state.measurementMode = "none";
+  if (shouldRearmAuto) {
+    armTimer();
+  } else {
+    state.measurementMode = "none";
+  }
   render();
 }
 

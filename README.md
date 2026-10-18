@@ -132,6 +132,9 @@ when storage pressure is high. Export important data after practice.
 - For the best vibration baseline, perform the four-second calibration with the
   engine idling in the same state used while waiting for START.
 - `Auto待機` first confirms low motion and a fresh stopped GPS speed for 0.6 seconds.
+- After an automatic STOP is saved, Auto remains enabled and returns to standstill
+  confirmation automatically. The next launch can start a new run without pressing
+  `Auto待機` again.
   It then waits for sustained forward acceleration and starts
   timing. Enabling Auto while already moving cannot trigger START or lock the forward
   axis. Speed and run samples begin at the confirmed START.

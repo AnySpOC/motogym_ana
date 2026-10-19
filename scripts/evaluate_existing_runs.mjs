@@ -2,6 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const EARTH_RADIUS_M = 6_371_000;
 const CURRENT = { drag: 0, processNoise: 1.2, gpsSigmaScale: 0.35, gpsPredictionSec: 0 };
@@ -447,11 +448,10 @@ function round(value, digits = 3) {
   return Number.isFinite(value) ? Number(value.toFixed(digits)) : null;
 }
 
-function main() {
-  const options = parseArgs(process.argv);
+function collectMatchedRuns(roots) {
   const runsByIdentity = new Map();
   const tracksByIdentity = new Map();
-  for (const root of options.roots) {
+  for (const root of roots) {
     for (const file of walk(root, ".csv")) {
       const run = loadCsv(file);
       const identity = `${run.startMs}|${run.endMs}|${run.samples.length}`;
@@ -499,6 +499,13 @@ function main() {
       excluded.push({ csv: run.name, gpx: match.track.name, reason: "no segment passed quality gate" });
     }
   }
+
+  return { matched, excluded };
+}
+
+function main() {
+  const options = parseArgs(process.argv);
+  const { matched, excluded } = collectMatchedRuns(options.roots);
 
   const evaluated = candidates().map((candidate) => {
     const perRun = matched.map((item) => compare(
@@ -654,4 +661,15 @@ function main() {
   console.log(serialized);
 }
 
-main();
+export {
+  CURRENT,
+  aggregate,
+  bestGpsOffset,
+  collectMatchedRuns,
+  compare,
+  interpolate,
+  replaySpeed,
+  round,
+};
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) main();

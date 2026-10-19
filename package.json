@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:unit && npm run test:simulation && npm run test:recorded",
-    "test:unit": "node tests/motion-model.test.mjs",
+    "test:unit": "node tests/motion-model.test.mjs && node tests/speed-filters.test.mjs",
     "test:simulation": "node tests/automatic-timing.simulation.test.mjs",
     "test:robustness": "node tests/automatic-timing.robustness.test.mjs",
     "test:soak": "node tests/automatic-timing.robustness.test.mjs --trials 200 --seed 20261019 --summary-only --json docs/generated/ROBUSTNESS_SOAK_LATEST.json",
@@ -12,7 +12,8 @@
     "release:gate": "node scripts/release_gate.mjs",
     "analyze:gopro": "node scripts/analyze_gopro_mp4.mjs",
     "analyze:video": "node scripts/analyze_video_motion.mjs",
-    "evaluate:existing": "node scripts/evaluate_existing_runs.mjs"
+    "evaluate:existing": "node scripts/evaluate_existing_runs.mjs",
+    "evaluate:filters": "node scripts/compare_speed_filters.mjs"
   },
   "dependencies": {
     "gopro-telemetry": "1.2.11",

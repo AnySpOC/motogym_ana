@@ -10,7 +10,12 @@ import {
   replaySpeed,
   round,
 } from "./evaluate_existing_runs.mjs";
-import { replayBiasEkf, replayParticleFilter, replayUkf } from "./lib/speed_filters.mjs";
+import {
+  replayBiasEkf,
+  replayParticleFilter,
+  replayTimestampEkf,
+  replayUkf,
+} from "./lib/speed_filters.mjs";
 
 function parseArgs(argv) {
   const options = { roots: [], json: null };
@@ -40,6 +45,16 @@ function particleConfigs() {
     { particles: 160, qSpeed: 0.25, qBias: 0.00002, gpsSigmaScale: 0.7 },
     { particles: 160, qSpeed: 0.6, qBias: 0.00008, gpsSigmaScale: 0.7 },
   ];
+}
+
+function timestampConfigs() {
+  const result = [];
+  for (const ageScale of [0, 0.5, 1]) {
+    for (const gateSigma of [4, 6, 8]) {
+      for (const residualFloorMs of [3, 5, 8]) result.push({ ageScale, gateSigma, residualFloorMs });
+    }
+  }
+  return result;
 }
 
 function score(metric) {
@@ -106,6 +121,7 @@ function evaluateMode(matched, mode) {
   const baselineByDate = new Map(dates.map((date) => [date, aggregate(matched
     .map((item, index) => item.run.date === date ? baselinePerRun[index] : null))]));
   const families = [
+    evaluateFamily(matched, "timestamp-robust-ekf", replayTimestampEkf, timestampConfigs(), mode),
     evaluateFamily(matched, "bias-ekf", replayBiasEkf, configs(), mode),
     evaluateFamily(matched, "ukf", replayUkf, configs(), mode),
     evaluateFamily(matched, "particle", replayParticleFilter, particleConfigs(), mode),

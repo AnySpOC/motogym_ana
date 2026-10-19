@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T09:18:40.012Z",
-  "appVersion": "v27",
+  "generatedAt": "2026-10-19T09:41:26.554Z",
+  "appVersion": "v28",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -172,9 +172,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v27 closed-course runs with START, STOP, rearm, and persistence",
+      "three consecutive v28 closed-course runs with START, STOP, rearm, and persistence",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v27, schemaVersion 2, and pre-start samples"
+      "each exported run reports appVersion v28, schemaVersion 3, and pre-start samples"
     ]
   }
 }

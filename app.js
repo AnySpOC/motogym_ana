@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v27";
-const LOG_SCHEMA_VERSION = 2;
+const APP_VERSION = "v28";
+const LOG_SCHEMA_VERSION = 3;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -34,6 +34,8 @@ const RECENT_BRAKE_MS = 3500;
 const SENSOR_GAP_SEC = 0.5;
 const GPS_MAX_ACCURACY_M = 50;
 const GPS_MAX_SPEED_MS = 90;
+const GPS_INNOVATION_GATE_SIGMA = 8;
+const GPS_INNOVATION_FLOOR_MS = 3;
 const CALIBRATION_MIN_HZ = 15;
 const CALIBRATION_MAX_MEAN_G = 0.12;
 const CALIBRATION_MAX_GRAVITY_DRIFT_DEG = 7;
@@ -203,6 +205,7 @@ const state = {
   gpsReceivedAt: 0,
   gpsTimestampMs: null,
   gpsAgeMs: null,
+  gpsInnovationClipped: false,
   autoMeasurementEnabled: false,
   measurementMode: "none",
   sensitivity: "normal",
@@ -234,11 +237,13 @@ class MotionEkf {
     this.n = 5;
     this.x = [0, 0, 0, 0, 0];
     this.p = diag([0.04, 0.08, 0.08, 12, 12]);
+    this.gpsInnovationClipped = false;
   }
 
   reset() {
     this.x = [0, 0, 0, 0, 0];
     this.p = diag([0.04, 0.08, 0.08, 12, 12]);
+    this.gpsInnovationClipped = false;
   }
 
   zeroSpeed() {
@@ -323,8 +328,14 @@ class MotionEkf {
     const innovationVariance = this.p[0][0] + sigma * sigma;
     const gains = this.p.map((row) => row[0] / innovationVariance);
     const residual = speedMs - this.x[0];
+    const residualLimit = Math.max(
+      GPS_INNOVATION_FLOOR_MS,
+      GPS_INNOVATION_GATE_SIGMA * Math.sqrt(innovationVariance)
+    );
+    this.gpsInnovationClipped = Math.abs(residual) > residualLimit;
+    const robustResidual = Math.max(-residualLimit, Math.min(residualLimit, residual));
     const speedRow = this.p[0].slice();
-    this.x = this.x.map((value, index) => value + gains[index] * residual);
+    this.x = this.x.map((value, index) => value + gains[index] * robustResidual);
     this.x[0] = Math.max(0, this.x[0]);
     this.p = this.p.map((row, rowIndex) =>
       row.map((value, colIndex) => value - gains[rowIndex] * speedRow[colIndex])
@@ -343,6 +354,7 @@ class MotionEkf {
       latBias: 0,
       yawBias: 0,
       covariance: (this.p[1][1] + this.p[2][2] + this.p[3][3] + this.p[4][4]) / 4,
+      gpsInnovationClipped: this.gpsInnovationClipped,
     };
   }
 }
@@ -541,6 +553,7 @@ function resyncSpeedFromGps(reason) {
   motionModel.reset();
   motionModel.setSpeed(state.gpsSpeedMs);
   state.speedMs = state.gpsSpeedMs;
+  state.gpsInnovationClipped = false;
   state.gpsResyncPending = false;
   addEvent("SYNC", `${reason} ${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`);
   return true;
@@ -982,6 +995,7 @@ function buildRawSample(t, sampleIntervalSec, phase) {
     gpsHeadingDeg: Number.isFinite(state.gpsHeadingDeg) ? round(state.gpsHeadingDeg, 1) : null,
     gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
     gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
+    gpsInnovationClipped: state.gpsInnovationClipped,
     bankDeg: round(state.bankDeg, 2),
     gravityBankDeg: round(state.gravityBankDeg, 2),
     yawRate: round(state.yawRate, 2),
@@ -1239,6 +1253,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.longGVariance = 0;
   state.latGVariance = 0;
   state.kalmanVariance = 0;
+  state.gpsInnovationClipped = false;
   state.varianceSamples = [];
   if (!preserveMotionFilter) {
     state.filteredAcceleration = [0, 0, 0];
@@ -1278,6 +1293,7 @@ function stopGps() {
   state.gpsReceivedAt = 0;
   state.gpsTimestampMs = null;
   state.gpsAgeMs = null;
+  state.gpsInnovationClipped = false;
 }
 
 function hasFreshGps() {
@@ -1340,6 +1356,7 @@ function onGpsPosition(position) {
   const estimate = motionModel.updateGpsSpeed(speedMs, accuracy, derived);
   state.speedMs = estimate.speedMs;
   state.kalmanVariance = estimate.covariance;
+  state.gpsInnovationClipped = estimate.gpsInnovationClipped;
   render();
 }
 
@@ -1956,7 +1973,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -1992,6 +2009,7 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     run.appVersion || "legacy",
     run.schemaVersion || 1,
+    "",
     "",
     "",
     "",
@@ -2044,6 +2062,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.stationaryThresholdG, 4),
     sample.gpsFresh ? 1 : 0,
     sample.forwardAxisLocked ? 1 : 0,
+    sample.gpsInnovationClipped ? 1 : 0,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }

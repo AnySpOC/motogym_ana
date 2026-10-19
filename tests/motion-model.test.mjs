@@ -58,6 +58,11 @@ source += `\nglobalThis.testApi = {
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
 const api = sandbox.testApi;
+api.motionModel.reset();
+const outlierEstimate = api.motionModel.updateGpsSpeed(90, 5, false);
+assert.equal(outlierEstimate.gpsInnovationClipped, true, "extreme GPS innovation must be clipped");
+assert.ok(outlierEstimate.speedMs < 3, "one GPS outlier must not create an extreme speed jump");
+
 api.state.storageAvailable = true;
 api.enableSensors();
 api.startCalibration();

@@ -52,6 +52,77 @@ function replayBiasEkf(samples, config = {}) {
   });
 }
 
+function replayTimestampEkf(samples, config = {}) {
+  const ageScale = config.ageScale ?? 1;
+  const gateSigma = config.gateSigma ?? 6;
+  const residualFloorMs = config.residualFloorMs ?? 4;
+  let speed = Math.max(0, (samples[0]?.appSpeedKmh || 0) / 3.6);
+  let filteredLongG = 0;
+  let p00 = 0.04;
+  let p01 = 0;
+  let p10 = 0;
+  let p11 = 0.08;
+  let previousTime = samples[0]?.t || 0;
+  let previousGpsTimestamp = null;
+
+  return samples.map((sample) => {
+    const dt = Math.min(0.12, Math.max(0.005, (sample.t - previousTime) / 1000));
+    previousTime = sample.t;
+    const accelDecay = Math.exp(-dt / 0.7);
+    const speedFromLongG = 0.25 * GRAVITY * dt;
+    const driveLongG = 0.75 * sample.longG + 0.25 * filteredLongG;
+    speed = Math.max(0, speed + driveLongG * GRAVITY * dt);
+    filteredLongG *= accelDecay;
+
+    const m00 = p00 + speedFromLongG * p10;
+    const m01 = p01 + speedFromLongG * p11;
+    const m10 = accelDecay * p10;
+    const m11 = accelDecay * p11;
+    p00 = m00 + m01 * speedFromLongG + 1.2 * dt;
+    p01 = m01 * accelDecay;
+    p10 = m10 + m11 * speedFromLongG;
+    p11 = m11 * accelDecay + 0.09 * dt;
+
+    const accelerationResidual = sample.longG - filteredLongG;
+    const accelerationInnovation = p11 + 0.012;
+    const accelerationSpeedGain = p01 / accelerationInnovation;
+    const accelerationGain = p11 / accelerationInnovation;
+    filteredLongG += accelerationGain * accelerationResidual;
+    speed = Math.max(0, speed + accelerationSpeedGain * accelerationResidual);
+    const accelerationP10 = p10;
+    const accelerationP11 = p11;
+    p00 -= accelerationSpeedGain * accelerationP10;
+    p01 -= accelerationSpeedGain * accelerationP11;
+    p10 -= accelerationGain * accelerationP10;
+    p11 -= accelerationGain * accelerationP11;
+
+    let gpsOutlier = false;
+    if (Number.isFinite(sample.gpsSpeedKmh) && sample.gpsTimestamp !== previousGpsTimestamp) {
+      previousGpsTimestamp = sample.gpsTimestamp;
+      const sigma = gpsSigma(sample, 0.35);
+      const ageSec = Number.isFinite(sample.gpsAgeMs) ? Math.min(0.75, Math.max(0, sample.gpsAgeMs / 1000)) : 0;
+      const observation = Math.max(0, sample.gpsSpeedKmh / 3.6
+        + sample.longG * GRAVITY * ageSec * ageScale);
+      const innovationVariance = Math.max(1e-9, p00 + sigma * sigma);
+      const residual = observation - speed;
+      const limit = Math.max(residualFloorMs, gateSigma * Math.sqrt(innovationVariance));
+      gpsOutlier = Math.abs(residual) > limit;
+      const robustResidual = Math.max(-limit, Math.min(limit, residual));
+      const speedGain = p00 / innovationVariance;
+      const accelerationGainFromGps = p10 / innovationVariance;
+      speed = Math.max(0, speed + speedGain * robustResidual);
+      filteredLongG += accelerationGainFromGps * robustResidual;
+      const speedP00 = p00;
+      const speedP01 = p01;
+      p00 -= speedGain * speedP00;
+      p01 -= speedGain * speedP01;
+      p10 -= accelerationGainFromGps * speedP00;
+      p11 -= accelerationGainFromGps * speedP01;
+    }
+    return { ...sample, replaySpeedKmh: speed * 3.6, gpsOutlier };
+  });
+}
+
 function cholesky2(p00, p01, p11) {
   const l00 = Math.sqrt(Math.max(1e-12, p00));
   const l10 = p01 / l00;
@@ -201,4 +272,4 @@ function replayParticleFilter(samples, config = {}) {
   });
 }
 
-export { replayBiasEkf, replayParticleFilter, replayUkf };
+export { replayBiasEkf, replayParticleFilter, replayTimestampEkf, replayUkf };

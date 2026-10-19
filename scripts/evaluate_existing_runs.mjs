@@ -111,6 +111,7 @@ function loadCsv(file) {
       gpsAccuracyM: number(cells, index, "gps_accuracy_m"),
       gpsSource: cells[index.gps_source] || "none",
       gpsTimestamp: explicitGpsTimestamp ?? (gpsSpeedKmh === null ? null : generatedGpsTimestamp),
+      gpsAgeMs: number(cells, index, "gps_age_ms"),
     });
   }
   return {

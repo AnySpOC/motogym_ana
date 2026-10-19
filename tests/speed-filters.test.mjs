@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { replayBiasEkf, replayParticleFilter, replayUkf } from "../scripts/lib/speed_filters.mjs";
+import {
+  replayBiasEkf,
+  replayParticleFilter,
+  replayTimestampEkf,
+  replayUkf,
+} from "../scripts/lib/speed_filters.mjs";
 
 function samples({ count = 240, accelerationG = 0, gpsSpeedKmh = 0 } = {}) {
   return Array.from({ length: count }, (_, index) => ({
@@ -14,6 +19,7 @@ function samples({ count = 240, accelerationG = 0, gpsSpeedKmh = 0 } = {}) {
 }
 
 const filters = [
+  ["timestamp robust EKF", replayTimestampEkf],
   ["bias EKF", replayBiasEkf],
   ["UKF", replayUkf],
   ["particle filter", replayParticleFilter],

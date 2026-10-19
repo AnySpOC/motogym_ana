@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T09:28:45.914Z",
+  "generatedAt": "2026-10-19T09:38:13.742Z",
   "roots": [
     "C:\\Users\\foxho\\Videos"
   ],
@@ -101,6 +101,78 @@
             "rmse": 3.909,
             "baselineRmse": 3.874,
             "improved": false
+          }
+        ]
+      },
+      {
+        "family": "timestamp-robust-ekf",
+        "bestConfig": {
+          "ageScale": 0,
+          "gateSigma": 8,
+          "residualFloorMs": 3
+        },
+        "aggregate": {
+          "rmse": 3.948,
+          "macroRmse": 3.56,
+          "macroAbsBias": 0.721
+        },
+        "improvementRatio": 0,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.783,
+            "baselineRmse": 3.783,
+            "improved": true
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.215,
+            "baselineRmse": 3.215,
+            "improved": true
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 4.483,
+            "baselineRmse": 4.483,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.649,
+            "baselineRmse": 3.649,
+            "improved": true
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.874,
+            "baselineRmse": 3.874,
+            "improved": true
           }
         ]
       },
@@ -342,6 +414,78 @@
             "rmse": 5.153,
             "baselineRmse": 5.115,
             "improved": false
+          }
+        ]
+      },
+      {
+        "family": "timestamp-robust-ekf",
+        "bestConfig": {
+          "ageScale": 0,
+          "gateSigma": 8,
+          "residualFloorMs": 3
+        },
+        "aggregate": {
+          "rmse": 5.193,
+          "macroRmse": 5.338,
+          "macroAbsBias": 1.29
+        },
+        "improvementRatio": 0,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 5.2,
+            "baselineRmse": 5.2,
+            "improved": true
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.926,
+            "baselineRmse": 3.926,
+            "improved": true
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 5.699,
+            "baselineRmse": 5.699,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 8.078,
+            "baselineRmse": 8.078,
+            "improved": true
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 5.115,
+            "baselineRmse": 5.115,
+            "improved": true
           }
         ]
       },

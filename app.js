@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v26";
+const APP_VERSION = "v27";
 const LOG_SCHEMA_VERSION = 2;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -92,6 +92,13 @@ const text = {
 
 const elements = {
   appVersion: document.querySelector("#appVersion"),
+  preflightSummary: document.querySelector("#preflightSummary"),
+  readyVersion: document.querySelector("#readyVersion"),
+  readySensor: document.querySelector("#readySensor"),
+  readyCalibration: document.querySelector("#readyCalibration"),
+  readyGps: document.querySelector("#readyGps"),
+  readyStorage: document.querySelector("#readyStorage"),
+  readyTiming: document.querySelector("#readyTiming"),
   sensorStatus: document.querySelector("#sensorStatus"),
   rideState: document.querySelector("#rideState"),
   timer: document.querySelector("#timer"),
@@ -208,6 +215,8 @@ const state = {
   preStartSamples: [],
   events: [],
   savedRuns: [],
+  storageAvailable: false,
+  storagePersisted: null,
   selectedRunIds: new Set(),
   currentRunId: "",
   lastBrakeAt: 0,
@@ -1066,6 +1075,7 @@ async function requestSensors() {
     }
     enableSensors();
     startGps();
+    requestPersistentStorage();
     setMode("sensor-on", text.sensorOn);
     addEvent("SENSOR", text.sensorGranted);
     render();
@@ -1073,6 +1083,20 @@ async function requestSensors() {
     setMode("idle", text.needPermission);
     addEvent("ERROR", text.sensorError);
   }
+}
+
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) {
+    state.storagePersisted = null;
+    render();
+    return;
+  }
+  try {
+    state.storagePersisted = await navigator.storage.persist();
+  } catch {
+    state.storagePersisted = false;
+  }
+  render();
 }
 
 function enableSensors() {
@@ -1133,6 +1157,10 @@ function enableAutoMeasurement() {
     addEvent("CAL", "先にCalibrationを完了してください");
     return;
   }
+  if (!state.storageAvailable) {
+    addEvent("ERROR", "端末保存を利用できないため自動計測を開始できません");
+    return;
+  }
   if (state.mode === "armed" && state.autoMeasurementEnabled) return;
   state.autoMeasurementEnabled = true;
   armTimer();
@@ -1163,6 +1191,10 @@ function startManualMeasurement() {
   }
   if (!state.calibrationCompleted) {
     addEvent("CAL", state.calibrationActive ? "静止補正の完了を待ってください" : "先にCalibrationを完了してください");
+    return;
+  }
+  if (!state.storageAvailable) {
+    addEvent("ERROR", "端末保存を利用できないため手動計測を開始できません");
     return;
   }
   state.autoMeasurementEnabled = false;
@@ -1251,7 +1283,8 @@ function stopGps() {
 function hasFreshGps() {
   return Number.isFinite(state.gpsSpeedMs)
     && state.gpsReceivedAt > 0
-    && nowMs() - state.gpsReceivedAt <= GPS_FRESH_MS;
+    && nowMs() - state.gpsReceivedAt <= GPS_FRESH_MS
+    && (state.gpsAgeMs === null || state.gpsAgeMs <= GPS_FRESH_MS);
 }
 
 function onGpsPosition(position) {
@@ -1355,12 +1388,66 @@ function render() {
   elements.manualOnButton.textContent = "手動開始";
   elements.manualOffButton.textContent = "計測停止";
   elements.calibrationButton.disabled = !state.sensorEnabled || state.mode === "running";
-  elements.autoOnButton.disabled = !state.calibrationCompleted || state.mode === "running" || state.mode === "armed";
+  elements.autoOnButton.disabled = !state.calibrationCompleted || !state.storageAvailable
+    || state.mode === "running" || state.mode === "armed";
   elements.autoOffButton.disabled = state.mode !== "armed";
-  elements.manualOnButton.disabled = !state.calibrationCompleted || state.mode === "running";
+  elements.manualOnButton.disabled = !state.calibrationCompleted || !state.storageAvailable || state.mode === "running";
   elements.manualOffButton.disabled = state.mode !== "running";
   elements.clearButton.disabled = state.mode === "running";
+  renderPreflight();
   drawTrace();
+}
+
+function preflightSnapshot() {
+  return {
+    appVersion: APP_VERSION,
+    sensorEnabled: state.sensorEnabled,
+    calibrationCompleted: state.calibrationCompleted,
+    gpsFresh: hasFreshGps(),
+    gpsAccuracyM: Number.isFinite(state.gpsAccuracyM) ? round(state.gpsAccuracyM, 1) : null,
+    gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
+    storageAvailable: state.storageAvailable,
+    storagePersisted: state.storagePersisted,
+    autoStartReady: state.autoStartReady,
+  };
+}
+
+function setReadiness(element, status, label) {
+  element.className = `readiness-item ${status}`;
+  element.textContent = label;
+}
+
+function renderPreflight() {
+  const snapshot = preflightSnapshot();
+  setReadiness(elements.readyVersion, "ready", `アプリ: ${APP_VERSION}`);
+  setReadiness(elements.readySensor, snapshot.sensorEnabled ? "ready" : "waiting",
+    `センサー: ${snapshot.sensorEnabled ? "ON" : "OFF"}`);
+  setReadiness(elements.readyCalibration, snapshot.calibrationCompleted ? "ready" : "waiting",
+    `キャリブレーション: ${snapshot.calibrationCompleted ? "完了" : "未完了"}`);
+  const gpsLabel = snapshot.gpsFresh
+    ? `GPS: 有効 / 精度 ${snapshot.gpsAccuracyM?.toFixed(0) ?? "-"} m`
+    : `GPS: ${Number.isFinite(snapshot.gpsAgeMs) && snapshot.gpsAgeMs > GPS_FRESH_MS ? "時刻が古い" : "待機中"}`;
+  setReadiness(elements.readyGps, snapshot.gpsFresh ? "ready" : "waiting", gpsLabel);
+  const storageLabel = !snapshot.storageAvailable
+    ? "端末保存: 利用不可"
+    : (snapshot.storagePersisted ? "端末保存: 永続化" : "端末保存: 利用可");
+  setReadiness(elements.readyStorage, snapshot.storageAvailable ? "ready" : "error", storageLabel);
+  const timingReady = state.mode === "running" || snapshot.autoStartReady;
+  const timingLabel = state.mode === "running"
+    ? "自動計測: 計測中"
+    : (state.mode === "armed"
+      ? `自動計測: ${snapshot.autoStartReady ? "発進待ち完了" : "静止GPS確認中"}`
+      : "自動計測: 未待機");
+  setReadiness(elements.readyTiming, timingReady ? "ready" : "waiting", timingLabel);
+
+  const missing = [];
+  if (!snapshot.sensorEnabled) missing.push("センサー");
+  if (!snapshot.calibrationCompleted) missing.push("補正");
+  if (!snapshot.gpsFresh) missing.push("GPS");
+  if (!snapshot.storageAvailable) missing.push("保存");
+  elements.preflightSummary.textContent = missing.length
+    ? `準備待ち: ${missing.join(" / ")}`
+    : (state.mode === "armed" ? timingLabel : "走行準備完了");
 }
 
 function drawTrace() {
@@ -1646,6 +1733,7 @@ function buildCurrentRun() {
       startThresholdG: round(currentProfile().startG, 4),
       stationaryThresholdG: round(currentProfile().stationaryG, 4),
       stationaryYawRateDps: round(currentProfile().stationaryYawRate, 2),
+      preflight: preflightSnapshot(),
     },
     events: state.events.slice().reverse(),
     samples: state.rawSamples.slice(),
@@ -1705,7 +1793,9 @@ function queueRunSave(run) {
 function checkpointCurrentRun() {
   if (state.mode !== "running" || !state.currentRunId || !state.rawSamples.length) return Promise.resolve();
   return queueRunSave(buildCurrentRun()).catch(() => {
+    state.storageAvailable = false;
     setStorageStatus(text.storageUnavailable);
+    render();
   });
 }
 
@@ -1718,8 +1808,10 @@ function saveCurrentRun() {
       return loadRuns();
     })
     .catch(() => {
+      state.storageAvailable = false;
       addEvent("SAVE", text.storageUnavailable);
       setStorageStatus(text.storageUnavailable);
+      render();
     });
 }
 
@@ -1749,6 +1841,7 @@ function saveArmedDiagnostic(reason) {
       startThresholdG: round(profile.startG, 4),
       stationaryThresholdG: round(profile.stationaryG, 4),
       stationaryYawRateDps: round(profile.stationaryYawRate, 2),
+      preflight: preflightSnapshot(),
     },
     events: [{
       timeMs: 0,
@@ -1763,7 +1856,11 @@ function saveArmedDiagnostic(reason) {
     }],
     samples: buffered,
   });
-  queueRunSave(run).then(loadRuns).catch(() => setStorageStatus(text.storageUnavailable));
+  queueRunSave(run).then(loadRuns).catch(() => {
+    state.storageAvailable = false;
+    setStorageStatus(text.storageUnavailable);
+    render();
+  });
 }
 
 function handleAppBackground(event) {
@@ -1789,15 +1886,19 @@ function handleAppBackground(event) {
 function loadRuns() {
   return dbGetAll(RUN_STORE)
     .then((runs) => {
+      state.storageAvailable = true;
       state.savedRuns = runs.sort((a, b) => b.startedAtIso.localeCompare(a.startedAtIso));
       const existingIds = new Set(state.savedRuns.map((run) => run.id));
       state.selectedRunIds = new Set([...state.selectedRunIds].filter((id) => existingIds.has(id)));
       setStorageStatus(`${text.storageReady} / ${state.savedRuns.length} runs`);
       renderHistory();
+      render();
     })
     .catch(() => {
+      state.storageAvailable = false;
       setStorageStatus(text.storageUnavailable);
       renderHistory();
+      render();
     });
 }
 

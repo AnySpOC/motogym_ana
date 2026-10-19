@@ -58,6 +58,7 @@ source += `\nglobalThis.testApi = {
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
 const api = sandbox.testApi;
+api.state.storageAvailable = true;
 api.enableSensors();
 api.startCalibration();
 

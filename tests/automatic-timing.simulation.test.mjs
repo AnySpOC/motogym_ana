@@ -57,6 +57,31 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
+  harness.api.state.storageAvailable = false;
+  harness.api.enableAutoMeasurement();
+  assert.notEqual(harness.api.state.mode, "armed", "unavailable storage must block automatic timing");
+  harness.api.startManualMeasurement();
+  assert.notEqual(harness.api.state.mode, "running", "unavailable storage must block manual timing");
+  record("storage-unavailable-guard", { autoBlocked: true, manualBlocked: true });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
+  harness.gps(0, { timestampOffsetMs: -10_000 });
+  harness.api.enableAutoMeasurement();
+  harness.runFor(1000);
+  assert.equal(harness.api.state.autoStartReady, false, "an old GPS observation must not arm START detection");
+  assert.equal(harness.api.state.mode, "armed");
+  harness.gps(0);
+  harness.runFor(800, () => ({}), { gpsEveryMs: 300, gpsSpeed: 0 });
+  assert.equal(harness.api.state.autoStartReady, true, "fresh stopped GPS must recover readiness");
+  record("stale-gps-observation-guard", { staleAgeMs: 10_000, recovered: true });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
   harness.gps(6);
   harness.api.enableAutoMeasurement();
   harness.runFor(2500, () => ({ rawY: 0.3 }), { gpsEveryMs: 400, gpsSpeed: 6 });
@@ -126,8 +151,10 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v26");
+  assert.equal(firstRun.appVersion, "v27");
   assert.equal(firstRun.schemaVersion, 2);
+  assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
+  assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
   assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);
   assert.ok(firstRun.diagnostics.observedSampleRateHz >= 59);
   assert.ok(preStartSamples.every((sample) => Number.isFinite(sample.startThresholdG)));

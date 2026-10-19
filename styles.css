@@ -119,6 +119,7 @@ h1 {
 }
 
 .status-card,
+.preflight-panel,
 .timer-panel,
 .metrics-grid article,
 .trace-panel,
@@ -158,6 +159,56 @@ h1 {
 
 .status-label {
   font-size: 0.8rem;
+}
+
+.preflight-panel {
+  margin-bottom: 14px;
+  padding: 14px 18px;
+}
+
+.preflight-panel .panel-title strong {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.readiness-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readiness-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.readiness-item::before {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  content: "";
+}
+
+.readiness-item.ready {
+  color: var(--text);
+}
+
+.readiness-item.ready::before {
+  background: var(--green);
+}
+
+.readiness-item.error::before {
+  background: var(--red);
 }
 
 .timer-panel {
@@ -402,5 +453,9 @@ button.danger:not(:disabled) {
   .history-bulk-actions {
     width: 100%;
     margin-left: 0;
+  }
+
+  .readiness-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

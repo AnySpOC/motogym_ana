@@ -131,16 +131,25 @@ Use:
 
 1. Tap `Sensor ON`.
 2. Start the engine, tap `Calibration`, and keep the motorcycle still for four seconds.
-3. Tap `Auto待機` for automatic timing or `手動開始` for manual timing.
-4. Use `計測停止` when an automatic stop is not appropriate.
-5. Select one or more saved runs with the checkboxes.
-6. Use `選択JSON` or `選択CSV` to export only those runs. Multi-run CSV
+3. Confirm that the `走行準備` panel shows the sensor, calibration, GPS, and device storage as ready.
+4. Tap `Auto待機` for automatic timing or `手動開始` for manual timing.
+5. Use `計測停止` when an automatic stop is not appropriate.
+6. Select one or more saved runs with the checkboxes.
+7. Use `選択JSON` or `選択CSV` to export only those runs. Multi-run CSV
    includes `run_id` and `started_at_iso` columns.
-7. Use `選択削除` to remove selected runs from the device after confirmation, or
+8. Use `選択削除` to remove selected runs from the device after confirmation, or
    use `全JSON` to back up every saved run.
 
 IndexedDB is practical for field testing, but iOS can remove browser storage
 when storage pressure is high. Export important data after practice.
+
+The app requests persistent browser storage when `Sensor ON` is tapped and shows
+the result in the `走行準備` panel. Timing is blocked if IndexedDB itself is not
+available. A rejected or unsupported persistence request does not guarantee data
+loss, but exported JSON remains the required backup for important sessions.
+
+See [`docs/PRODUCT_RELEASE_READINESS.md`](docs/PRODUCT_RELEASE_READINESS.md) for
+the current product-release decision and the remaining native iOS work.
 
 ## Sensor controls and graph
 

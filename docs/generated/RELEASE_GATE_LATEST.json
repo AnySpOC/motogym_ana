@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T09:07:20.587Z",
-  "appVersion": "v26",
+  "generatedAt": "2026-10-19T09:18:40.012Z",
+  "appVersion": "v27",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -21,7 +21,7 @@
       "passed": true,
       "exitCode": 0,
       "metrics": {
-        "passed": 8,
+        "passed": 10,
         "failed": 0,
         "scenarios": [
           {
@@ -29,6 +29,18 @@
             "passed": true,
             "simulatedMs": 5000,
             "falseStarts": 0
+          },
+          {
+            "name": "storage-unavailable-guard",
+            "passed": true,
+            "autoBlocked": true,
+            "manualBlocked": true
+          },
+          {
+            "name": "stale-gps-observation-guard",
+            "passed": true,
+            "staleAgeMs": 10000,
+            "recovered": true
           },
           {
             "name": "moving-auto-enable-guard",
@@ -140,7 +152,7 @@
     }
   ],
   "acceptance": {
-    "deterministicScenariosPassed": 8,
+    "deterministicScenariosPassed": 10,
     "deterministicScenariosFailed": 0,
     "robustnessTrials": 24,
     "robustnessFalseStarts": 0,
@@ -160,8 +172,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive closed-course runs with START, STOP, rearm, and persistence",
-      "START latency within 300 ms against video or an observer reference"
+      "three consecutive v27 closed-course runs with START, STOP, rearm, and persistence",
+      "START latency within 300 ms against video or an observer reference",
+      "each exported run reports appVersion v27, schemaVersion 2, and pre-start samples"
     ]
   }
 }

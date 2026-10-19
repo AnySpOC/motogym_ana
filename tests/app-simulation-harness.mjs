@@ -144,18 +144,20 @@ export function createSimulationHarness({ sampleHz = 60 } = {}) {
   vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
   const api = sandbox.simulationApi;
+  api.state.storageAvailable = true;
   const dtMs = 1000 / sampleHz;
 
   function gps(speed, overrides = {}) {
+    const { timestampMs, timestampOffsetMs = 0, ...coordinateOverrides } = overrides;
     api.onGpsPosition({
-      timestamp: epochMs + clock,
+      timestamp: timestampMs ?? epochMs + clock + timestampOffsetMs,
       coords: {
         latitude: 35,
         longitude: 139,
         accuracy: 5,
         speed,
         heading: 90,
-        ...overrides,
+        ...coordinateOverrides,
       },
     });
   }

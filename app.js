@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v25";
+const APP_VERSION = "v26";
 const LOG_SCHEMA_VERSION = 2;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -91,6 +91,7 @@ const text = {
 };
 
 const elements = {
+  appVersion: document.querySelector("#appVersion"),
   sensorStatus: document.querySelector("#sensorStatus"),
   rideState: document.querySelector("#rideState"),
   timer: document.querySelector("#timer"),
@@ -2075,12 +2076,21 @@ document.addEventListener("visibilitychange", handleAppBackground);
 window.addEventListener("pagehide", handleAppBackground);
 
 if ("serviceWorker" in navigator) {
+  let serviceWorkerReloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (serviceWorkerReloading) return;
+    serviceWorkerReloading = true;
+    window.location.reload();
+  });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {
-      addEvent("CACHE", "Offline cache unavailable");
-    });
+    navigator.serviceWorker.register("./sw.js")
+      .then((registration) => registration.update())
+      .catch(() => {
+        addEvent("CACHE", "Offline cache unavailable");
+      });
   });
 }
 
+elements.appVersion.textContent = APP_VERSION;
 render();
 loadRuns();

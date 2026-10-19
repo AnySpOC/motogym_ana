@@ -81,11 +81,22 @@ select {
 }
 
 .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 8px;
   font-size: 0.75rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.version-badge {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--green);
+  padding: 2px 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 h1,

@@ -1,0 +1,1082 @@
+{
+  "generatedAt": "2026-10-19T09:03:52.492Z",
+  "roots": [
+    "C:\\Users\\foxho\\Videos",
+    "C:\\Users\\foxho\\Downloads"
+  ],
+  "method": {
+    "candidateCount": 400,
+    "objective": "macro RMSE + 0.15 * macro absolute bias",
+    "qualityGate": "continuous segment >= 10 s, overlap >= 10 s, iPhone GPS correlation >= 0.7, GPS RMSE <= 8 km/h",
+    "note": "The GPS-derived per-run time offset is fixed before candidate comparison."
+  },
+  "current": {
+    "candidate": {
+      "drag": 0,
+      "processNoise": 1.2,
+      "gpsSigmaScale": 0.35,
+      "gpsPredictionSec": 0
+    },
+    "aggregate": {
+      "runs": 9,
+      "count": 9903,
+      "rmse": 3.9477687758101077,
+      "macroRmse": 3.5603511240207064,
+      "macroAbsBias": 0.7207275775759036
+    }
+  },
+  "best": {
+    "candidate": {
+      "drag": 0.015,
+      "processNoise": 1.8,
+      "gpsSigmaScale": 0.25,
+      "gpsPredictionSec": 0
+    },
+    "aggregate": {
+      "runs": 9,
+      "count": 9903,
+      "rmse": 3.920839732522295,
+      "macroRmse": 3.556463176943066,
+      "macroAbsBias": 0.6719280471346574
+    }
+  },
+  "decision": {
+    "accepted": false,
+    "improvementRatio": 0.006821332458177431,
+    "rule": "overall RMSE improvement >= 10% and no held-out date worse than current",
+    "recommendation": "keep current settings"
+  },
+  "baselines": {
+    "recordedAppSpeed": {
+      "runs": 9,
+      "count": 9903,
+      "rmse": 4.551564428638919,
+      "macroRmse": 4.750775151612526,
+      "macroAbsBias": 1.4057973204392455
+    },
+    "iphoneGpsSpeed": {
+      "runs": 9,
+      "count": 9903,
+      "rmse": 3.6873674278446367,
+      "macroRmse": 3.0259533825053335,
+      "macroAbsBias": 0.4776286744365143
+    }
+  },
+  "topCandidates": [
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.920839732522295,
+        "macroRmse": 3.556463176943066,
+        "macroAbsBias": 0.6719280471346574
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.919410961164752,
+        "macroRmse": 3.5564257569377813,
+        "macroAbsBias": 0.6747928546317882
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.9201158430513074,
+        "macroRmse": 3.5564052853394177,
+        "macroAbsBias": 0.6764769550089151
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.9191352706601728,
+        "macroRmse": 3.556928636767756,
+        "macroAbsBias": 0.6803919374660369
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 0.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.9197033128585534,
+        "macroRmse": 3.556770527285301,
+        "macroAbsBias": 0.6830565898124438
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.025,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.9098903583030147,
+        "macroRmse": 3.5633864344378705,
+        "macroAbsBias": 0.6459325889329196
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.025,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.907923897745874,
+        "macroRmse": 3.5630095437594136,
+        "macroAbsBias": 0.6485363712086651
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.5,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.9196433452066115,
+        "macroRmse": 3.558054355603811,
+        "macroAbsBias": 0.6851379395509737
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.025,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.908945063261932,
+        "macroRmse": 3.563385628193009,
+        "macroAbsBias": 0.6501737831475902
+      }
+    },
+    {
+      "candidate": {
+        "drag": 0.005,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9903,
+        "rmse": 3.9372794082475573,
+        "macroRmse": 3.556304146343722,
+        "macroAbsBias": 0.6980888527213779
+      }
+    }
+  ],
+  "crossValidation": [
+    {
+      "heldOutDate": "2026-10-03",
+      "candidate": {
+        "drag": 0.025,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "training": {
+        "runs": 6,
+        "count": 6634,
+        "rmse": 3.9746782206776046,
+        "macroRmse": 3.577641954106579,
+        "macroAbsBias": 0.6725867623448716
+      },
+      "test": {
+        "runs": 3,
+        "count": 3269,
+        "rmse": 3.7749957166152557,
+        "macroRmse": 3.534875395100452,
+        "macroAbsBias": 0.592624242109016
+      },
+      "currentTest": {
+        "runs": 3,
+        "count": 3269,
+        "rmse": 3.7825747176079907,
+        "macroRmse": 3.5125217099244193,
+        "macroAbsBias": 0.6437134393022935
+      }
+    },
+    {
+      "heldOutDate": "2026-10-04",
+      "candidate": {
+        "drag": 0.025,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "training": {
+        "runs": 6,
+        "count": 8022,
+        "rmse": 4.049094827963198,
+        "macroRmse": 3.7295003203126735,
+        "macroAbsBias": 0.572196801787695
+      },
+      "test": {
+        "runs": 3,
+        "count": 1881,
+        "rmse": 3.2374794994555964,
+        "macroRmse": 3.230027990652894,
+        "macroAbsBias": 0.801215510050605
+      },
+      "currentTest": {
+        "runs": 3,
+        "count": 1881,
+        "rmse": 3.21524844559932,
+        "macroRmse": 3.1665705760085037,
+        "macroAbsBias": 0.7212985607568277
+      }
+    },
+    {
+      "heldOutDate": "2026-10-10",
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.5,
+        "gpsPredictionSec": 0
+      },
+      "training": {
+        "runs": 8,
+        "count": 6569,
+        "rmse": 3.603677843020394,
+        "macroRmse": 3.444763697993906,
+        "macroAbsBias": 0.6831927463453413
+      },
+      "test": {
+        "runs": 1,
+        "count": 3334,
+        "rmse": 4.48441621425052,
+        "macroRmse": 4.48441621425052,
+        "macroAbsBias": 0.7870477210462655
+      },
+      "currentTest": {
+        "runs": 1,
+        "count": 3334,
+        "rmse": 4.4833414888423295,
+        "macroRmse": 4.4833414888423295,
+        "macroAbsBias": 0.8366463433769606
+      }
+    },
+    {
+      "heldOutDate": "2026-10-12",
+      "candidate": {
+        "drag": 0.005,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "training": {
+        "runs": 8,
+        "count": 9790,
+        "rmse": 3.9406648539708478,
+        "macroRmse": 3.5468404213442373,
+        "macroAbsBias": 0.6472207962118363
+      },
+      "test": {
+        "runs": 1,
+        "count": 113,
+        "rmse": 3.6320139463395953,
+        "macroRmse": 3.6320139463395953,
+        "macroAbsBias": 1.1050333047977117
+      },
+      "currentTest": {
+        "runs": 1,
+        "count": 113,
+        "rmse": 3.648533388906454,
+        "macroRmse": 3.648533388906454,
+        "macroAbsBias": 1.1637527744502445
+      }
+    },
+    {
+      "heldOutDate": "2026-10-19",
+      "candidate": {
+        "drag": 0.015,
+        "processNoise": 1.8,
+        "gpsSigmaScale": 0.25,
+        "gpsPredictionSec": 0
+      },
+      "training": {
+        "runs": 8,
+        "count": 8597,
+        "rmse": 3.9301942299350143,
+        "macroRmse": 3.518684074972083,
+        "macroAbsBias": 0.728071770864205
+      },
+      "test": {
+        "runs": 1,
+        "count": 1306,
+        "rmse": 3.858695992710926,
+        "macroRmse": 3.858695992710926,
+        "macroAbsBias": 0.22277825729827566
+      },
+      "currentTest": {
+        "runs": 1,
+        "count": 1306,
+        "rmse": 3.874008380638801,
+        "macroRmse": 3.874008380638801,
+        "macroAbsBias": 0.3911130801785643
+      }
+    }
+  ],
+  "realTimeEvaluation": {
+    "note": "Zero-shift UTC evaluation; unlike waveform alignment, this retains observable speed latency.",
+    "candidateCount": 200,
+    "current": {
+      "candidate": {
+        "drag": 0,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9933,
+        "rmse": 5.1931149047399545,
+        "macroRmse": 5.338023295068812,
+        "macroAbsBias": 1.2895296906136138
+      }
+    },
+    "best": {
+      "candidate": {
+        "lagSec": 0.5,
+        "gpsGain": 1,
+        "biasGain": 0.03,
+        "accelScale": 0.8
+      },
+      "aggregate": {
+        "runs": 9,
+        "count": 9933,
+        "rmse": 5.128631350514698,
+        "macroRmse": 5.247103725307931,
+        "macroAbsBias": 1.083763235980748
+      }
+    },
+    "decision": {
+      "accepted": false,
+      "improvementRatio": 0.012417124482726208,
+      "rule": "overall RMSE improvement >= 10% and no held-out date worse than current",
+      "recommendation": "keep current settings"
+    },
+    "topCandidates": [
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.128631350514698,
+          "macroRmse": 5.247103725307931,
+          "macroAbsBias": 1.083763235980748
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 0.9,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.200153188942032,
+          "macroRmse": 5.278962932221114,
+          "macroAbsBias": 1.1193980944290431
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.08,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.175393107534613,
+          "macroRmse": 5.299616357147924,
+          "macroAbsBias": 1.0800537122458418
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.105776626524844,
+          "macroRmse": 5.3006377069346975,
+          "macroAbsBias": 1.0930393011539978
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 1
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.110284734785393,
+          "macroRmse": 5.301543226360378,
+          "macroAbsBias": 1.1099267596456206
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 1
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.21251563952194,
+          "macroRmse": 5.302893600722212,
+          "macroAbsBias": 1.130901229189631
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.08,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.123881740648299,
+          "macroRmse": 5.317585643166513,
+          "macroAbsBias": 1.0842623247574998
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.230968342572853,
+          "macroRmse": 5.282294744379951,
+          "macroAbsBias": 1.4083958524558902
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.15,
+          "accelScale": 0.8
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.130615169871135,
+          "macroRmse": 5.332988824602169,
+          "macroAbsBias": 1.0792109024833039
+        }
+      },
+      {
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.08,
+          "accelScale": 1
+        },
+        "aggregate": {
+          "runs": 9,
+          "count": 9933,
+          "rmse": 5.133106159107602,
+          "macroRmse": 5.33048052410154,
+          "macroAbsBias": 1.1043280298093037
+        }
+      }
+    ],
+    "crossValidation": [
+      {
+        "heldOutDate": "2026-10-03",
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 6,
+          "count": 6649,
+          "rmse": 5.115021595722843,
+          "macroRmse": 5.038605266282899,
+          "macroAbsBias": 1.0307137183317758
+        },
+        "test": {
+          "runs": 3,
+          "count": 3284,
+          "rmse": 5.156076549230968,
+          "macroRmse": 5.664100643357995,
+          "macroAbsBias": 1.1898622712786928
+        },
+        "currentTest": {
+          "runs": 3,
+          "count": 3284,
+          "rmse": 5.200308291838923,
+          "macroRmse": 5.662491795778802,
+          "macroAbsBias": 1.3737179291379782
+        }
+      },
+      {
+        "heldOutDate": "2026-10-04",
+        "candidate": {
+          "lagSec": 0,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 6,
+          "count": 8037,
+          "rmse": 5.315946048269781,
+          "macroRmse": 5.842021471349246,
+          "macroAbsBias": 0.7072651287485802
+        },
+        "test": {
+          "runs": 3,
+          "count": 1896,
+          "rmse": 4.096867504085434,
+          "macroRmse": 4.217870178105602,
+          "macroAbsBias": 1.8645876459648332
+        },
+        "currentTest": {
+          "runs": 3,
+          "count": 1896,
+          "rmse": 3.9261489164294,
+          "macroRmse": 4.054040464777236,
+          "macroAbsBias": 1.8492385276014847
+        }
+      },
+      {
+        "heldOutDate": "2026-10-10",
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 8,
+          "count": 6599,
+          "rmse": 4.771177003967454,
+          "macroRmse": 5.181588094584844,
+          "macroAbsBias": 1.2016810016858286
+        },
+        "test": {
+          "runs": 1,
+          "count": 3334,
+          "rmse": 5.771228771092633,
+          "macroRmse": 5.771228771092633,
+          "macroAbsBias": 0.14042111034010354
+        },
+        "currentTest": {
+          "runs": 1,
+          "count": 3334,
+          "rmse": 5.699354600012013,
+          "macroRmse": 5.699354600012013,
+          "macroAbsBias": 0.9957251446047268
+        }
+      },
+      {
+        "heldOutDate": "2026-10-12",
+        "candidate": {
+          "lagSec": 1,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 8,
+          "count": 9820,
+          "rmse": 5.214638730194969,
+          "macroRmse": 4.719206895854478,
+          "macroAbsBias": 1.0096386656085568
+        },
+        "test": {
+          "runs": 1,
+          "count": 113,
+          "rmse": 10.591004412563713,
+          "macroRmse": 10.591004412563713,
+          "macroAbsBias": 2.1611845587635243
+        },
+        "currentTest": {
+          "runs": 1,
+          "count": 113,
+          "rmse": 8.07817199192364,
+          "macroRmse": 8.07817199192364,
+          "macroAbsBias": 0.4986618140517662
+        }
+      },
+      {
+        "heldOutDate": "2026-10-19",
+        "candidate": {
+          "lagSec": 0.5,
+          "gpsGain": 1,
+          "biasGain": 0.03,
+          "accelScale": 0.8
+        },
+        "training": {
+          "runs": 8,
+          "count": 8627,
+          "rmse": 5.168162316371005,
+          "macroRmse": 5.2955627515546,
+          "macroAbsBias": 1.1593386843493745
+        },
+        "test": {
+          "runs": 1,
+          "count": 1306,
+          "rmse": 4.859431515334577,
+          "macroRmse": 4.859431515334577,
+          "macroAbsBias": 0.47915964903173575
+        },
+        "currentTest": {
+          "runs": 1,
+          "count": 1306,
+          "rmse": 5.115086282015543,
+          "macroRmse": 5.115086282015543,
+          "macroAbsBias": 0.4425108866476425
+        }
+      }
+    ]
+  },
+  "runs": [
+    {
+      "csv": "gym-ana-2026-10-03T04-40-23-225Z.csv#1",
+      "gpx": "GX010054.gpx",
+      "date": "2026-10-03",
+      "samples": 11340,
+      "overlapSec": 158.8,
+      "gpsOffsetSec": -1.5,
+      "iphoneGps": {
+        "rmse": 4.39,
+        "bias": 0.664,
+        "correlation": 0.967
+      },
+      "appRecorded": {
+        "rmse": 3.679,
+        "bias": -0.165,
+        "correlation": 0.972
+      },
+      "currentReplay": {
+        "rmse": 4.485,
+        "bias": 0.677
+      },
+      "bestReplay": {
+        "rmse": 4.506,
+        "bias": 0.512
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "手動開始",
+          "utc": "2026-10-03T04:40:23.225Z",
+          "gpxSpeedKmh": null
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-03T06-17-54-082Z.csv#1",
+      "gpx": "GX010057.gpx",
+      "date": "2026-10-03",
+      "samples": 3037,
+      "overlapSec": 50.6,
+      "gpsOffsetSec": -2.4,
+      "iphoneGps": {
+        "rmse": 1.496,
+        "bias": -0.284,
+        "correlation": 0.998
+      },
+      "appRecorded": {
+        "rmse": 5.916,
+        "bias": -2.536,
+        "correlation": 0.975
+      },
+      "currentReplay": {
+        "rmse": 2.665,
+        "bias": -0.887
+      },
+      "bestReplay": {
+        "rmse": 2.69,
+        "bias": -1.071
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "手動開始",
+          "utc": "2026-10-03T06:17:54.082Z",
+          "gpxSpeedKmh": 17.705
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-03T08-01-28-345Z.csv",
+      "gpx": "GX010060.gpx",
+      "date": "2026-10-03",
+      "samples": 8599,
+      "overlapSec": 143.3,
+      "gpsOffsetSec": -1,
+      "iphoneGps": {
+        "rmse": 3.235,
+        "bias": -0.174,
+        "correlation": 0.901
+      },
+      "appRecorded": {
+        "rmse": 3.05,
+        "bias": 0.59,
+        "correlation": 0.883
+      },
+      "currentReplay": {
+        "rmse": 3.388,
+        "bias": 0.367
+      },
+      "bestReplay": {
+        "rmse": 3.371,
+        "bias": 0.241
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "発進を検出",
+          "utc": "2026-10-03T08:01:28.345Z",
+          "gpxSpeedKmh": 2.388
+        },
+        {
+          "type": "STOP",
+          "detail": "手動停止",
+          "utc": "2026-10-03T08:03:51.799Z",
+          "gpxSpeedKmh": 23.612
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-04T03-25-21-949Z.csv",
+      "gpx": "GX010063.gpx",
+      "date": "2026-10-04",
+      "samples": 9790,
+      "overlapSec": 163.2,
+      "gpsOffsetSec": -1.3,
+      "iphoneGps": {
+        "rmse": 3.443,
+        "bias": 1.122,
+        "correlation": 0.947
+      },
+      "appRecorded": {
+        "rmse": 3.667,
+        "bias": -0.054,
+        "correlation": 0.928
+      },
+      "currentReplay": {
+        "rmse": 3.72,
+        "bias": 0.842
+      },
+      "bestReplay": {
+        "rmse": 3.645,
+        "bias": 0.597
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "発進を検出",
+          "utc": "2026-10-04T03:25:21.949Z",
+          "gpxSpeedKmh": null
+        },
+        {
+          "type": "STOP",
+          "detail": "停止保持を検出",
+          "utc": "2026-10-04T03:28:05.275Z",
+          "gpxSpeedKmh": 0.304
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-04T03-28-34-761Z.csv#1",
+      "gpx": "GX010063.gpx",
+      "date": "2026-10-04",
+      "samples": 1089,
+      "overlapSec": 18.2,
+      "gpsOffsetSec": -1.8,
+      "iphoneGps": {
+        "rmse": 2.446,
+        "bias": 0.378,
+        "correlation": 0.994
+      },
+      "appRecorded": {
+        "rmse": 9.296,
+        "bias": -4.21,
+        "correlation": 0.837
+      },
+      "currentReplay": {
+        "rmse": 2.966,
+        "bias": -0.504
+      },
+      "bestReplay": {
+        "rmse": 3.068,
+        "bias": -0.651
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "手動開始",
+          "utc": "2026-10-04T03:28:34.761Z",
+          "gpxSpeedKmh": 37.052
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-04T03-28-34-761Z.csv#2",
+      "gpx": "GX010063.gpx",
+      "date": "2026-10-04",
+      "samples": 5740,
+      "overlapSec": 95.7,
+      "gpsOffsetSec": -1.5,
+      "iphoneGps": {
+        "rmse": 2.539,
+        "bias": -0.855,
+        "correlation": 0.991
+      },
+      "appRecorded": {
+        "rmse": 3.617,
+        "bias": -1.927,
+        "correlation": 0.983
+      },
+      "currentReplay": {
+        "rmse": 2.814,
+        "bias": -0.818
+      },
+      "bestReplay": {
+        "rmse": 2.877,
+        "bias": -1.054
+      },
+      "events": [
+        {
+          "type": "STOP",
+          "detail": "手動停止",
+          "utc": "2026-10-04T03:30:40.225Z",
+          "gpxSpeedKmh": 0.081
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-10T06-46-03-006Z.csv",
+      "gpx": "GX010068.gpx",
+      "date": "2026-10-10",
+      "samples": 20000,
+      "overlapSec": 333.4,
+      "gpsOffsetSec": -1.6,
+      "iphoneGps": {
+        "rmse": 4.179,
+        "bias": -0.322,
+        "correlation": 0.959
+      },
+      "appRecorded": {
+        "rmse": 5.365,
+        "bias": 1.865,
+        "correlation": 0.942
+      },
+      "currentReplay": {
+        "rmse": 4.483,
+        "bias": 0.837
+      },
+      "bestReplay": {
+        "rmse": 4.413,
+        "bias": 0.698
+      },
+      "events": [
+        {
+          "type": "STOP",
+          "detail": "手動停止",
+          "utc": "2026-10-10T06:51:39.858Z",
+          "gpxSpeedKmh": 0.634
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-12T06-06-51-764Z.csv",
+      "gpx": "GX010075.gpx",
+      "date": "2026-10-12",
+      "samples": 677,
+      "overlapSec": 11.3,
+      "gpsOffsetSec": -2.4,
+      "iphoneGps": {
+        "rmse": 1.765,
+        "bias": 0.225,
+        "correlation": 0.922
+      },
+      "appRecorded": {
+        "rmse": 4.268,
+        "bias": 0.9,
+        "correlation": 0.781
+      },
+      "currentReplay": {
+        "rmse": 3.649,
+        "bias": 1.164
+      },
+      "bestReplay": {
+        "rmse": 3.58,
+        "bias": 0.999
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "発進を検出",
+          "utc": "2026-10-12T06:06:51.764Z",
+          "gpxSpeedKmh": 13.175
+        },
+        {
+          "type": "STOP",
+          "detail": "ナビ/画面切替で計測中断",
+          "utc": "2026-10-12T06:07:03.158Z",
+          "gpxSpeedKmh": 21.903
+        }
+      ]
+    },
+    {
+      "csv": "gym-ana-2026-10-19T06-47-39-185Z.csv",
+      "gpx": "GX010078.gpx",
+      "date": "2026-10-19",
+      "samples": 8097,
+      "overlapSec": 134.9,
+      "gpsOffsetSec": -2.1,
+      "iphoneGps": {
+        "rmse": 3.74,
+        "bias": 0.274,
+        "correlation": 0.887
+      },
+      "appRecorded": {
+        "rmse": 3.899,
+        "bias": 0.404,
+        "correlation": 0.877
+      },
+      "currentReplay": {
+        "rmse": 3.874,
+        "bias": 0.391
+      },
+      "bestReplay": {
+        "rmse": 3.859,
+        "bias": 0.223
+      },
+      "events": [
+        {
+          "type": "START",
+          "detail": "発進を検出",
+          "utc": "2026-10-19T06:47:39.185Z",
+          "gpxSpeedKmh": 0.32
+        },
+        {
+          "type": "STOP",
+          "detail": "停止保持を検出",
+          "utc": "2026-10-19T06:49:53.302Z",
+          "gpxSpeedKmh": 0.202
+        }
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "csv": "gym-ana-2026-10-03T06-17-54-082Z.csv#2",
+      "gpx": "GX010057.gpx",
+      "reason": "quality gate (overlap=52.1s, GPS RMSE=10.455 km/h, corr=0.608)"
+    },
+    {
+      "csv": "gym-ana-2026-10-04T06-20-50-924Z.csv",
+      "reason": "no GPX overlap"
+    },
+    {
+      "csv": "gym-ana-2026-10-10T03-24-11-010Z.csv",
+      "reason": "no GPX overlap"
+    },
+    {
+      "csv": "gym-ana-2026-10-12T06-03-25-549Z.csv",
+      "gpx": "GX010074.gpx",
+      "reason": "quality gate (overlap=11.9s, GPS RMSE=4.567 km/h, corr=0.392)"
+    },
+    {
+      "csv": "gym-ana-2026-10-18T06-21-43-151Z.csv",
+      "reason": "no GPX overlap"
+    },
+    {
+      "csv": "gym-ana-2026-10-18T06-23-52-619Z.csv",
+      "reason": "no GPX overlap"
+    },
+    {
+      "csv": "gym-ana-selected-2026-10-18T07-23-24-630Z.csv",
+      "reason": "no GPX overlap"
+    }
+  ],
+  "limitations": [
+    "Old CSV files begin at START and contain no pre-start iPhone IMU samples, so alternative START logic cannot be replayed faithfully.",
+    "START/STOP event speeds are audits against GPX, not a replay of the v23 state machine.",
+    "GPX speed is an independent reference, not laboratory ground truth."
+  ]
+}

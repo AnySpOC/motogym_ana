@@ -57,7 +57,7 @@ const soakEvidence = fs.existsSync("docs/generated/ROBUSTNESS_SOAK_LATEST.json")
 const softwareGatePassed = checks.every((check) => check.passed);
 const report = {
   generatedAt: new Date().toISOString(),
-  appVersion: "v25",
+  appVersion: "v26",
   softwareGatePassed,
   releaseStatus: softwareGatePassed ? "FIELD_VALIDATION_REQUIRED" : "SOFTWARE_GATE_FAILED",
   checks: checks.map((check) => ({

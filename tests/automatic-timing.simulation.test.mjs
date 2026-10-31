@@ -162,7 +162,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v29");
+  assert.equal(firstRun.appVersion, "v30");
   assert.equal(firstRun.schemaVersion, 3);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);

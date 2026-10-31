@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v29";
+const APP_VERSION = "v30";
 const LOG_SCHEMA_VERSION = 3;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -573,7 +573,12 @@ function calibrateAndProjectSample(sample, t, dt) {
   const y = rawY - state.deviceOffsetY;
   const z = rawZ - state.deviceOffsetZ;
   const gyro = rawGyro.map((value, index) => value - state.gyroOffsetVector[index]);
-  const yawRate = dotVector(gyro, state.gravityVector);
+  const gravity = normalizeVector([
+    sample.gravityX || 0,
+    sample.gravityY || 0,
+    sample.gravityZ || 0,
+  ], state.gravityVector);
+  const yawRate = dotVector(gyro, gravity);
   const rollRate = state.forwardVector ? dotVector(gyro, state.forwardVector) : 0;
   state.rawGyroVector = rawGyro;
   state.rollRate = rollRate;
@@ -585,11 +590,6 @@ function calibrateAndProjectSample(sample, t, dt) {
   maybeLockForwardAxis(horizontalAcceleration, t);
 
   if (state.forwardVector && state.lateralVector) {
-    const gravity = normalizeVector([
-      sample.gravityX || 0,
-      sample.gravityY || 0,
-      sample.gravityZ || 0,
-    ], state.gravityVector);
     const bankDeg = Math.atan2(
       dotVector(gravity, state.lateralVector),
       dotVector(gravity, state.gravityVector)
@@ -1042,11 +1042,22 @@ function storeRawSample(t, sampleIntervalSec) {
   }
 }
 
+function deriveGravityVector(linear, accelerationIncludingGravity, linearAvailable) {
+  return ["x", "y", "z"].map((axis) => {
+    const combined = Number.isFinite(accelerationIncludingGravity?.[axis])
+      ? accelerationIncludingGravity[axis]
+      : 0;
+    const motion = linearAvailable && Number.isFinite(linear?.[axis]) ? linear[axis] : 0;
+    return combined - motion;
+  });
+}
+
 function onDeviceMotion(event) {
   const linear = event.acceleration;
-  const gravity = event.accelerationIncludingGravity || {};
+  const accelerationIncludingGravity = event.accelerationIncludingGravity || {};
   const linearAvailable = Boolean(linear && [linear.x, linear.y, linear.z].some(Number.isFinite));
-  const acc = linearAvailable ? linear : gravity;
+  const acc = linearAvailable ? linear : accelerationIncludingGravity;
+  const gravity = deriveGravityVector(linear, accelerationIncludingGravity, linearAvailable);
   const rotation = event.rotationRate || {};
   const rawX = (acc.x || 0) / G;
   const rawY = (acc.y || 0) / G;
@@ -1057,9 +1068,9 @@ function onDeviceMotion(event) {
     rawY,
     rawZ,
     linearAvailable,
-    gravityX: (gravity.x || 0) / G,
-    gravityY: (gravity.y || 0) / G,
-    gravityZ: (gravity.z || 0) / G,
+    gravityX: gravity[0] / G,
+    gravityY: gravity[1] / G,
+    gravityZ: gravity[2] / G,
     longG: rawY,
     latG: rawX,
     gyroVector: [rotation.beta || 0, rotation.gamma || 0, rotation.alpha || 0],

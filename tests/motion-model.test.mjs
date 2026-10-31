@@ -53,7 +53,7 @@ source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
   calibrateAndProjectSample, motionModel, runToCsv, runsToCsv,
-  handleAppBackground, evaluateCalibration, currentProfile
+  handleAppBackground, evaluateCalibration, currentProfile, deriveGravityVector
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -147,6 +147,32 @@ assert.equal(projectedGyro.yawRate, 10, "yaw rate must be projected onto the cal
 assert.equal(projectedGyro.bankDeg, 0, "phone mounting angle must not become bank before the vehicle axis is locked");
 api.state.gravityVector = [0, 0, 1];
 api.state.gyroOffsetVector = [0, 0, 0];
+
+assert.deepEqual(
+  Array.from(api.deriveGravityVector(
+    { x: 2, y: -1, z: 0.5 },
+    { x: 2, y: -1, z: 10.30665 },
+    true,
+  )),
+  [0, 0, 9.80665],
+  "gravity must exclude linear motorcycle acceleration",
+);
+
+const bankedVertical = Math.SQRT1_2;
+const bankedYaw = api.calibrateAndProjectSample({
+  rawX: 0,
+  rawY: 0,
+  rawZ: 0,
+  gravityX: bankedVertical,
+  gravityY: 0,
+  gravityZ: bankedVertical,
+  gyroVector: [10 * bankedVertical, 0, 10 * bankedVertical],
+  bankDeg: 45,
+}, clock, 1 / 60);
+assert.ok(
+  Math.abs(bankedYaw.yawRate - 10) < 1e-9,
+  "yaw rate must follow the live world-vertical axis while the motorcycle is banked",
+);
 
 for (let i = 0; i < 30; i += 1) {
   clock += 1000 / 60;

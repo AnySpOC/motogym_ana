@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v28";
+const APP_VERSION = "v29";
 const LOG_SCHEMA_VERSION = 3;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -136,6 +136,7 @@ const elements = {
   eventLog: document.querySelector("#eventLog"),
   historyList: document.querySelector("#historyList"),
   storageStatus: document.querySelector("#storageStatus"),
+  storageRetryButton: document.querySelector("#storageRetryButton"),
   canvas: document.querySelector("#traceCanvas"),
 };
 
@@ -220,6 +221,7 @@ const state = {
   savedRuns: [],
   storageAvailable: false,
   storagePersisted: null,
+  storageCheckPending: false,
   selectedRunIds: new Set(),
   currentRunId: "",
   lastBrakeAt: 0,
@@ -1090,6 +1092,7 @@ async function requestSensors() {
     enableSensors();
     startGps();
     requestPersistentStorage();
+    if (!state.storageAvailable) recoverStorage();
     setMode("sensor-on", text.sensorOn);
     addEvent("SENSOR", text.sensorGranted);
     render();
@@ -1172,7 +1175,11 @@ function enableAutoMeasurement() {
     return;
   }
   if (!state.storageAvailable) {
-    addEvent("ERROR", "端末保存を利用できないため自動計測を開始できません");
+    addEvent("STORAGE", "端末保存を再確認しています");
+    recoverStorage().then((available) => {
+      if (available) enableAutoMeasurement();
+      else addEvent("ERROR", "端末保存を利用できません。保存を再確認してください");
+    });
     return;
   }
   if (state.mode === "armed" && state.autoMeasurementEnabled) return;
@@ -1208,7 +1215,11 @@ function startManualMeasurement() {
     return;
   }
   if (!state.storageAvailable) {
-    addEvent("ERROR", "端末保存を利用できないため手動計測を開始できません");
+    addEvent("STORAGE", "端末保存を再確認しています");
+    recoverStorage().then((available) => {
+      if (available) startManualMeasurement();
+      else addEvent("ERROR", "端末保存を利用できません。保存を再確認してください");
+    });
     return;
   }
   state.autoMeasurementEnabled = false;
@@ -1405,12 +1416,13 @@ function render() {
   elements.manualOnButton.textContent = "手動開始";
   elements.manualOffButton.textContent = "計測停止";
   elements.calibrationButton.disabled = !state.sensorEnabled || state.mode === "running";
-  elements.autoOnButton.disabled = !state.calibrationCompleted || !state.storageAvailable
-    || state.mode === "running" || state.mode === "armed";
+  elements.autoOnButton.disabled = state.mode === "running" || state.mode === "armed";
   elements.autoOffButton.disabled = state.mode !== "armed";
-  elements.manualOnButton.disabled = !state.calibrationCompleted || !state.storageAvailable || state.mode === "running";
+  elements.manualOnButton.disabled = state.mode === "running";
   elements.manualOffButton.disabled = state.mode !== "running";
   elements.clearButton.disabled = state.mode === "running";
+  elements.storageRetryButton.disabled = state.storageCheckPending;
+  elements.storageRetryButton.hidden = state.storageAvailable;
   renderPreflight();
   drawTrace();
 }
@@ -1684,14 +1696,45 @@ function openDb() {
         store.createIndex("startedAtIso", "startedAtIso");
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
+    request.onblocked = () => {
+      dbPromise = null;
+      reject(new Error("indexedDB open blocked"));
+    };
   });
   return dbPromise;
 }
 
+function resetDbConnection() {
+  const previous = dbPromise;
+  dbPromise = null;
+  previous?.then((db) => db.close()).catch(() => {});
+}
+
+function runDbOperation(operation, retry = true) {
+  return openDb().then(operation).catch((error) => {
+    if (!retry) throw error;
+    resetDbConnection();
+    return openDb().then(operation);
+  });
+}
+
 function dbPut(storeName, value) {
-  return openDb().then((db) => new Promise((resolve, reject) => {
+  return runDbOperation((db) => new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, "readwrite");
     tx.objectStore(storeName).put(value);
     tx.oncomplete = () => resolve();
@@ -1700,7 +1743,7 @@ function dbPut(storeName, value) {
 }
 
 function dbGetAll(storeName) {
-  return openDb().then((db) => new Promise((resolve, reject) => {
+  return runDbOperation((db) => new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, "readonly");
     const request = tx.objectStore(storeName).getAll();
     request.onsuccess = () => resolve(request.result);
@@ -1709,7 +1752,7 @@ function dbGetAll(storeName) {
 }
 
 function dbDeleteMany(storeName, ids) {
-  return openDb().then((db) => new Promise((resolve, reject) => {
+  return runDbOperation((db) => new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, "readwrite");
     const store = tx.objectStore(storeName);
     ids.forEach((id) => store.delete(id));
@@ -1915,6 +1958,20 @@ function loadRuns() {
       state.storageAvailable = false;
       setStorageStatus(text.storageUnavailable);
       renderHistory();
+      render();
+    });
+}
+
+function recoverStorage() {
+  if (state.storageCheckPending) return Promise.resolve(false);
+  state.storageCheckPending = true;
+  resetDbConnection();
+  setStorageStatus("端末保存を再確認中");
+  render();
+  return loadRuns()
+    .then(() => state.storageAvailable)
+    .finally(() => {
+      state.storageCheckPending = false;
       render();
     });
 }
@@ -2151,6 +2208,7 @@ elements.autoOnButton.addEventListener("click", enableAutoMeasurement);
 elements.autoOffButton.addEventListener("click", disableAutoMeasurement);
 elements.manualOnButton.addEventListener("click", startManualMeasurement);
 elements.manualOffButton.addEventListener("click", stopManualMeasurement);
+elements.storageRetryButton.addEventListener("click", recoverStorage);
 elements.clearButton.addEventListener("click", () => {
   if (state.mode === "running") return;
   state.samples = [];

@@ -58,11 +58,22 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
   harness.api.state.storageAvailable = false;
+  harness.api.render();
+  assert.equal(harness.elements.get("#autoOnButton").disabled, false,
+    "automatic timing button must remain actionable while storage recovery is available");
+  assert.equal(harness.elements.get("#manualOnButton").disabled, false,
+    "manual timing button must remain actionable while storage recovery is available");
   harness.api.enableAutoMeasurement();
-  assert.notEqual(harness.api.state.mode, "armed", "unavailable storage must block automatic timing");
-  harness.api.startManualMeasurement();
-  assert.notEqual(harness.api.state.mode, "running", "unavailable storage must block manual timing");
-  record("storage-unavailable-guard", { autoBlocked: true, manualBlocked: true });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(harness.api.state.mode, "armed", "automatic timing must continue after storage reconnects");
+
+  const manualHarness = createSimulationHarness();
+  calibrateStationary(manualHarness);
+  manualHarness.api.state.storageAvailable = false;
+  manualHarness.api.startManualMeasurement();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(manualHarness.api.state.mode, "running", "manual timing must continue after storage reconnects");
+  record("storage-recovery", { autoRecovered: true, manualRecovered: true });
 }
 
 {
@@ -151,7 +162,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v28");
+  assert.equal(firstRun.appVersion, "v29");
   assert.equal(firstRun.schemaVersion, 3);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);

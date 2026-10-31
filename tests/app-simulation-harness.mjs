@@ -8,6 +8,7 @@ function clone(value) {
 function createIndexedDb() {
   const stores = new Map();
   const database = {
+    close() {},
     objectStoreNames: {
       contains(name) {
         return stores.has(name);
@@ -139,7 +140,7 @@ export function createSimulationHarness({ sampleHz = 60 } = {}) {
     enableAutoMeasurement, disableAutoMeasurement,
     startManualMeasurement, stopManualMeasurement,
     handleMotionSample, onGpsPosition, handleAppBackground,
-    currentProfile, getSaveQueue: () => runSaveQueue
+    currentProfile, render, recoverStorage, getSaveQueue: () => runSaveQueue
   };\n`;
   vm.runInNewContext(source, sandbox, { filename: "app.js" });
 

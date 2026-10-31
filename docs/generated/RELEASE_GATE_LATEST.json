@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T09:41:26.554Z",
-  "appVersion": "v28",
+  "generatedAt": "2026-10-31T13:21:08.480Z",
+  "appVersion": "v29",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -31,10 +31,10 @@
             "falseStarts": 0
           },
           {
-            "name": "storage-unavailable-guard",
+            "name": "storage-recovery",
             "passed": true,
-            "autoBlocked": true,
-            "manualBlocked": true
+            "autoRecovered": true,
+            "manualRecovered": true
           },
           {
             "name": "stale-gps-observation-guard",
@@ -172,9 +172,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v28 closed-course runs with START, STOP, rearm, and persistence",
+      "three consecutive v29 closed-course runs with START, STOP, rearm, and persistence",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v28, schemaVersion 3, and pre-start samples"
+      "each exported run reports appVersion v29, schemaVersion 3, and pre-start samples"
     ]
   }
 }

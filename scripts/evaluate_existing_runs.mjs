@@ -7,6 +7,10 @@ import { pathToFileURL } from "node:url";
 const EARTH_RADIUS_M = 6_371_000;
 const CURRENT = { drag: 0, processNoise: 1.2, gpsSigmaScale: 0.35, gpsPredictionSec: 0 };
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function parseArgs(argv) {
   const options = { roots: [], json: null };
   for (let i = 2; i < argv.length; i += 1) {
@@ -106,6 +110,7 @@ function loadCsv(file) {
       t,
       timeMs,
       longG: number(cells, index, "long_g") || 0,
+      vibrationG: number(cells, index, "vibration_g") || 0,
       appSpeedKmh: number(cells, index, "speed_kmh"),
       gpsSpeedKmh,
       gpsAccuracyM: number(cells, index, "gps_accuracy_m"),
@@ -288,6 +293,14 @@ function replaySpeed(samples, candidate) {
   return samples.map((sample) => {
     const dt = Math.min(0.12, Math.max(0.005, (sample.t - previousTimeMs) / 1000));
     previousTimeMs = sample.t;
+    const processScale = candidate.adaptiveNoise
+      ? 1 + Math.min(candidate.vibrationProcessMax ?? 0,
+        (sample.vibrationG / (candidate.vibrationProcessReferenceG ?? 0.5)) ** 2)
+      : 1;
+    const observationScale = candidate.adaptiveNoise
+      ? 1 + Math.min(candidate.vibrationObservationMax ?? 2,
+        (sample.vibrationG / (candidate.vibrationObservationReferenceG ?? 0.25)) ** 2)
+      : 1;
     const transition = Math.max(0, 1 - candidate.drag * dt);
     const accelDecay = Math.exp(-dt / 0.7);
     const speedFromLongG = 0.25 * 9.80665 * dt;
@@ -299,17 +312,20 @@ function replaySpeed(samples, candidate) {
     const m01 = transition * p01 + speedFromLongG * p11;
     const m10 = accelDecay * p10;
     const m11 = accelDecay * p11;
-    p00 = m00 * transition + m01 * speedFromLongG + candidate.processNoise * dt;
+    p00 = m00 * transition + m01 * speedFromLongG + candidate.processNoise * processScale * dt;
     p01 = m01 * accelDecay;
     p10 = m10 * transition + m11 * speedFromLongG;
-    p11 = m11 * accelDecay + 0.09 * dt;
+    p11 = m11 * accelDecay + 0.09 * processScale * dt;
 
     const accelerationResidual = sample.longG - filteredLongG;
-    const accelerationInnovation = p11 + 0.012;
+    const accelerationInnovation = p11 + 0.012 * observationScale;
     const accelerationSpeedGain = p01 / accelerationInnovation;
     const accelerationGain = p11 / accelerationInnovation;
-    filteredLongG += accelerationGain * accelerationResidual;
-    speedMs = Math.max(0, speedMs + accelerationSpeedGain * accelerationResidual);
+    const robustAccelerationResidual = candidate.adaptiveNoise
+      ? clamp(accelerationResidual, -6 * Math.sqrt(accelerationInnovation), 6 * Math.sqrt(accelerationInnovation))
+      : accelerationResidual;
+    filteredLongG += accelerationGain * robustAccelerationResidual;
+    speedMs = Math.max(0, speedMs + accelerationSpeedGain * robustAccelerationResidual);
     const accelerationP10 = p10;
     const accelerationP11 = p11;
     p00 -= accelerationSpeedGain * accelerationP10;
@@ -518,6 +534,26 @@ function main() {
     - (b.aggregate.macroRmse + b.aggregate.macroAbsBias * 0.15));
   const current = evaluated.find((item) => candidateId(item.candidate) === candidateId(CURRENT));
   const dates = [...new Set(matched.map((item) => item.run.date))];
+  const adaptiveNoiseConfig = {
+    ...CURRENT,
+    adaptiveNoise: true,
+    vibrationProcessMax: 0,
+    vibrationObservationMax: 2,
+    vibrationObservationReferenceG: 0.25,
+  };
+  const adaptiveNoisePerRun = matched.map((item) => compare(
+    replaySpeed(item.run.samples, adaptiveNoiseConfig),
+    item.track.points,
+    item.sync.offsetSec,
+    "replaySpeedKmh",
+  ));
+  const adaptiveNoiseAggregate = aggregate(adaptiveNoisePerRun);
+  const adaptiveNoiseByDate = dates.map((date) => {
+    const indexes = matched.map((item, index) => item.run.date === date ? index : -1).filter((index) => index >= 0);
+    const baseline = aggregate(indexes.map((index) => current.perRun[index]));
+    const adaptive = aggregate(indexes.map((index) => adaptiveNoisePerRun[index]));
+    return { date, baseline, adaptive, improved: adaptive.rmse <= baseline.rmse };
+  });
   const crossValidation = dates.map((heldOutDate) => {
     const trainingIndexes = matched.map((item, index) => item.run.date !== heldOutDate ? index : -1).filter((i) => i >= 0);
     const testIndexes = matched.map((item, index) => item.run.date === heldOutDate ? index : -1).filter((i) => i >= 0);
@@ -630,6 +666,14 @@ function main() {
       rule: "overall RMSE improvement >= 10% and no held-out date worse than current",
       recommendation: alignedAccepted ? "candidate is eligible for on-device validation" : "keep current settings",
     },
+    adaptiveNoiseEvaluation: {
+      config: adaptiveNoiseConfig,
+      baseline: current.aggregate,
+      adaptive: adaptiveNoiseAggregate,
+      accepted: adaptiveNoiseByDate.every((item) => item.improved),
+      rule: "no evaluated date may have worse RMSE",
+      byDate: adaptiveNoiseByDate,
+    },
     baselines: { recordedAppSpeed: recordedAggregate, iphoneGpsSpeed: iphoneGpsAggregate },
     topCandidates: evaluated.slice(0, 10).map((item) => ({ candidate: item.candidate, aggregate: item.aggregate })),
     crossValidation,
@@ -673,4 +717,4 @@ export {
   round,
 };
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

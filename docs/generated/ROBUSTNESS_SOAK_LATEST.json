@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-19T09:17:50.023Z",
+  "generatedAt": "2026-10-31T13:46:27.378Z",
   "summary": {
     "seed": 20261019,
     "trials": 200,
@@ -11,7 +11,7 @@
     "startLatencyMs": {
       "min": 160,
       "median": 200,
-      "p95": 289,
+      "p95": 300,
       "max": 333
     },
     "bySampleHz": {
@@ -33,7 +33,7 @@
       "90": {
         "trials": 50,
         "p95StartLatencyMs": 222,
-        "maxStartLatencyMs": 256
+        "maxStartLatencyMs": 267
       },
       "100": {
         "trials": 27,
@@ -92,6 +92,18 @@
       "startLatencyMs": 300
     },
     {
+      "trial": 22,
+      "sampleHz": 30,
+      "vibrationAmplitudeG": 0.094,
+      "vibrationHz": 11.2,
+      "gpsIntervalMs": 744,
+      "launchG": 0.182,
+      "falseStart": false,
+      "ready": true,
+      "detected": true,
+      "startLatencyMs": 300
+    },
+    {
       "trial": 29,
       "sampleHz": 30,
       "vibrationAmplitudeG": 0.13,
@@ -140,24 +152,12 @@
       "startLatencyMs": 300
     },
     {
-      "trial": 177,
+      "trial": 169,
       "sampleHz": 30,
-      "vibrationAmplitudeG": 0.031,
-      "vibrationHz": 8.4,
-      "gpsIntervalMs": 994,
-      "launchG": 0.168,
-      "falseStart": false,
-      "ready": true,
-      "detected": true,
-      "startLatencyMs": 300
-    },
-    {
-      "trial": 199,
-      "sampleHz": 30,
-      "vibrationAmplitudeG": 0.117,
-      "vibrationHz": 9.6,
-      "gpsIntervalMs": 316,
-      "launchG": 0.234,
+      "vibrationAmplitudeG": 0.105,
+      "vibrationHz": 11.1,
+      "gpsIntervalMs": 445,
+      "launchG": 0.219,
       "falseStart": false,
       "ready": true,
       "detected": true,

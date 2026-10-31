@@ -53,7 +53,8 @@ source += `\nglobalThis.testApi = {
   state, startCalibration, handleMotionSample, enableSensors,
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
   calibrateAndProjectSample, motionModel, runToCsv, runsToCsv,
-  handleAppBackground, evaluateCalibration, currentProfile, deriveGravityVector
+  handleAppBackground, evaluateCalibration, currentProfile, deriveGravityVector,
+  coordinatedTurnErrorDeg
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -156,6 +157,16 @@ assert.deepEqual(
   )),
   [0, 0, 9.80665],
   "gravity must exclude linear motorcycle acceleration",
+);
+const coordinatedYawDps = (9.80665 * Math.tan(10 / (180 / Math.PI)) / 10) * (180 / Math.PI);
+assert.ok(
+  api.coordinatedTurnErrorDeg(10, coordinatedYawDps, 10, 0) < 1e-9,
+  "coordinated-turn residual must vanish for a physically consistent steady turn",
+);
+assert.equal(
+  api.coordinatedTurnErrorDeg(10, coordinatedYawDps, 10, 30),
+  null,
+  "fast roll transitions must be excluded from the steady-turn constraint",
 );
 
 const bankedVertical = Math.SQRT1_2;
@@ -483,6 +494,7 @@ assert.match(csvLines[0], /bank_deg,gravity_bank_deg,yaw_rate/);
 assert.match(csvLines[0], /auto_stop_candidate/);
 assert.match(csvLines[0], /app_version,schema_version,phase,sensor_interval_ms/);
 assert.match(csvLines[0], /auto_start_ready,start_candidate_hold_ms,start_threshold_g/);
+assert.match(csvLines[0], /gravity_error_g,turn_consistency_deg,imu_innovation_clipped/);
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
 }
@@ -517,6 +529,19 @@ assert.ok(
   Math.abs(api.motionModel.value().speedMs - 10) < 0.01,
   "constant-speed motion must not decay without measured braking",
 );
+
+api.motionModel.reset();
+api.motionModel.update({
+  longG: 0,
+  latG: 0,
+  yawRate: 10000,
+  bankDeg: 0,
+  rollRateDps: 0,
+  vibrationG: 0,
+}, 1 / 60);
+assert.equal(api.motionModel.value().imuInnovationClipped, true, "extreme IMU innovations must be clipped");
+assert.ok(Math.abs(api.motionModel.value().yawRate) < 100, "one gyro outlier must remain bounded");
+assert.ok(Number.isFinite(api.motionModel.value().covariance), "adaptive covariance must remain finite");
 
 api.motionModel.reset();
 for (let index = 0; index < 60; index += 1) {

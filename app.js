@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v30";
-const LOG_SCHEMA_VERSION = 3;
+const APP_VERSION = "v31";
+const LOG_SCHEMA_VERSION = 4;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -36,6 +36,7 @@ const GPS_MAX_ACCURACY_M = 50;
 const GPS_MAX_SPEED_MS = 90;
 const GPS_INNOVATION_GATE_SIGMA = 8;
 const GPS_INNOVATION_FLOOR_MS = 3;
+const IMU_INNOVATION_GATE_SIGMA = 6;
 const CALIBRATION_MIN_HZ = 15;
 const CALIBRATION_MAX_MEAN_G = 0.12;
 const CALIBRATION_MAX_GRAVITY_DRIFT_DEG = 7;
@@ -207,6 +208,9 @@ const state = {
   gpsTimestampMs: null,
   gpsAgeMs: null,
   gpsInnovationClipped: false,
+  imuInnovationClipped: false,
+  gravityErrorG: 0,
+  turnConsistencyDeg: null,
   autoMeasurementEnabled: false,
   measurementMode: "none",
   sensitivity: "normal",
@@ -240,12 +244,14 @@ class MotionEkf {
     this.x = [0, 0, 0, 0, 0];
     this.p = diag([0.04, 0.08, 0.08, 12, 12]);
     this.gpsInnovationClipped = false;
+    this.imuInnovationClipped = false;
   }
 
   reset() {
     this.x = [0, 0, 0, 0, 0];
     this.p = diag([0.04, 0.08, 0.08, 12, 12]);
     this.gpsInnovationClipped = false;
+    this.imuInnovationClipped = false;
   }
 
   zeroSpeed() {
@@ -263,15 +269,17 @@ class MotionEkf {
   }
 
   update(measurement, dt) {
-    this.predict(dt, measurement.longG, measurement.rollRateDps);
+    this.predict(dt, measurement);
     this.correct(measurement);
     return this.value();
   }
 
-  predict(dt, measuredLongG = null, rollRateDps = 0) {
+  predict(dt, measurement = {}) {
     const [v, longG, latG, yawRate, bankDeg] = this.x;
     const accelDecay = Math.exp(-dt / 0.7);
     const yawDecay = Math.exp(-dt / 0.5);
+    const measuredLongG = measurement.longG;
+    const rollRateDps = measurement.rollRateDps || 0;
     const driveLongG = Number.isFinite(measuredLongG)
       ? 0.75 * measuredLongG + 0.25 * longG
       : longG;
@@ -297,7 +305,7 @@ class MotionEkf {
       0.09 * dt,
       0.09 * dt,
       18 * dt,
-      1 * dt,
+      (1 + Math.min(3, Math.abs(rollRateDps) / 45)) * dt,
     ]);
 
     this.x = next;
@@ -305,21 +313,43 @@ class MotionEkf {
   }
 
   correct(measurement) {
-    const h = [
-      [0, 1, 0, 0, 0],
-      [0, 0, 1, 0, 0],
-      [0, 0, 0, 1, 0],
-      [0, 0, 0, 0, 1],
-    ];
     const z = [measurement.longG, measurement.latG, measurement.yawRate, measurement.bankDeg];
-    const r = diag([0.012, 0.012, 9, measurement.bankVariance || BANK_OBSERVATION_VARIANCE]);
-    const hx = matVec(h, this.x);
-    const residual = z.map((value, index) => value - hx[index]);
-    const s = add(mul(mul(h, this.p), transpose(h)), r);
-    const k = mul(mul(this.p, transpose(h)), inverse4(s));
-    this.x = addVec(this.x, matVec(k, residual));
+    const variances = [
+      measurement.longVariance || 0.012,
+      measurement.latVariance || 0.012,
+      measurement.yawVariance || 9,
+      measurement.bankVariance || BANK_OBSERVATION_VARIANCE,
+    ];
+    this.imuInnovationClipped = false;
+    z.forEach((observation, offset) => {
+      if (!Number.isFinite(observation)) return;
+      const stateIndex = offset + 1;
+      const variance = Math.max(1e-9, variances[offset]);
+      const innovationVariance = Math.max(1e-9, this.p[stateIndex][stateIndex] + variance);
+      const residual = observation - this.x[stateIndex];
+      const residualLimit = IMU_INNOVATION_GATE_SIGMA * Math.sqrt(innovationVariance);
+      const robustResidual = clamp(residual, -residualLimit, residualLimit);
+      if (robustResidual !== residual) this.imuInnovationClipped = true;
+      const gains = this.p.map((row) => row[stateIndex] / innovationVariance);
+      const observationRow = this.p[stateIndex].slice();
+      this.x = this.x.map((value, index) => value + gains[index] * robustResidual);
+      this.p = this.p.map((row, rowIndex) =>
+        row.map((value, colIndex) => value - gains[rowIndex] * observationRow[colIndex])
+      );
+      this.stabilizeCovariance();
+    });
     this.x[0] = Math.max(0, this.x[0]);
-    this.p = mul(sub(identity(this.n), mul(k, h)), this.p);
+  }
+
+  stabilizeCovariance() {
+    for (let row = 0; row < this.n; row += 1) {
+      this.p[row][row] = Math.max(1e-9, this.p[row][row]);
+      for (let col = row + 1; col < this.n; col += 1) {
+        const symmetric = (this.p[row][col] + this.p[col][row]) / 2;
+        this.p[row][col] = symmetric;
+        this.p[col][row] = symmetric;
+      }
+    }
   }
 
   updateGpsSpeed(speedMs, accuracyM, derived = false) {
@@ -342,6 +372,7 @@ class MotionEkf {
     this.p = this.p.map((row, rowIndex) =>
       row.map((value, colIndex) => value - gains[rowIndex] * speedRow[colIndex])
     );
+    this.stabilizeCovariance();
     return this.value();
   }
 
@@ -357,6 +388,7 @@ class MotionEkf {
       yawBias: 0,
       covariance: (this.p[1][1] + this.p[2][2] + this.p[3][3] + this.p[4][4]) / 4,
       gpsInnovationClipped: this.gpsInnovationClipped,
+      imuInnovationClipped: this.imuInnovationClipped,
     };
   }
 }
@@ -503,16 +535,26 @@ function handleMotionSample(sample) {
   const calibrated = calibrateAndProjectSample(sample, t, dt);
   const cleanedLongG = applyDeadband(calibrated.longG, profile.deadbandG);
   const cleanedLatG = applyDeadband(calibrated.latG, profile.deadbandG);
+  const vibrationVarianceScale = 1 + Math.min(2, (state.vibrationG / 0.25) ** 2);
+  const gravityVarianceScale = 1 + Math.min(8, (calibrated.gravityErrorG / 0.08) ** 2);
+  const calibratedYawNoise = Math.max(3, profile.yawNoiseP95Dps || 0);
+  const yawVariance = calibratedYawNoise ** 2
+    * (1 + Math.min(2, (state.vibrationG / 0.5) ** 2))
+    * gravityVarianceScale;
   const estimate = motionModel.update({
     longG: cleanedLongG,
     latG: cleanedLatG,
     yawRate: calibrated.yawRate,
     bankDeg: calibrated.bankDeg,
     rollRateDps: state.rollRate,
+    vibrationG: state.vibrationG,
+    longVariance: 0.012 * vibrationVarianceScale,
+    latVariance: 0.012 * vibrationVarianceScale,
+    yawVariance,
     bankVariance: BANK_OBSERVATION_VARIANCE * Math.exp(Math.min(
       4,
       BANK_DYNAMICS_SCALE * (Math.abs(cleanedLongG) + Math.abs(cleanedLatG) + state.vibrationG),
-    )),
+    )) * gravityVarianceScale,
   }, dt);
   state.longG = estimate.longG;
   state.latG = estimate.latG;
@@ -524,6 +566,14 @@ function handleMotionSample(sample) {
   state.latBias = estimate.latBias;
   state.yawBias = estimate.yawBias;
   state.kalmanVariance = estimate.covariance;
+  state.imuInnovationClipped = estimate.imuInnovationClipped;
+  state.gravityErrorG = calibrated.gravityErrorG;
+  state.turnConsistencyDeg = coordinatedTurnErrorDeg(
+    estimate.speedMs,
+    estimate.yawRate,
+    estimate.bankDeg,
+    state.rollRate,
+  );
   if (state.mode === "armed") {
     state.speedMs = 0;
     motionModel.setSpeed(0);
@@ -578,6 +628,12 @@ function calibrateAndProjectSample(sample, t, dt) {
     sample.gravityY || 0,
     sample.gravityZ || 0,
   ], state.gravityVector);
+  const gravityMagnitudeG = vectorLength([
+    sample.gravityX || 0,
+    sample.gravityY || 0,
+    sample.gravityZ || 0,
+  ]);
+  const gravityErrorG = Math.abs(gravityMagnitudeG - 1);
   const yawRate = dotVector(gyro, gravity);
   const rollRate = state.forwardVector ? dotVector(gyro, state.forwardVector) : 0;
   state.rawGyroVector = rawGyro;
@@ -599,17 +655,29 @@ function calibrateAndProjectSample(sample, t, dt) {
       latG: dotVector(acceleration, state.lateralVector),
       yawRate,
       bankDeg: Number.isFinite(bankDeg) ? bankDeg : sample.bankDeg,
+      gravityErrorG,
     };
   }
 
   if (state.forwardAxis === "x") {
-    return { longG: state.forwardSign * x, latG: y, yawRate, bankDeg: 0 };
+    return { longG: state.forwardSign * x, latG: y, yawRate, bankDeg: 0, gravityErrorG };
   }
   if (state.forwardAxis === "y") {
-    return { longG: state.forwardSign * y, latG: x, yawRate, bankDeg: 0 };
+    return { longG: state.forwardSign * y, latG: x, yawRate, bankDeg: 0, gravityErrorG };
   }
 
-  return { longG: vectorLength(horizontalAcceleration), latG: 0, yawRate, bankDeg: 0 };
+  return { longG: vectorLength(horizontalAcceleration), latG: 0, yawRate, bankDeg: 0, gravityErrorG };
+}
+
+function coordinatedTurnErrorDeg(speedMs, yawRateDps, bankDeg, rollRateDps) {
+  if (speedMs < 2
+    || Math.abs(yawRateDps) < 4
+    || Math.abs(bankDeg) < 3
+    || Math.abs(rollRateDps) > 15) return null;
+  const expectedBankDeg = Math.atan(
+    Math.abs(speedMs * yawRateDps / RAD_TO_DEG) / G
+  ) * RAD_TO_DEG;
+  return Math.abs(Math.abs(bankDeg) - expectedBankDeg);
 }
 
 function collectCalibrationSample(sample, t) {
@@ -998,6 +1066,11 @@ function buildRawSample(t, sampleIntervalSec, phase) {
     gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
     gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
     gpsInnovationClipped: state.gpsInnovationClipped,
+    imuInnovationClipped: state.imuInnovationClipped,
+    gravityErrorG: round(state.gravityErrorG, 5),
+    turnConsistencyDeg: Number.isFinite(state.turnConsistencyDeg)
+      ? round(state.turnConsistencyDeg, 2)
+      : null,
     bankDeg: round(state.bankDeg, 2),
     gravityBankDeg: round(state.gravityBankDeg, 2),
     yawRate: round(state.yawRate, 2),
@@ -1276,6 +1349,9 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.latGVariance = 0;
   state.kalmanVariance = 0;
   state.gpsInnovationClipped = false;
+  state.imuInnovationClipped = false;
+  state.gravityErrorG = 0;
+  state.turnConsistencyDeg = null;
   state.varianceSamples = [];
   if (!preserveMotionFilter) {
     state.filteredAcceleration = [0, 0, 0];
@@ -1629,50 +1705,12 @@ function add(a, b) {
   return a.map((row, rowIndex) => row.map((value, colIndex) => value + b[rowIndex][colIndex]));
 }
 
-function sub(a, b) {
-  return a.map((row, rowIndex) => row.map((value, colIndex) => value - b[rowIndex][colIndex]));
-}
-
 function mul(a, b) {
   return a.map((row) =>
     b[0].map((_, colIndex) =>
       row.reduce((sum, value, innerIndex) => sum + value * b[innerIndex][colIndex], 0)
     )
   );
-}
-
-function matVec(matrix, vector) {
-  return matrix.map((row) => row.reduce((sum, value, index) => sum + value * vector[index], 0));
-}
-
-function addVec(a, b) {
-  return a.map((value, index) => value + b[index]);
-}
-
-function inverse4(matrix) {
-  const size = 4;
-  const work = matrix.map((row, rowIndex) => row.concat(identity(size)[rowIndex]));
-
-  for (let col = 0; col < size; col += 1) {
-    let pivotRow = col;
-    for (let row = col + 1; row < size; row += 1) {
-      if (Math.abs(work[row][col]) > Math.abs(work[pivotRow][col])) pivotRow = row;
-    }
-    if (pivotRow !== col) [work[col], work[pivotRow]] = [work[pivotRow], work[col]];
-
-    const pivot = Math.abs(work[col][col]) < 1e-9 ? 1e-9 : work[col][col];
-    for (let j = 0; j < size * 2; j += 1) work[col][j] /= pivot;
-
-    for (let row = 0; row < size; row += 1) {
-      if (row === col) continue;
-      const factor = work[row][col];
-      for (let j = 0; j < size * 2; j += 1) {
-        work[row][j] -= factor * work[col][j];
-      }
-    }
-  }
-
-  return work.map((row) => row.slice(size));
 }
 
 function renderEvents() {
@@ -1845,6 +1883,11 @@ function buildRun(run) {
       maxBankDegAbs: round(maxByAbs("bankDeg"), 1),
       maxYawRateAbs: round(maxByAbs("yawRate"), 1),
       maxVibrationG: round(samples.reduce((max, sample) => Math.max(max, sample.vibrationG || 0), 0), 4),
+      imuInnovationClippedCount: samples.filter((sample) => sample.imuInnovationClipped).length,
+      coordinatedTurnSampleCount: samples.filter((sample) => Number.isFinite(sample.turnConsistencyDeg)).length,
+      coordinatedTurnErrorP95Deg: round(percentile(samples
+        .map((sample) => sample.turnConsistencyDeg)
+        .filter(Number.isFinite), 0.95), 2),
       sensorGapCount: events.filter((event) => event.type === "GAP").length,
       sampleCount: samples.length,
       eventCount: events.length,
@@ -2041,7 +2084,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -2077,6 +2120,9 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     run.appVersion || "legacy",
     run.schemaVersion || 1,
+    "",
+    "",
+    "",
     "",
     "",
     "",
@@ -2131,6 +2177,9 @@ function runToCsv(run, includeRunMetadata = false) {
     sample.gpsFresh ? 1 : 0,
     sample.forwardAxisLocked ? 1 : 0,
     sample.gpsInnovationClipped ? 1 : 0,
+    fixed(sample.gravityErrorG, 5),
+    fixed(sample.turnConsistencyDeg, 2),
+    sample.imuInnovationClipped ? 1 : 0,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }

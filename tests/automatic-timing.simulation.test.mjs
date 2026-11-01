@@ -142,7 +142,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 
   const stopEvidenceAt = harness.clock;
   let stopDetectedAt = null;
-  for (let index = 0; index < 180; index += 1) {
+  for (let index = 0; index < 240; index += 1) {
     if (index % 12 === 0) harness.gps(0);
     harness.step();
     if (harness.api.state.mode === "armed") {
@@ -162,7 +162,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v33");
+  assert.equal(firstRun.appVersion, "v34");
   assert.equal(firstRun.schemaVersion, 6);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
@@ -173,7 +173,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(stopEvent, "the persisted run must contain STOP");
   assert.equal(firstRun.durationMs, stopEvent.timeMs, "run duration must use the backdated STOP onset");
   const stopConfirmationMs = stopDetectedAt - stopEvidenceAt;
-  assert.ok(stopConfirmationMs >= 1800 && stopConfirmationMs <= 2300,
+  assert.ok(stopConfirmationMs >= 2900 && stopConfirmationMs <= 3500,
     `STOP confirmation ${stopConfirmationMs} ms must include multi-observation GPS evidence`);
 
   harness.runFor(800, () => ({}), { gpsEveryMs: 300, gpsSpeed: 0 });

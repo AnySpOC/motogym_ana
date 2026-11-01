@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-01T09:42:34.203Z",
-  "appVersion": "v33",
+  "generatedAt": "2026-11-01T11:19:40.724Z",
+  "appVersion": "v34",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -57,8 +57,8 @@
             "name": "two-run-auto-cycle",
             "passed": true,
             "firstStartLatencyMs": 200,
-            "stopConfirmationMs": 1983,
-            "secondStartLatencyMs": 200,
+            "stopConfirmationMs": 2983,
+            "secondStartLatencyMs": 183,
             "savedRuns": 1,
             "preStartSamples": 306
           },
@@ -67,7 +67,7 @@
             "passed": true,
             "crawlSpeedKmh": 2.52,
             "crawlDurationMs": 6000,
-            "postStopSamples": 301
+            "postStopSamples": 300
           },
           {
             "name": "sensor-off-cancels-auto",
@@ -142,6 +142,31 @@
       "error": null
     },
     {
+      "name": "stopRobustnessSimulation",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": {
+        "summary": {
+          "seed": 20261101,
+          "trials": 36,
+          "passed": true,
+          "startedFailures": 0,
+          "falseStopsOnGpsGlitch": 0,
+          "falseStopsWhileCrawling": 0,
+          "missedStops": 0,
+          "rearmFailures": 0,
+          "postStopSaveFailures": 0,
+          "stopLatencyMs": {
+            "min": 1133,
+            "median": 2170,
+            "p95": 3000,
+            "max": 3370
+          }
+        }
+      },
+      "error": null
+    },
+    {
       "name": "recordedLog",
       "passed": true,
       "exitCode": 0,
@@ -165,6 +190,13 @@
     "robustnessFalseStarts": 0,
     "robustnessMissedStarts": 0,
     "robustnessStartLatencyP95Ms": 300,
+    "stopRobustnessTrials": 36,
+    "stopRobustnessFalseGpsStops": 0,
+    "stopRobustnessFalseCrawlStops": 0,
+    "stopRobustnessMissedStops": 0,
+    "stopRobustnessLatencyP95Ms": 3000,
+    "stopRobustnessRearmFailures": 0,
+    "stopRobustnessSaveFailures": 0,
     "recordedStartGpsSpeedKmh": 0.442,
     "recordedStopGpsSpeedKmh": 0.841,
     "recordedSpeedRmseKmh": 2.322,
@@ -172,16 +204,22 @@
     "soakFalseStarts": 0,
     "soakMissedStarts": 0,
     "soakStartLatencyP95Ms": 300,
-    "soakStartLatencyMaxMs": 333
+    "soakStartLatencyMaxMs": 333,
+    "stopSoakTrials": 120,
+    "stopSoakFalseStops": 0,
+    "stopSoakMissedStops": 0,
+    "stopSoakRearmFailures": 0,
+    "stopSoakSaveFailures": 0,
+    "stopSoakLatencyP95Ms": 2956
   },
   "fieldGate": {
     "passed": false,
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v33 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
+      "three consecutive v34 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v33, schemaVersion 6, pre-start samples, and post-STOP samples"
+      "each exported run reports appVersion v34, schemaVersion 6, pre-start samples, and post-STOP samples"
     ]
   }
 }

@@ -14,14 +14,16 @@ npm test
 
 ```powershell
 npm run test:robustness
+npm run test:stop-robustness
 npm run test:soak
+npm run test:stop-soak
 npm run test:recorded
 npm run release:gate
 ```
 
-`test:robustness`は固定seedで24条件を生成する。サンプリング周期30〜100 Hz、取付方向、アイドリング振動、GPS更新間隔、発進Gを変化させ、誤START 0件、未検知0件、START遅延P95 300 ms以下を要求する。`test:recorded`は位置と絶対時刻を除去した10月18日の実車ログを監査する。`release:gate`は全結果を`docs/generated/RELEASE_GATE_LATEST.md`とJSONへまとめる。
+`test:robustness`は固定seedでSTART 24条件を生成する。サンプリング周期30〜100 Hz、取付方向、アイドリング振動、GPS更新間隔、発進Gを変化させ、誤START 0件、未検知0件、START遅延P95 300 ms以下を要求する。`test:stop-robustness`はSTOP 36条件でGPS 0の3連続バーストと重複、3.2秒のGPS欠測、徐行、位置ノイズ、完全停止、再待機、STOP後保存を検証する。誤STOP、未検知、再待機失敗、保存失敗0件、STOP遅延P95 5.5秒以下が合格条件である。`test:recorded`は位置と絶対時刻を除去した10月18日の実車ログを監査する。
 
-`test:soak`は同じ分布を200条件へ拡大し、証跡を`docs/generated/ROBUSTNESS_SOAK_LATEST.json`へ保存する。2026-10-18の実行では誤START 0件、未検知0件、P95 289 msだった。最大333 msは30 Hz群で発生し、60 Hz群の最大は233 msだった。通常のリリースゲートは短時間で再実行できる24条件を必須とし、200条件結果を追加証跡として読み込む。
+`test:soak`はSTART分布を200条件へ拡大し、`test:stop-soak`はSTOP分布を別seedの120条件へ拡大する。v34のSTOP長時間試験は誤STOP、未検知、再待機失敗、保存失敗0件、STOP遅延P95 2.956秒、最大3.367秒だった。通常のリリースゲートはSTART 24条件とSTOP 36条件を再実行し、長時間結果を追加証跡として読み込む。
 
 ## 3. 合成シナリオと合格基準
 
@@ -33,7 +35,11 @@ npm run release:gate
 | 未発進終了 | STARTせずAuto OFF | 直前データを`no-start`として保存し、座標を含めない |
 | 通常発進 | 0.28 Gを継続 | START検出300 ms以内 |
 | 短時間停止 | GPS 0、低運動500 ms | STOPせず走行を維持 |
-| 正式停止 | GPS 0、低運動950 ms以上 | STOPし、候補先頭へ終了時刻を戻す |
+| 正式停止 | 複数GPS低速、位置滞留、低運動 | 約2.9〜3.5秒でSTOPし、候補先頭へ終了時刻を戻す |
+| GPS 0誤報 | 走行中に3回連続・重複したGPS 0 | 位置移動を根拠にSTOPしない |
+| GPS欠測 | 走行中にGPSを3.2秒停止 | IMUだけで誤STOPしない |
+| 低速徐行 | GPS 1.8〜2.8 km/h、位置は継続移動 | STOPしない |
+| STOP後診断 | STOP後に5秒間センサー継続 | `poststop`保存、走行集計から除外 |
 | 連続2走 | STOP後に静止、再発進 | 保存1件、Auto再待機、操作なしで2走目START |
 | Sensor OFF | Auto走行中にセンサー停止 | 走行を保存し、Autoを解除して再待機しない |
 | 取付方向3種 | 画面上、横向き、縦向き | 全方向でCalibrationとSTARTが成立 |
@@ -46,8 +52,9 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 |---|---|---|
 | 単体回帰 | `npm run test:unit` | フィルタ、較正、CSV、イベント |
 | 合成時系列 | `npm run test:simulation` | START/STOP状態遷移、振動、GPSガード、連続走行、取付方向 |
-| 耐性スイープ | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
-| 長時間耐性 | `npm run test:soak` | 200条件とサンプリング周期別遅延 |
+| START耐性 | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
+| STOP耐性 | `npm run test:stop-robustness` | 36条件のGPS誤報、徐行、停止、再待機、保存 |
+| 長時間耐性 | `npm run test:soak`、`npm run test:stop-soak` | START 200条件、STOP 120条件 |
 | 匿名実走固定データ | `npm run test:recorded` | 10月18日の正常START/STOP、GPS速度、停止候補 |
 | 既存ログ再生 | `npm run evaluate:existing -- --root <データルート> --json <出力JSON>` | 複数日の速度誤差、候補係数の過学習 |
 | iPhone実機 | 閉鎖コースで定型手順 | iOS権限、実振動、GPS遅延、取付、保存、画面動作 |
@@ -60,7 +67,8 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 
 1. `npm test`が全件合格する。
 2. `npm run test:robustness`で誤START・未検知が0件、P95遅延300 ms以下となる。
-3. 匿名実走固定データと既存ログ評価で現行モデルを悪化させない。
-4. 実機で静止30秒の誤STARTが0件である。
-5. 連続3走すべてでSTART・STOP・再待機・保存が成立する。
-6. START時刻を動画または目視基準と比較し、遅延300 ms以内を目標とする。
+3. `npm run test:stop-robustness`で誤STOP・未検知・再待機失敗・保存失敗が0件、P95遅延5.5秒以下となる。
+4. 匿名実走固定データと既存ログ評価で現行モデルを悪化させない。
+5. 実機で静止30秒の誤STARTが0件である。
+6. 連続3走すべてでSTART・STOP・再待機・保存が成立する。
+7. START時刻を動画または目視基準と比較し、遅延300 ms以内を目標とする。

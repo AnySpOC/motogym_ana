@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v33";
+const APP_VERSION = "v34";
 const LOG_SCHEMA_VERSION = 6;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -31,11 +31,12 @@ const POST_STOP_SAMPLE_LIMIT = 600;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
-const GPS_STRICT_STOP_SPEED_MS = 0.45;
+const GPS_STRICT_STOP_SPEED_MS = 0.15;
 const GPS_STOP_HISTORY_MS = 3500;
-const GPS_STRICT_STOP_HOLD_MS = 900;
+const GPS_STRICT_STOP_HOLD_MS = 1800;
 const GPS_DWELL_HOLD_MS = 2200;
-const GPS_DWELL_MAX_DISPLACEMENT_M = 1.5;
+const GPS_STRICT_STOP_MAX_DISPLACEMENT_M = 1.5;
+const GPS_DWELL_MAX_DISPLACEMENT_M = 0.75;
 const IMU_STOP_SPEED_MS = 0.35;
 const RECENT_BRAKE_MS = 3500;
 const SENSOR_GAP_SEC = 0.5;
@@ -1514,7 +1515,8 @@ function gpsStopEvidence(t = nowMs()) {
   const dwellMs = Math.max(0, last.receivedAt - first.receivedAt);
   const displacementM = haversineMeters(first.latitude, first.longitude, last.latitude, last.longitude);
   const strictStop = dwellMs >= GPS_STRICT_STOP_HOLD_MS
-    && lowSpeed.every((observation) => observation.speedMs < GPS_STRICT_STOP_SPEED_MS);
+    && lowSpeed.every((observation) => observation.speedMs < GPS_STRICT_STOP_SPEED_MS)
+    && displacementM <= GPS_STRICT_STOP_MAX_DISPLACEMENT_M;
   const positionDwell = dwellMs >= GPS_DWELL_HOLD_MS
     && displacementM <= GPS_DWELL_MAX_DISPLACEMENT_M;
   return {

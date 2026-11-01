@@ -162,8 +162,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v32");
-  assert.equal(firstRun.schemaVersion, 5);
+  assert.equal(firstRun.appVersion, "v33");
+  assert.equal(firstRun.schemaVersion, 6);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
   assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);
@@ -215,7 +215,22 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   }
   assert.equal(harness.api.state.mode, "armed",
     "repeated zero-speed observations at one position must confirm STOP");
-  record("low-speed-crawl-stop-guard", { crawlSpeedKmh: crawlSpeedMs * 3.6, crawlDurationMs: 6000 });
+  harness.runFor(5200, () => ({}), { gpsEveryMs: 500, gpsSpeed: 0 });
+  await harness.flushStorage();
+  const savedRun = harness.savedRuns()[0];
+  const postStopSamples = savedRun.samples.filter((sample) => sample.phase === "poststop");
+  assert.ok(postStopSamples.length >= 290, "about five seconds of post-STOP IMU data must be persisted");
+  assert.ok(postStopSamples.at(-1).timeMs - postStopSamples[0].timeMs >= 4900);
+  assert.equal(savedRun.diagnostics.postStopCaptureStatus, "complete");
+  assert.equal(savedRun.diagnostics.postStopSampleCount, postStopSamples.length);
+  assert.equal(savedRun.summary.postStopSampleCount, postStopSamples.length);
+  assert.equal(savedRun.summary.sampleCount + savedRun.summary.postStopSampleCount,
+    savedRun.summary.totalSampleCount);
+  record("low-speed-crawl-stop-guard", {
+    crawlSpeedKmh: crawlSpeedMs * 3.6,
+    crawlDurationMs: 6000,
+    postStopSamples: postStopSamples.length,
+  });
 }
 
 {

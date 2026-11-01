@@ -178,6 +178,7 @@ function loadPhoneSamples(csvPath, videoStartMs, timingSource, runId = null) {
       continue;
     }
     if (cells[index.section] !== "sample") continue;
+    if (cells[index.phase] === "poststop") continue;
     samples.push({
       videoTimeMs: csvStartMs - videoStartMs + timeMs,
       longG: number(cells, "long_g"),

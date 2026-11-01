@@ -110,6 +110,7 @@ function loadCsv(file, suppliedLines = null) {
     samples.push({
       t,
       timeMs,
+      phase: cells[index.phase] || "running",
       longG: number(cells, index, "long_g") || 0,
       latG: number(cells, index, "lat_g") || 0,
       vibrationG: number(cells, index, "vibration_g") || 0,
@@ -140,7 +141,7 @@ function loadCsv(file, suppliedLines = null) {
     name: path.basename(file),
     date: new Date(startMs).toISOString().slice(0, 10),
     startMs,
-    endMs: samples.at(-1)?.t ?? startMs,
+    endMs: samples.filter((sample) => sample.phase !== "poststop").at(-1)?.t ?? startMs,
     samples,
     events,
   };
@@ -212,6 +213,7 @@ function continuousSegments(run, maximumGapSec = 2, minimumDurationSec = 10) {
   const groups = [];
   let current = [];
   for (const sample of run.samples) {
+    if (sample.phase === "poststop") continue;
     if (current.length && sample.t - current.at(-1).t > maximumGapSec * 1000) {
       groups.push(current);
       current = [];

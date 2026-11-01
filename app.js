@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v32";
-const LOG_SCHEMA_VERSION = 5;
+const APP_VERSION = "v33";
+const LOG_SCHEMA_VERSION = 6;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -26,6 +26,8 @@ const START_CONFIRM_MS = 100;
 const PRESTART_RETENTION_MS = PRESTART_BUFFER_MS + AXIS_LOCK_HOLD_MS + START_CONFIRM_MS + 250;
 const AUTO_READY_HOLD_MS = 600;
 const CHECKPOINT_INTERVAL_MS = 15000;
+const POST_STOP_CAPTURE_MS = 5000;
+const POST_STOP_SAMPLE_LIMIT = 600;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
@@ -237,6 +239,7 @@ const state = {
   storagePersisted: null,
   storageCheckPending: false,
   selectedRunIds: new Set(),
+  postStopCaptures: [],
   currentRunId: "",
   lastBrakeAt: 0,
   gpsResyncPending: false,
@@ -511,7 +514,7 @@ function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STO
   addEvent(eventType, reason);
   state.events[0].timeMs = Math.round(state.stoppedAt - state.startedAt);
   elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
-  saveCurrentRun();
+  saveCurrentRun(shouldRearmAuto);
   if (shouldRearmAuto) {
     armTimer();
   } else {
@@ -606,6 +609,7 @@ function handleMotionSample(sample) {
 
   if (state.mode === "armed" && state.autoMeasurementEnabled) storePreStartSample(t, sampleIntervalSec);
   detectEvents(t);
+  capturePostStopSamples(t, sampleIntervalSec);
   if (state.mode === "running") {
     storeSample(t);
     storeRawSample(t, sampleIntervalSec);
@@ -1151,6 +1155,50 @@ function storeRawSample(t, sampleIntervalSec) {
   }
 }
 
+function postStopRun(capture, status) {
+  return buildRun({
+    ...capture.run,
+    diagnostics: {
+      ...capture.run.diagnostics,
+      postStopBufferMs: POST_STOP_CAPTURE_MS,
+      postStopCaptureStatus: status,
+      postStopSampleCount: capture.postStopSampleCount,
+    },
+  });
+}
+
+function finalizePostStopCaptures(t = nowMs(), force = false) {
+  const completed = [];
+  state.postStopCaptures = state.postStopCaptures.filter((capture) => {
+    if (!force && t < capture.captureUntilAt) return true;
+    completed.push(capture);
+    return false;
+  });
+  return Promise.all(completed.map((capture) =>
+    queueRunSave(postStopRun(capture, force ? "interrupted" : "complete"))))
+    .then(() => completed.length ? loadRuns() : undefined)
+    .catch(() => {
+      state.storageAvailable = false;
+      setStorageStatus(text.storageUnavailable);
+      render();
+    });
+}
+
+function capturePostStopSamples(t, sampleIntervalSec) {
+  if (!state.postStopCaptures.length) return;
+  for (const capture of state.postStopCaptures) {
+    if (t > capture.captureUntilAt || capture.postStopSampleCount >= POST_STOP_SAMPLE_LIMIT) continue;
+    capture.run.samples.push({
+      ...buildRawSample(t, sampleIntervalSec, "poststop"),
+      timeMs: Math.round(t - capture.runStartedAt),
+    });
+    capture.postStopSampleCount += 1;
+  }
+  if (state.postStopCaptures.some((capture) => t >= capture.captureUntilAt)) {
+    finalizePostStopCaptures(t);
+  }
+}
+
 function deriveGravityVector(linear, accelerationIncludingGravity, linearAvailable) {
   return ["x", "y", "z"].map((axis) => {
     const combined = Number.isFinite(accelerationIncludingGravity?.[axis])
@@ -1253,6 +1301,7 @@ function disableSensors() {
   } else if (state.mode === "armed") {
     saveArmedDiagnostic(text.sensorDisabled);
   }
+  finalizePostStopCaptures(nowMs(), true);
   if (state.sensorListenersAttached) {
     window.removeEventListener("devicemotion", onDeviceMotion);
     window.removeEventListener("deviceorientation", onDeviceOrientation);
@@ -1939,12 +1988,13 @@ function buildCurrentRun() {
 
 function buildRun(run) {
   const samples = run.samples || [];
+  const rideSamples = samples.filter((sample) => sample.phase !== "poststop");
   const events = run.events || [];
-  const sampleIntervals = samples
+  const sampleIntervals = rideSamples
     .map((sample) => sample.sensorIntervalMs)
     .filter((value) => Number.isFinite(value) && value > 0 && value < 1000);
   const medianIntervalMs = sampleIntervals.length ? percentile(sampleIntervals, 0.5) : null;
-  const maxByAbs = (key) => samples.reduce((max, sample) => Math.max(max, Math.abs(sample[key] || 0)), 0);
+  const maxByAbs = (key) => rideSamples.reduce((max, sample) => Math.max(max, Math.abs(sample[key] || 0)), 0);
   return {
     id: run.id,
     startedAtIso: run.startedAtIso,
@@ -1962,22 +2012,24 @@ function buildRun(run) {
       status: run.diagnostics?.noStartAttempt
         ? "no-start"
         : (events.some((event) => event.type === "INTERRUPT") ? "interrupted" : "complete"),
-      maxSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
-      maxGpsSpeedKmh: round(samples.reduce((max, sample) => Math.max(max, sample.gpsSpeedKmh || 0), 0), 2),
-      gpsSampleCount: samples.filter((sample) => Number.isFinite(sample.gpsSpeedKmh)).length,
-      maxLongG: round(samples.reduce((max, sample) => Math.max(max, sample.longG || 0), 0), 3),
-      minLongG: round(samples.reduce((min, sample) => Math.min(min, sample.longG || 0), 0), 3),
+      maxSpeedKmh: round(rideSamples.reduce((max, sample) => Math.max(max, sample.speedKmh || 0), 0), 2),
+      maxGpsSpeedKmh: round(rideSamples.reduce((max, sample) => Math.max(max, sample.gpsSpeedKmh || 0), 0), 2),
+      gpsSampleCount: rideSamples.filter((sample) => Number.isFinite(sample.gpsSpeedKmh)).length,
+      maxLongG: round(rideSamples.reduce((max, sample) => Math.max(max, sample.longG || 0), 0), 3),
+      minLongG: round(rideSamples.reduce((min, sample) => Math.min(min, sample.longG || 0), 0), 3),
       maxLatGAbs: round(maxByAbs("latG"), 3),
       maxBankDegAbs: round(maxByAbs("bankDeg"), 1),
       maxYawRateAbs: round(maxByAbs("yawRate"), 1),
-      maxVibrationG: round(samples.reduce((max, sample) => Math.max(max, sample.vibrationG || 0), 0), 4),
-      imuInnovationClippedCount: samples.filter((sample) => sample.imuInnovationClipped).length,
-      coordinatedTurnSampleCount: samples.filter((sample) => Number.isFinite(sample.turnConsistencyDeg)).length,
-      coordinatedTurnErrorP95Deg: round(percentile(samples
+      maxVibrationG: round(rideSamples.reduce((max, sample) => Math.max(max, sample.vibrationG || 0), 0), 4),
+      imuInnovationClippedCount: rideSamples.filter((sample) => sample.imuInnovationClipped).length,
+      coordinatedTurnSampleCount: rideSamples.filter((sample) => Number.isFinite(sample.turnConsistencyDeg)).length,
+      coordinatedTurnErrorP95Deg: round(percentile(rideSamples
         .map((sample) => sample.turnConsistencyDeg)
         .filter(Number.isFinite), 0.95), 2),
       sensorGapCount: events.filter((event) => event.type === "GAP").length,
-      sampleCount: samples.length,
+      sampleCount: rideSamples.length,
+      postStopSampleCount: samples.length - rideSamples.length,
+      totalSampleCount: samples.length,
       eventCount: events.length,
     },
     events,
@@ -2001,10 +2053,20 @@ function checkpointCurrentRun() {
   });
 }
 
-function saveCurrentRun() {
+function saveCurrentRun(capturePostStop = false) {
   addEvent("SAVE", text.saved);
-  const run = buildCurrentRun();
+  let run = buildCurrentRun();
   if (!run.samples.length && !run.events.length) return;
+  if (capturePostStop) {
+    const capture = {
+      run,
+      runStartedAt: state.startedAt,
+      captureUntilAt: nowMs() + POST_STOP_CAPTURE_MS,
+      postStopSampleCount: 0,
+    };
+    state.postStopCaptures.push(capture);
+    run = postStopRun(capture, "pending");
+  }
   queueRunSave(run)
     .then(() => {
       return loadRuns();
@@ -2067,6 +2129,7 @@ function saveArmedDiagnostic(reason) {
 
 function handleAppBackground(event) {
   if (event?.type !== "pagehide" && document.visibilityState && document.visibilityState !== "hidden") return;
+  finalizePostStopCaptures(nowMs(), true);
   if (state.mode === "running") {
     stopRun(text.backgroundStop, nowMs(), "INTERRUPT");
     return;

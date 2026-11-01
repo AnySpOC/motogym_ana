@@ -142,7 +142,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 
   const stopEvidenceAt = harness.clock;
   let stopDetectedAt = null;
-  for (let index = 0; index < 90; index += 1) {
+  for (let index = 0; index < 180; index += 1) {
     if (index % 12 === 0) harness.gps(0);
     harness.step();
     if (harness.api.state.mode === "armed") {
@@ -162,8 +162,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v31");
-  assert.equal(firstRun.schemaVersion, 4);
+  assert.equal(firstRun.appVersion, "v32");
+  assert.equal(firstRun.schemaVersion, 5);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
   assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);
@@ -173,8 +173,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(stopEvent, "the persisted run must contain STOP");
   assert.equal(firstRun.durationMs, stopEvent.timeMs, "run duration must use the backdated STOP onset");
   const stopConfirmationMs = stopDetectedAt - stopEvidenceAt;
-  assert.ok(stopConfirmationMs >= 950 && stopConfirmationMs <= 1050,
-    `STOP confirmation ${stopConfirmationMs} ms must stay close to the 950 ms design hold`);
+  assert.ok(stopConfirmationMs >= 1800 && stopConfirmationMs <= 2300,
+    `STOP confirmation ${stopConfirmationMs} ms must include multi-observation GPS evidence`);
 
   harness.runFor(800, () => ({}), { gpsEveryMs: 300, gpsSpeed: 0 });
   assert.equal(harness.api.state.autoStartReady, true, "automatic rearm must reconfirm standstill");
@@ -189,6 +189,33 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
     savedRuns: saved.length,
     preStartSamples: preStartSamples.length,
   });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
+  armAtStandstill(harness);
+  launch(harness);
+
+  let longitude = 139;
+  const crawlSpeedMs = 0.7;
+  const longitudeMetersPerDegree = 111_320 * Math.cos(35 * Math.PI / 180);
+  for (let elapsedMs = 0; elapsedMs < 6000; elapsedMs += 500) {
+    longitude += crawlSpeedMs * 0.5 / longitudeMetersPerDegree;
+    harness.gps(crawlSpeedMs, { longitude });
+    harness.runFor(500);
+  }
+  assert.equal(harness.api.state.mode, "running",
+    "continuous 2.5 km/h position movement must not be classified as STOP");
+  assert.equal(harness.api.state.autoStopCandidate, false);
+
+  for (let elapsedMs = 0; elapsedMs < 2600; elapsedMs += 500) {
+    harness.gps(0, { longitude });
+    harness.runFor(500);
+  }
+  assert.equal(harness.api.state.mode, "armed",
+    "repeated zero-speed observations at one position must confirm STOP");
+  record("low-speed-crawl-stop-guard", { crawlSpeedKmh: crawlSpeedMs * 3.6, crawlDurationMs: 6000 });
 }
 
 {

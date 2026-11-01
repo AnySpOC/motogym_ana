@@ -394,7 +394,19 @@ api.onGpsPosition({
 });
 
 let sawStopCandidate = false;
-for (let i = 0; i < 60; i += 1) {
+for (let i = 0; i < 180; i += 1) {
+  if (i > 0 && i % 30 === 0) {
+    api.onGpsPosition({
+      timestamp: 11000 + i,
+      coords: {
+        latitude: 35,
+        longitude: 139,
+        accuracy: 5,
+        speed: 0,
+        heading: 90,
+      },
+    });
+  }
   clock += 1000 / 60;
   api.handleMotionSample({
     time: clock,

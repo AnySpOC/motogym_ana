@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v31";
-const LOG_SCHEMA_VERSION = 4;
+const APP_VERSION = "v32";
+const LOG_SCHEMA_VERSION = 5;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -29,6 +29,11 @@ const CHECKPOINT_INTERVAL_MS = 15000;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
+const GPS_STRICT_STOP_SPEED_MS = 0.45;
+const GPS_STOP_HISTORY_MS = 3500;
+const GPS_STRICT_STOP_HOLD_MS = 900;
+const GPS_DWELL_HOLD_MS = 2200;
+const GPS_DWELL_MAX_DISPLACEMENT_M = 1.5;
 const IMU_STOP_SPEED_MS = 0.35;
 const RECENT_BRAKE_MS = 3500;
 const SENSOR_GAP_SEC = 0.5;
@@ -207,6 +212,11 @@ const state = {
   gpsReceivedAt: 0,
   gpsTimestampMs: null,
   gpsAgeMs: null,
+  gpsObservations: [],
+  gpsStopEvidence: false,
+  gpsStopObservationCount: 0,
+  gpsStopDwellMs: 0,
+  gpsStopDisplacementM: null,
   gpsInnovationClipped: false,
   imuInnovationClipped: false,
   gravityErrorG: 0,
@@ -443,6 +453,11 @@ function armTimer() {
   state.autoReadyCandidateAt = 0;
   state.autoStartReady = false;
   state.autoStopCandidate = false;
+  state.gpsObservations = [];
+  state.gpsStopEvidence = false;
+  state.gpsStopObservationCount = 0;
+  state.gpsStopDwellMs = 0;
+  state.gpsStopDisplacementM = null;
   setMode("armed", text.autoPreparing);
   addEvent("ARM", text.armDetail);
 }
@@ -466,6 +481,11 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
   state.autoStopCandidate = false;
+  state.gpsObservations = [];
+  state.gpsStopEvidence = false;
+  state.gpsStopObservationCount = 0;
+  state.gpsStopDwellMs = 0;
+  state.gpsStopDisplacementM = null;
   state.lastCheckpointAt = onsetAt;
   state.speedMs = Math.max(0, initialSpeedMs);
   motionModel.zeroSpeed();
@@ -607,6 +627,11 @@ function resyncSpeedFromGps(reason) {
   state.speedMs = state.gpsSpeedMs;
   state.gpsInnovationClipped = false;
   state.gpsResyncPending = false;
+  state.gpsObservations = [];
+  state.gpsStopEvidence = false;
+  state.gpsStopObservationCount = 0;
+  state.gpsStopDwellMs = 0;
+  state.gpsStopDisplacementM = null;
   addEvent("SYNC", `${reason} ${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`);
   return true;
 }
@@ -911,7 +936,7 @@ function applyZeroSpeedUpdate(t) {
     && Math.abs(state.latG) < profile.stationaryG
     && Math.abs(state.yawRate) < profile.stationaryYawRate;
   const gpsFresh = hasFreshGps();
-  const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
+  const gpsStopped = gpsFresh && gpsStopEvidence(t).confirmed;
   const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
   const imuStopped = !gpsFresh && state.speedMs < IMU_STOP_SPEED_MS && recentlyBraked;
   const stationary = lowDynamics && (state.mode !== "running" || gpsStopped || imuStopped);
@@ -999,7 +1024,12 @@ function detectEvents(t) {
     && Math.abs(state.latG) < profile.stationaryG
     && Math.abs(state.yawRate) < profile.stationaryYawRate;
   const gpsFresh = hasFreshGps();
-  const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
+  const gpsStop = gpsStopEvidence(t);
+  const gpsStopped = gpsFresh && gpsStop.confirmed;
+  state.gpsStopEvidence = gpsStopped;
+  state.gpsStopObservationCount = gpsStop.count;
+  state.gpsStopDwellMs = gpsStop.dwellMs;
+  state.gpsStopDisplacementM = gpsStop.displacementM;
   const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
   const imuStopped = !gpsFresh && state.speedMs < IMU_STOP_SPEED_MS && recentlyBraked;
   const nearStopped = lowDynamics && (gpsStopped || imuStopped);
@@ -1087,6 +1117,12 @@ function buildRawSample(t, sampleIntervalSec, phase) {
     yawBias: round(state.yawBias, 3),
     confidence: state.confidence,
     autoStopCandidate: state.autoStopCandidate,
+    gpsStopEvidence: state.gpsStopEvidence,
+    gpsStopObservationCount: state.gpsStopObservationCount,
+    gpsStopDwellMs: Math.round(state.gpsStopDwellMs),
+    gpsStopDisplacementM: Number.isFinite(state.gpsStopDisplacementM)
+      ? round(state.gpsStopDisplacementM, 2)
+      : null,
   };
 }
 
@@ -1329,6 +1365,11 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.autoStartReady = false;
   state.autoStopCandidate = false;
   state.gpsResyncPending = false;
+  state.gpsObservations = [];
+  state.gpsStopEvidence = false;
+  state.gpsStopObservationCount = 0;
+  state.gpsStopDwellMs = 0;
+  state.gpsStopDisplacementM = null;
   state.lastSensorGapSec = 0;
   state.zeroSpeedCandidateAt = 0;
   state.speedMs = 0;
@@ -1391,6 +1432,11 @@ function stopGps() {
   state.gpsReceivedAt = 0;
   state.gpsTimestampMs = null;
   state.gpsAgeMs = null;
+  state.gpsObservations = [];
+  state.gpsStopEvidence = false;
+  state.gpsStopObservationCount = 0;
+  state.gpsStopDwellMs = 0;
+  state.gpsStopDisplacementM = null;
   state.gpsInnovationClipped = false;
 }
 
@@ -1399,6 +1445,36 @@ function hasFreshGps() {
     && state.gpsReceivedAt > 0
     && nowMs() - state.gpsReceivedAt <= GPS_FRESH_MS
     && (state.gpsAgeMs === null || state.gpsAgeMs <= GPS_FRESH_MS);
+}
+
+function gpsStopEvidence(t = nowMs()) {
+  const empty = { confirmed: false, onsetAt: 0, count: 0, dwellMs: 0, displacementM: null };
+  if (!hasFreshGps() || state.gpsSpeedMs >= GPS_STOP_SPEED_MS) return empty;
+
+  const recent = state.gpsObservations.filter((observation) =>
+    t - observation.receivedAt <= GPS_STOP_HISTORY_MS);
+  const lowSpeed = [];
+  for (let index = recent.length - 1; index >= 0; index -= 1) {
+    if (recent[index].speedMs >= GPS_STOP_SPEED_MS) break;
+    lowSpeed.unshift(recent[index]);
+  }
+  if (lowSpeed.length < 2) return { ...empty, count: lowSpeed.length };
+
+  const first = lowSpeed[0];
+  const last = lowSpeed.at(-1);
+  const dwellMs = Math.max(0, last.receivedAt - first.receivedAt);
+  const displacementM = haversineMeters(first.latitude, first.longitude, last.latitude, last.longitude);
+  const strictStop = dwellMs >= GPS_STRICT_STOP_HOLD_MS
+    && lowSpeed.every((observation) => observation.speedMs < GPS_STRICT_STOP_SPEED_MS);
+  const positionDwell = dwellMs >= GPS_DWELL_HOLD_MS
+    && displacementM <= GPS_DWELL_MAX_DISPLACEMENT_M;
+  return {
+    confirmed: strictStop || positionDwell,
+    onsetAt: first.receivedAt,
+    count: lowSpeed.length,
+    dwellMs,
+    displacementM,
+  };
 }
 
 function onGpsPosition(position) {
@@ -1443,6 +1519,18 @@ function onGpsPosition(position) {
 
   state.gpsSpeedMs = speedMs;
   state.gpsSource = derived ? "position" : "sensor";
+  if (state.gpsObservations.at(-1)?.timestamp !== timestamp) {
+    state.gpsObservations.push({
+      receivedAt: state.gpsReceivedAt,
+      timestamp,
+      speedMs,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy,
+    });
+  }
+  state.gpsObservations = state.gpsObservations.filter((observation) =>
+    state.gpsReceivedAt - observation.receivedAt <= GPS_STOP_HISTORY_MS);
   if (state.mode !== "running") {
     render();
     return;
@@ -2084,7 +2172,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -2120,6 +2208,10 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     run.appVersion || "legacy",
     run.schemaVersion || 1,
+    "",
+    "",
+    "",
+    "",
     "",
     "",
     "",
@@ -2180,6 +2272,10 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.gravityErrorG, 5),
     fixed(sample.turnConsistencyDeg, 2),
     sample.imuInnovationClipped ? 1 : 0,
+    sample.gpsStopEvidence ? 1 : 0,
+    fixed(sample.gpsStopObservationCount, 0),
+    fixed(sample.gpsStopDwellMs, 0),
+    fixed(sample.gpsStopDisplacementM, 2),
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }

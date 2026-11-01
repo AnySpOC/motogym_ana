@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-31T13:48:47.459Z",
-  "appVersion": "v31",
+  "generatedAt": "2026-11-01T09:34:10.656Z",
+  "appVersion": "v32",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -21,7 +21,7 @@
       "passed": true,
       "exitCode": 0,
       "metrics": {
-        "passed": 10,
+        "passed": 11,
         "failed": 0,
         "scenarios": [
           {
@@ -57,10 +57,16 @@
             "name": "two-run-auto-cycle",
             "passed": true,
             "firstStartLatencyMs": 200,
-            "stopConfirmationMs": 983,
+            "stopConfirmationMs": 1983,
             "secondStartLatencyMs": 200,
             "savedRuns": 1,
             "preStartSamples": 306
+          },
+          {
+            "name": "low-speed-crawl-stop-guard",
+            "passed": true,
+            "crawlSpeedKmh": 2.52,
+            "crawlDurationMs": 6000
           },
           {
             "name": "sensor-off-cancels-auto",
@@ -152,7 +158,7 @@
     }
   ],
   "acceptance": {
-    "deterministicScenariosPassed": 10,
+    "deterministicScenariosPassed": 11,
     "deterministicScenariosFailed": 0,
     "robustnessTrials": 24,
     "robustnessFalseStarts": 0,
@@ -172,9 +178,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v31 closed-course runs with START, STOP, rearm, and persistence",
+      "three consecutive v32 closed-course runs with START, STOP, rearm, and persistence",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v31, schemaVersion 4, and pre-start samples"
+      "each exported run reports appVersion v32, schemaVersion 5, and pre-start samples"
     ]
   }
 }

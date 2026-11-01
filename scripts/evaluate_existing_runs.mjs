@@ -125,8 +125,14 @@ function loadCsv(file, suppliedLines = null) {
       gpsSpeedKmh,
       gpsAccuracyM: number(cells, index, "gps_accuracy_m"),
       gpsSource: cells[index.gps_source] || "none",
+      latitude: number(cells, index, "latitude"),
+      longitude: number(cells, index, "longitude"),
       gpsTimestamp: explicitGpsTimestamp ?? (gpsSpeedKmh === null ? null : generatedGpsTimestamp),
       gpsAgeMs: number(cells, index, "gps_age_ms"),
+      gpsStopEvidence: cells[index.gps_stop_evidence] === "1",
+      gpsStopObservationCount: number(cells, index, "gps_stop_observation_count"),
+      gpsStopDwellMs: number(cells, index, "gps_stop_dwell_ms"),
+      gpsStopDisplacementM: number(cells, index, "gps_stop_displacement_m"),
     });
   }
   return {

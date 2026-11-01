@@ -195,7 +195,61 @@ function replayUkf(samples, config = {}) {
       p01 -= speedGain * oldP01;
       p11 -= biasGain * oldP01;
     }
-    return { ...sample, replaySpeedKmh: x[0] * 3.6, estimatedBiasG: x[1] };
+
+    let turnObservationUsed = false;
+    const observedBankDeg = Number.isFinite(sample.gravityBankDeg) ? sample.gravityBankDeg : sample.bankDeg;
+    const stableTurn = Number.isFinite(config.turnBankSigmaDeg)
+      && Number.isFinite(observedBankDeg)
+      && Number.isFinite(sample.yawRateDps)
+      && Math.abs(sample.yawRateDps) >= (config.turnYawMinDps ?? 8)
+      && Math.abs(sample.rollRateDps || 0) <= (config.turnRollMaxDps ?? 10)
+      && Math.abs(sample.longG) <= (config.turnLongGMax ?? 0.15)
+      && Math.abs(observedBankDeg) >= 3
+      && Math.abs(observedBankDeg) <= 55
+      && x[0] >= 2;
+    if (stableTurn) {
+      const turnL = cholesky2(p00 * scale, p01 * scale, p11 * scale);
+      const turnSigma = [x];
+      for (let column = 0; column < n; column += 1) {
+        const delta = [turnL[0][column], turnL[1][column]];
+        turnSigma.push([x[0] + delta[0], x[1] + delta[1]]);
+        turnSigma.push([x[0] - delta[0], x[1] - delta[1]]);
+      }
+      const yawRad = Math.abs(sample.yawRateDps) / (180 / Math.PI);
+      const predictedBank = turnSigma.map(([speed]) =>
+        Math.atan(Math.max(0, speed) * yawRad / GRAVITY) * (180 / Math.PI));
+      const bankMean = predictedBank.reduce((sum, value, index) => sum + wm[index] * value, 0);
+      const vibrationScale = 1 + Math.min(2, ((sample.vibrationG || 0) / 0.25) ** 2);
+      let innovationVariance = config.turnBankSigmaDeg ** 2 * vibrationScale;
+      let crossSpeed = 0;
+      let crossBias = 0;
+      for (let index = 0; index < turnSigma.length; index += 1) {
+        const dz = predictedBank[index] - bankMean;
+        innovationVariance += wc[index] * dz * dz;
+        crossSpeed += wc[index] * (turnSigma[index][0] - x[0]) * dz;
+        crossBias += wc[index] * (turnSigma[index][1] - x[1]) * dz;
+      }
+      innovationVariance = Math.max(1e-9, innovationVariance);
+      const residualLimit = 4 * Math.sqrt(innovationVariance);
+      const residual = Math.max(-residualLimit, Math.min(
+        residualLimit,
+        Math.abs(observedBankDeg) - bankMean,
+      ));
+      const speedGain = crossSpeed / innovationVariance;
+      const biasGain = crossBias / innovationVariance;
+      x[0] = Math.max(0, x[0] + speedGain * residual);
+      x[1] = Math.max(-0.08, Math.min(0.08, x[1] + biasGain * residual));
+      p00 = Math.max(1e-9, p00 - speedGain * crossSpeed);
+      p01 -= speedGain * crossBias;
+      p11 = Math.max(1e-9, p11 - biasGain * crossBias);
+      turnObservationUsed = true;
+    }
+    return {
+      ...sample,
+      replaySpeedKmh: x[0] * 3.6,
+      estimatedBiasG: x[1],
+      turnObservationUsed,
+    };
   });
 }
 

@@ -78,8 +78,9 @@ function number(cells, index, key) {
   return Number.isFinite(value) ? value : null;
 }
 
-function loadCsv(file) {
-  const lines = fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+function loadCsv(file, suppliedLines = null) {
+  const lines = suppliedLines
+    || fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
   const startMs = parseRunStart(file, lines);
   const headers = parseCsvLine(lines[0]);
   const index = Object.fromEntries(headers.map((header, position) => [header, position]));
@@ -110,7 +111,16 @@ function loadCsv(file) {
       t,
       timeMs,
       longG: number(cells, index, "long_g") || 0,
+      latG: number(cells, index, "lat_g") || 0,
       vibrationG: number(cells, index, "vibration_g") || 0,
+      yawRateDps: number(cells, index, "yaw_rate"),
+      rollRateDps: number(cells, index, "roll_rate_dps"),
+      bankDeg: number(cells, index, "bank_deg"),
+      gravityBankDeg: number(cells, index, "gravity_bank_deg"),
+      stationaryThresholdG: number(cells, index, "stationary_threshold_g"),
+      stationaryYawRateDps: 12,
+      gpsFresh: cells[index.gps_fresh] === "1",
+      autoStopCandidate: cells[index.auto_stop_candidate] === "1",
       appSpeedKmh: number(cells, index, "speed_kmh"),
       gpsSpeedKmh,
       gpsAccuracyM: number(cells, index, "gps_accuracy_m"),
@@ -128,6 +138,23 @@ function loadCsv(file) {
     samples,
     events,
   };
+}
+
+function loadCsvCollection(file) {
+  const lines = fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const headers = parseCsvLine(lines[0]);
+  const runIdIndex = headers.indexOf("run_id");
+  if (runIdIndex < 0) return [loadCsv(file, lines)];
+  const groups = new Map();
+  for (const line of lines.slice(1)) {
+    const runId = parseCsvLine(line)[runIdIndex];
+    if (!runId) continue;
+    if (!groups.has(runId)) groups.set(runId, []);
+    groups.get(runId).push(line);
+  }
+  return [...groups.entries()].map(([runId, runLines]) =>
+    loadCsv(`${file}#${runId}`, [lines[0], ...runLines]));
 }
 
 function haversineM(a, b) {
@@ -470,9 +497,10 @@ function collectMatchedRuns(roots) {
   const tracksByIdentity = new Map();
   for (const root of roots) {
     for (const file of walk(root, ".csv")) {
-      const run = loadCsv(file);
-      const identity = `${run.startMs}|${run.endMs}|${run.samples.length}`;
-      if (!runsByIdentity.has(identity)) runsByIdentity.set(identity, run);
+      for (const run of loadCsvCollection(file)) {
+        const identity = `${run.startMs}|${run.endMs}|${run.samples.length}`;
+        if (!runsByIdentity.has(identity)) runsByIdentity.set(identity, run);
+      }
     }
     for (const file of walk(root, ".gpx")) {
       const track = loadGpx(file);
@@ -713,6 +741,7 @@ export {
   collectMatchedRuns,
   compare,
   interpolate,
+  loadCsvCollection,
   replaySpeed,
   round,
 };

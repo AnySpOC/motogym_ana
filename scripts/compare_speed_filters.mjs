@@ -17,6 +17,14 @@ import {
   replayUkf,
 } from "./lib/speed_filters.mjs";
 
+const V31 = {
+  ...CURRENT,
+  adaptiveNoise: true,
+  vibrationProcessMax: 0,
+  vibrationObservationMax: 2,
+  vibrationObservationReferenceG: 0.25,
+};
+
 function parseArgs(argv) {
   const options = { roots: [], json: null };
   for (let i = 2; i < argv.length; i += 1) {
@@ -52,6 +60,28 @@ function timestampConfigs() {
   for (const ageScale of [0, 0.5, 1]) {
     for (const gateSigma of [4, 6, 8]) {
       for (const residualFloorMs of [3, 5, 8]) result.push({ ageScale, gateSigma, residualFloorMs });
+    }
+  }
+  return result;
+}
+
+function physicsUkfConfigs() {
+  const result = [];
+  for (const turnBankSigmaDeg of [5, 10, 20, 40]) {
+    for (const turnYawMinDps of [4, 8, 12]) {
+      for (const turnRollMaxDps of [5, 10, 15]) {
+        for (const turnLongGMax of [0.1, 0.2]) {
+          result.push({
+            qSpeed: 1.2,
+            qBias: 0.000005,
+            gpsSigmaScale: 0.35,
+            turnBankSigmaDeg,
+            turnYawMinDps,
+            turnRollMaxDps,
+            turnLongGMax,
+          });
+        }
+      }
     }
   }
   return result;
@@ -111,7 +141,7 @@ function compactFamily(result, baseline, baselineByDate) {
 
 function evaluateMode(matched, mode) {
   const baselinePerRun = matched.map((item) => compare(
-    replaySpeed(item.run.samples, CURRENT),
+    replaySpeed(item.run.samples, V31),
     item.track.points,
     mode === "aligned" ? item.sync.offsetSec : 0,
     "replaySpeedKmh",
@@ -121,6 +151,7 @@ function evaluateMode(matched, mode) {
   const baselineByDate = new Map(dates.map((date) => [date, aggregate(matched
     .map((item, index) => item.run.date === date ? baselinePerRun[index] : null))]));
   const families = [
+    evaluateFamily(matched, "physics-ukf", replayUkf, physicsUkfConfigs(), mode),
     evaluateFamily(matched, "timestamp-robust-ekf", replayTimestampEkf, timestampConfigs(), mode),
     evaluateFamily(matched, "bias-ekf", replayBiasEkf, configs(), mode),
     evaluateFamily(matched, "ukf", replayUkf, configs(), mode),
@@ -128,7 +159,7 @@ function evaluateMode(matched, mode) {
   ].map((result) => compactFamily(result, baseline, baselineByDate));
   families.sort((a, b) => a.aggregate.rmse - b.aggregate.rmse);
   return {
-    baseline: { filter: "current-ekf", config: CURRENT, aggregate: {
+    baseline: { filter: "v31-adaptive-ekf", config: V31, aggregate: {
       rmse: round(baseline.rmse), macroRmse: round(baseline.macroRmse), macroAbsBias: round(baseline.macroAbsBias),
     } },
     families,
@@ -148,7 +179,7 @@ function main() {
     method: {
       runs: matched.length,
       dates: [...new Set(matched.map((item) => item.run.date))],
-      state: "speed and longitudinal acceleration bias",
+      state: "speed and longitudinal acceleration bias; physics UKF adds a gated nonlinear bank observation",
       acceptance: ">= 10% overall RMSE improvement and no held-out date worse than current EKF",
       reference: "GoPro GPX speed; useful field reference, not laboratory ground truth",
     },

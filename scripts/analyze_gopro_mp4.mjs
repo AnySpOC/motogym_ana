@@ -19,6 +19,7 @@ function parseArgs(argv) {
     if (arg === "--mp4") args.mp4 = argv[++index];
     else if (arg === "--out") args.out = argv[++index];
     else if (arg === "--csv") args.csv = argv[++index];
+    else if (arg === "--run-id") args.runId = argv[++index];
     else if (arg === "--gpx") args.gpx = argv[++index];
     else if (arg === "--gpx-out") args.gpxOut = argv[++index];
     else if (arg === "--streams") args.streams = argv[++index].split(",").map((item) => item.trim()).filter(Boolean);
@@ -32,7 +33,7 @@ function usage() {
   return [
     "Usage:",
     "  node scripts/analyze_gopro_mp4.mjs --mp4 <video.mp4> [--out <summary.json>]",
-    "  [--csv <gym-ana.csv>] [--gpx <video.gpx>] [--gpx-out <extracted.gpx>]",
+    "  [--csv <gym-ana.csv>] [--run-id <selected-run-id>] [--gpx <video.gpx>] [--gpx-out <extracted.gpx>]",
     "  [--streams ACCL,GYRO,GRAV,CORI,GPS5,GPS9]",
     "",
     "The JSON summary never includes GPS coordinates or full sensor samples.",
@@ -144,8 +145,16 @@ function writeGpx(filePath, telemetryStreams) {
   return { path: path.resolve(filePath), pointCount: points.length };
 }
 
-function loadPhoneSamples(csvPath, videoStartMs, timingSource) {
-  const lines = fs.readFileSync(csvPath, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+function loadPhoneSamples(csvPath, videoStartMs, timingSource, runId = null) {
+  let lines = fs.readFileSync(csvPath, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+  if (runId) {
+    const allHeaders = parseCsvLine(lines[0]);
+    const runIdIndex = allHeaders.indexOf("run_id");
+    if (runIdIndex < 0) throw new Error("--run-id requires a selected multi-run CSV with a run_id column.");
+    const selectedLines = lines.slice(1).filter((line) => parseCsvLine(line)[runIdIndex] === runId);
+    if (!selectedLines.length) throw new Error(`Run ID not found in CSV: ${runId}`);
+    lines = [lines[0], ...selectedLines];
+  }
   const csvStartMs = parseRunStart(csvPath, lines);
   const headers = parseCsvLine(lines[0]);
   const index = Object.fromEntries(headers.map((header, position) => [header, position]));
@@ -730,7 +739,12 @@ async function main() {
             throw new Error("Could not derive UTC video start from GPX or embedded GPS telemetry.");
           }
           return comparePhoneWithGopro(
-            loadPhoneSamples(path.resolve(args.csv), videoStartMs, args.gpx ? "gpx" : "embedded-gps"),
+            loadPhoneSamples(
+              path.resolve(args.csv),
+              videoStartMs,
+              args.gpx ? "gpx" : "embedded-gps",
+              args.runId,
+            ),
             telemetryStreams,
           );
         })()

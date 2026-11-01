@@ -1,0 +1,1089 @@
+{
+  "generatedAt": "2026-11-01T09:05:44.066Z",
+  "roots": [
+    "C:\\Users\\foxho\\Videos",
+    "C:\\Users\\foxho\\Downloads"
+  ],
+  "method": {
+    "runs": 20,
+    "dates": [
+      "2026-10-03",
+      "2026-10-04",
+      "2026-10-10",
+      "2026-10-12",
+      "2026-10-19",
+      "2026-10-31",
+      "2026-11-01"
+    ],
+    "state": "speed and longitudinal acceleration bias; physics UKF adds a gated nonlinear bank observation",
+    "acceptance": ">= 10% overall RMSE improvement and no held-out date worse than current EKF",
+    "reference": "GoPro GPX speed; useful field reference, not laboratory ground truth"
+  },
+  "aligned": {
+    "baseline": {
+      "filter": "v31-adaptive-ekf",
+      "config": {
+        "drag": 0,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0,
+        "adaptiveNoise": true,
+        "vibrationProcessMax": 0,
+        "vibrationObservationMax": 2,
+        "vibrationObservationReferenceG": 0.25
+      },
+      "aggregate": {
+        "rmse": 3.254,
+        "macroRmse": 3.054,
+        "macroAbsBias": 0.788
+      }
+    },
+    "families": [
+      {
+        "family": "ukf",
+        "bestConfig": {
+          "qSpeed": 0.6,
+          "qBias": 0.00008,
+          "gpsSigmaScale": 0.35
+        },
+        "aggregate": {
+          "rmse": 3.253,
+          "macroRmse": 3.074,
+          "macroAbsBias": 0.749
+        },
+        "improvementRatio": 0.0005,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.849,
+            "baselineRmse": 3.781,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.248,
+            "baselineRmse": 3.214,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 4.431,
+            "baselineRmse": 4.483,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.731,
+            "baselineRmse": 3.638,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.976,
+            "baselineRmse": 3.873,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 2.825,
+            "baselineRmse": 3.007,
+            "improved": true
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 2.145,
+            "baselineRmse": 2.127,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "physics-ukf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.000005,
+          "gpsSigmaScale": 0.35,
+          "turnBankSigmaDeg": 5,
+          "turnYawMinDps": 4,
+          "turnRollMaxDps": 10,
+          "turnLongGMax": 0.1
+        },
+        "aggregate": {
+          "rmse": 3.254,
+          "macroRmse": 3.115,
+          "macroAbsBias": 0.774
+        },
+        "improvementRatio": 0.0002,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 3.768,
+            "baselineRmse": 3.781,
+            "improved": true
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 3.289,
+            "baselineRmse": 3.214,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 4.385,
+            "baselineRmse": 4.483,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 3.882,
+            "baselineRmse": 3.638,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 3.898,
+            "baselineRmse": 3.873,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 2.984,
+            "baselineRmse": 3.007,
+            "improved": true
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 10,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 2.19,
+            "baselineRmse": 2.127,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "timestamp-robust-ekf",
+        "bestConfig": {
+          "ageScale": 0,
+          "gateSigma": 8,
+          "residualFloorMs": 3
+        },
+        "aggregate": {
+          "rmse": 3.256,
+          "macroRmse": 3.056,
+          "macroAbsBias": 0.788
+        },
+        "improvementRatio": -0.0004,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.783,
+            "baselineRmse": 3.781,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.215,
+            "baselineRmse": 3.214,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 4.483,
+            "baselineRmse": 4.483,
+            "improved": false
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.649,
+            "baselineRmse": 3.638,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.874,
+            "baselineRmse": 3.873,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.009,
+            "baselineRmse": 3.007,
+            "improved": false
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 2.129,
+            "baselineRmse": 2.127,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "bias-ekf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.00008,
+          "gpsSigmaScale": 0.35
+        },
+        "aggregate": {
+          "rmse": 3.332,
+          "macroRmse": 3.194,
+          "macroAbsBias": 0.805
+        },
+        "improvementRatio": -0.024,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 4.225,
+            "baselineRmse": 3.781,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.264,
+            "baselineRmse": 3.214,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 4.415,
+            "baselineRmse": 4.483,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.722,
+            "baselineRmse": 3.638,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.953,
+            "baselineRmse": 3.873,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 2.89,
+            "baselineRmse": 3.007,
+            "improved": true
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 2.141,
+            "baselineRmse": 2.127,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "particle",
+        "bestConfig": {
+          "particles": 160,
+          "qSpeed": 0.6,
+          "qBias": 0.00008,
+          "gpsSigmaScale": 0.7
+        },
+        "aggregate": {
+          "rmse": 3.762,
+          "macroRmse": 3.537,
+          "macroAbsBias": 0.873
+        },
+        "improvementRatio": -0.156,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 5.285,
+            "baselineRmse": 3.781,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 3.392,
+            "baselineRmse": 3.214,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 4.953,
+            "baselineRmse": 4.483,
+            "improved": false
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 3.626,
+            "baselineRmse": 3.638,
+            "improved": true
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 4.041,
+            "baselineRmse": 3.873,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 3.103,
+            "baselineRmse": 3.007,
+            "improved": false
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 2.249,
+            "baselineRmse": 2.127,
+            "improved": false
+          }
+        ]
+      }
+    ],
+    "decision": "keep the current on-device filter; no alternative passed the 10% cross-date gate"
+  },
+  "realTime": {
+    "baseline": {
+      "filter": "v31-adaptive-ekf",
+      "config": {
+        "drag": 0,
+        "processNoise": 1.2,
+        "gpsSigmaScale": 0.35,
+        "gpsPredictionSec": 0,
+        "adaptiveNoise": true,
+        "vibrationProcessMax": 0,
+        "vibrationObservationMax": 2,
+        "vibrationObservationReferenceG": 0.25
+      },
+      "aggregate": {
+        "rmse": 4.555,
+        "macroRmse": 4.692,
+        "macroAbsBias": 1.368
+      }
+    },
+    "families": [
+      {
+        "family": "timestamp-robust-ekf",
+        "bestConfig": {
+          "ageScale": 1,
+          "gateSigma": 8,
+          "residualFloorMs": 3
+        },
+        "aggregate": {
+          "rmse": 4.512,
+          "macroRmse": 4.589,
+          "macroAbsBias": 1.378
+        },
+        "improvementRatio": 0.0096,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 5.2,
+            "baselineRmse": 5.2,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.926,
+            "baselineRmse": 3.927,
+            "improved": true
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 5.979,
+            "baselineRmse": 5.698,
+            "improved": false
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 8.67,
+            "baselineRmse": 8.073,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 4.982,
+            "baselineRmse": 5.116,
+            "improved": true
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 4.484,
+            "baselineRmse": 4.894,
+            "improved": true
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "rmse": 3.49,
+            "baselineRmse": 3.491,
+            "improved": true
+          }
+        ]
+      },
+      {
+        "family": "physics-ukf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.000005,
+          "gpsSigmaScale": 0.35,
+          "turnBankSigmaDeg": 5,
+          "turnYawMinDps": 4,
+          "turnRollMaxDps": 15,
+          "turnLongGMax": 0.1
+        },
+        "aggregate": {
+          "rmse": 4.605,
+          "macroRmse": 4.81,
+          "macroAbsBias": 1.352
+        },
+        "improvementRatio": -0.011,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 5.224,
+            "baselineRmse": 5.2,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "rmse": 4.176,
+            "baselineRmse": 3.927,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 5.534,
+            "baselineRmse": 5.698,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 8.036,
+            "baselineRmse": 8.073,
+            "improved": true
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 5.122,
+            "baselineRmse": 5.116,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "rmse": 5.058,
+            "baselineRmse": 4.894,
+            "improved": false
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 10,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "rmse": 3.653,
+            "baselineRmse": 3.491,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "ukf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.00008,
+          "gpsSigmaScale": 0.35
+        },
+        "aggregate": {
+          "rmse": 4.64,
+          "macroRmse": 4.852,
+          "macroAbsBias": 1.322
+        },
+        "improvementRatio": -0.0186,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "qSpeed": 0.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.467,
+            "baselineRmse": 5.2,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 4.043,
+            "baselineRmse": 3.927,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.548,
+            "baselineRmse": 5.698,
+            "improved": true
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 8.212,
+            "baselineRmse": 8.073,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.232,
+            "baselineRmse": 5.116,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.192,
+            "baselineRmse": 4.894,
+            "improved": false
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.659,
+            "baselineRmse": 3.491,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "bias-ekf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.000005,
+          "gpsSigmaScale": 0.35
+        },
+        "aggregate": {
+          "rmse": 4.722,
+          "macroRmse": 4.892,
+          "macroAbsBias": 1.401
+        },
+        "improvementRatio": -0.0367,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.8,
+            "baselineRmse": 5.2,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.995,
+            "baselineRmse": 3.927,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.703,
+            "baselineRmse": 5.698,
+            "improved": false
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 8.199,
+            "baselineRmse": 8.073,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 5.152,
+            "baselineRmse": 5.116,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 4.953,
+            "baselineRmse": 4.894,
+            "improved": false
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "rmse": 3.59,
+            "baselineRmse": 3.491,
+            "improved": false
+          }
+        ]
+      },
+      {
+        "family": "particle",
+        "bestConfig": {
+          "particles": 160,
+          "qSpeed": 0.6,
+          "qBias": 0.00008,
+          "gpsSigmaScale": 0.7
+        },
+        "aggregate": {
+          "rmse": 5.085,
+          "macroRmse": 5.089,
+          "macroAbsBias": 1.448
+        },
+        "improvementRatio": -0.1163,
+        "accepted": false,
+        "crossValidation": [
+          {
+            "date": "2026-10-03",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.25,
+              "qBias": 0.00002,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 16.318,
+            "baselineRmse": 5.2,
+            "improved": false
+          },
+          {
+            "date": "2026-10-04",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 4.074,
+            "baselineRmse": 3.927,
+            "improved": false
+          },
+          {
+            "date": "2026-10-10",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 6.316,
+            "baselineRmse": 5.698,
+            "improved": false
+          },
+          {
+            "date": "2026-10-12",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 8.073,
+            "baselineRmse": 8.073,
+            "improved": false
+          },
+          {
+            "date": "2026-10-19",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 5.33,
+            "baselineRmse": 5.116,
+            "improved": false
+          },
+          {
+            "date": "2026-10-31",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 5.226,
+            "baselineRmse": 4.894,
+            "improved": false
+          },
+          {
+            "date": "2026-11-01",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "rmse": 3.589,
+            "baselineRmse": 3.491,
+            "improved": false
+          }
+        ]
+      }
+    ],
+    "decision": "keep the current on-device filter; no alternative passed the 10% cross-date gate"
+  },
+  "excludedCount": 11
+}

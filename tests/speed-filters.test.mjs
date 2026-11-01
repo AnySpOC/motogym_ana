@@ -42,4 +42,23 @@ assert.deepEqual(
   "particle replay must be deterministic for regression tests",
 );
 
+const coordinatedTurn = samples({ count: 120, gpsSpeedKmh: 36 }).map((sample) => ({
+  ...sample,
+  yawRateDps: 10,
+  rollRateDps: 0,
+  gravityBankDeg: 10,
+  vibrationG: 0.1,
+}));
+const physicsUkf = replayUkf(coordinatedTurn, {
+  qSpeed: 1.2,
+  qBias: 0.000005,
+  gpsSigmaScale: 0.35,
+  turnBankSigmaDeg: 10,
+  turnYawMinDps: 4,
+  turnRollMaxDps: 10,
+  turnLongGMax: 0.1,
+});
+assert.ok(physicsUkf.some((sample) => sample.turnObservationUsed), "physics UKF must use valid steady-turn observations");
+assert.ok(physicsUkf.every((sample) => Number.isFinite(sample.replaySpeedKmh)), "physics UKF must remain finite");
+
 console.log("speed filter tests: OK");

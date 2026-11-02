@@ -49,6 +49,7 @@ const checks = [
   runCheck("deterministicSimulation", "tests/automatic-timing.simulation.test.mjs"),
   runCheck("robustnessSimulation", "tests/automatic-timing.robustness.test.mjs"),
   runCheck("stopRobustnessSimulation", "tests/automatic-stop.robustness.test.mjs", ["--summary-only"]),
+  runCheck("enduranceSimulation", "tests/automatic-timing.endurance.test.mjs"),
   runCheck("recordedLog", "tests/recorded-log-regression.test.mjs"),
 ];
 const byName = Object.fromEntries(checks.map((check) => [check.name, check]));
@@ -85,6 +86,8 @@ const report = {
     stopRobustnessLatencyP95Ms: byName.stopRobustnessSimulation.data?.summary?.stopLatencyMs?.p95 ?? null,
     stopRobustnessRearmFailures: byName.stopRobustnessSimulation.data?.summary?.rearmFailures ?? null,
     stopRobustnessSaveFailures: byName.stopRobustnessSimulation.data?.summary?.postStopSaveFailures ?? null,
+    enduranceRuns: byName.enduranceSimulation.data?.totalRuns ?? null,
+    endurancePassed: byName.enduranceSimulation.data?.passed ?? null,
     recordedStartGpsSpeedKmh: byName.recordedLog.data?.startGpsSpeedKmh ?? null,
     recordedStopGpsSpeedKmh: byName.recordedLog.data?.stopGpsSpeedKmh ?? null,
     recordedSpeedRmseKmh: byName.recordedLog.data?.speedRmseKmh ?? null,
@@ -135,6 +138,7 @@ const markdown = `# リリース判定レポート
 | GPS誤報 / 徐行中の誤STOP | ${acceptance.stopRobustnessFalseGpsStops ?? "-"}件 / ${acceptance.stopRobustnessFalseCrawlStops ?? "-"}件 |
 | STOP未検知 / 再待機失敗 / 保存失敗 | ${acceptance.stopRobustnessMissedStops ?? "-"}件 / ${acceptance.stopRobustnessRearmFailures ?? "-"}件 / ${acceptance.stopRobustnessSaveFailures ?? "-"}件 |
 | STOP遅延 P95 | ${acceptance.stopRobustnessLatencyP95Ms ?? "-"} ms |
+| 連続走行耐久 | ${acceptance.enduranceRuns ?? "-"}走 / ${acceptance.endurancePassed ? "合格" : "不合格"} |
 | 実走START時GPS | ${acceptance.recordedStartGpsSpeedKmh ?? "-"} km/h |
 | 実走STOP時GPS | ${acceptance.recordedStopGpsSpeedKmh ?? "-"} km/h |
 | 実走速度RMSE | ${acceptance.recordedSpeedRmseKmh ?? "-"} km/h |

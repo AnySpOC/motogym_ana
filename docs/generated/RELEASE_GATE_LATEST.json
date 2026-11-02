@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-01T11:19:40.724Z",
+  "generatedAt": "2026-11-02T03:55:40.897Z",
   "appVersion": "v34",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
@@ -167,6 +167,39 @@
       "error": null
     },
     {
+      "name": "enduranceSimulation",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": {
+        "passed": true,
+        "totalRuns": 24,
+        "results": [
+          {
+            "sampleHz": 30,
+            "runs": 8,
+            "maxStartLatencyMs": 233,
+            "maxStopLatencyMs": 3100,
+            "minimumPostStopSamples": 150
+          },
+          {
+            "sampleHz": 60,
+            "runs": 8,
+            "maxStartLatencyMs": 200,
+            "maxStopLatencyMs": 3083,
+            "minimumPostStopSamples": 300
+          },
+          {
+            "sampleHz": 100,
+            "runs": 8,
+            "maxStartLatencyMs": 170,
+            "maxStopLatencyMs": 2770,
+            "minimumPostStopSamples": 501
+          }
+        ]
+      },
+      "error": null
+    },
+    {
       "name": "recordedLog",
       "passed": true,
       "exitCode": 0,
@@ -197,6 +230,8 @@
     "stopRobustnessLatencyP95Ms": 3000,
     "stopRobustnessRearmFailures": 0,
     "stopRobustnessSaveFailures": 0,
+    "enduranceRuns": 24,
+    "endurancePassed": true,
     "recordedStartGpsSpeedKmh": 0.442,
     "recordedStopGpsSpeedKmh": 0.841,
     "recordedSpeedRmseKmh": 2.322,

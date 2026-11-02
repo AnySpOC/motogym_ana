@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-02T03:55:40.897Z",
-  "appVersion": "v34",
+  "generatedAt": "2026-11-02T04:01:31.002Z",
+  "appVersion": "v35",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -21,7 +21,7 @@
       "passed": true,
       "exitCode": 0,
       "metrics": {
-        "passed": 11,
+        "passed": 12,
         "failed": 0,
         "scenarios": [
           {
@@ -41,6 +41,12 @@
             "passed": true,
             "staleAgeMs": 10000,
             "recovered": true
+          },
+          {
+            "name": "gps-observation-deduplication",
+            "passed": true,
+            "duplicateCallbacks": 10,
+            "outOfOrderCallbacks": 1
           },
           {
             "name": "moving-auto-enable-guard",
@@ -217,7 +223,7 @@
     }
   ],
   "acceptance": {
-    "deterministicScenariosPassed": 11,
+    "deterministicScenariosPassed": 12,
     "deterministicScenariosFailed": 0,
     "robustnessTrials": 24,
     "robustnessFalseStarts": 0,
@@ -252,9 +258,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v34 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
+      "three consecutive v35 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v34, schemaVersion 6, pre-start samples, and post-STOP samples"
+      "each exported run reports appVersion v35, schemaVersion 7, pre-start samples, and post-STOP samples"
     ]
   }
 }

@@ -93,6 +93,29 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
+  harness.api.startManualMeasurement();
+  const timestampMs = Date.parse("2026-10-18T00:00:00.000Z") + harness.clock;
+  harness.gps(8, { timestampMs });
+  const firstFilteredSpeed = harness.api.state.speedMs;
+  const firstSequence = harness.api.state.gpsObservationSequence;
+  assert.ok(firstFilteredSpeed > 0, "a new GPS observation must update the speed filter");
+
+  for (let index = 0; index < 10; index += 1) harness.gps(0, { timestampMs });
+  harness.gps(0, { timestampMs: timestampMs - 1000 });
+  assert.equal(harness.api.state.speedMs, firstFilteredSpeed,
+    "duplicate and out-of-order GPS timestamps must not be fused repeatedly");
+  assert.equal(harness.api.state.gpsObservationSequence, firstSequence,
+    "duplicate and out-of-order GPS timestamps must not advance the observation sequence");
+
+  harness.gps(0, { timestampMs: timestampMs + 1000 });
+  assert.ok(harness.api.state.speedMs < firstFilteredSpeed, "a genuinely new GPS timestamp must update the filter");
+  assert.equal(harness.api.state.gpsObservationSequence, firstSequence + 1);
+  record("gps-observation-deduplication", { duplicateCallbacks: 10, outOfOrderCallbacks: 1 });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
   harness.gps(6);
   harness.api.enableAutoMeasurement();
   harness.runFor(2500, () => ({ rawY: 0.3 }), { gpsEveryMs: 400, gpsSpeed: 6 });
@@ -162,8 +185,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v34");
-  assert.equal(firstRun.schemaVersion, 6);
+  assert.equal(firstRun.appVersion, "v35");
+  assert.equal(firstRun.schemaVersion, 7);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
   assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);

@@ -35,6 +35,7 @@ npm run release:gate
 | エンジン振動中の静止 | GPS 0、24 Hz振動を5秒 | 誤START 0件、発進待ちを維持 |
 | 走行中にAuto ON | GPS 21.6 km/h、加速度あり | 静止確認せずSTARTしない |
 | GPS未取得 | 静止IMUを3.2秒 | 発進可能状態にならない |
+| GPS重複・逆行 | 同一時刻10回、逆行時刻1回 | EKF速度と観測通番を更新しない |
 | 未発進終了 | STARTせずAuto OFF | 直前データを`no-start`として保存し、座標を含めない |
 | 通常発進 | 0.28 Gを継続 | START検出300 ms以内 |
 | 短時間停止 | GPS 0、低運動500 ms | STOPせず走行を維持 |
@@ -53,7 +54,7 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 
 | 層 | コマンド・方法 | 確認対象 |
 |---|---|---|
-| 単体回帰 | `npm run test:unit` | フィルタ、較正、CSV、イベント |
+| 単体回帰 | `npm run test:unit` | Joseph共分散更新、フィルタ、較正、CSV、イベント |
 | 合成時系列 | `npm run test:simulation` | START/STOP状態遷移、振動、GPSガード、連続走行、取付方向 |
 | START耐性 | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
 | STOP耐性 | `npm run test:stop-robustness` | 36条件のGPS誤報、徐行、停止、再待機、保存 |

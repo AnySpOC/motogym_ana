@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v34";
-const LOG_SCHEMA_VERSION = 6;
+const APP_VERSION = "v35";
+const LOG_SCHEMA_VERSION = 7;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -215,6 +215,8 @@ const state = {
   gpsReceivedAt: 0,
   gpsTimestampMs: null,
   gpsAgeMs: null,
+  gpsFilterTimestampMs: null,
+  gpsObservationSequence: 0,
   gpsObservations: [],
   gpsStopEvidence: false,
   gpsStopObservationCount: 0,
@@ -251,6 +253,15 @@ const state = {
 let dbPromise = null;
 let timerFrameId = null;
 let runSaveQueue = Promise.resolve();
+
+function josephScalarCovariance(covariance, gains, stateIndex, measurementVariance) {
+  const innovationVariance = covariance[stateIndex][stateIndex] + measurementVariance;
+  return covariance.map((row, rowIndex) => row.map((value, colIndex) =>
+    value
+      - gains[rowIndex] * covariance[stateIndex][colIndex]
+      - covariance[rowIndex][stateIndex] * gains[colIndex]
+      + gains[rowIndex] * innovationVariance * gains[colIndex]));
+}
 
 class MotionEkf {
   constructor() {
@@ -345,11 +356,8 @@ class MotionEkf {
       const robustResidual = clamp(residual, -residualLimit, residualLimit);
       if (robustResidual !== residual) this.imuInnovationClipped = true;
       const gains = this.p.map((row) => row[stateIndex] / innovationVariance);
-      const observationRow = this.p[stateIndex].slice();
       this.x = this.x.map((value, index) => value + gains[index] * robustResidual);
-      this.p = this.p.map((row, rowIndex) =>
-        row.map((value, colIndex) => value - gains[rowIndex] * observationRow[colIndex])
-      );
+      this.p = josephScalarCovariance(this.p, gains, stateIndex, variance);
       this.stabilizeCovariance();
     });
     this.x[0] = Math.max(0, this.x[0]);
@@ -380,12 +388,9 @@ class MotionEkf {
     );
     this.gpsInnovationClipped = Math.abs(residual) > residualLimit;
     const robustResidual = Math.max(-residualLimit, Math.min(residualLimit, residual));
-    const speedRow = this.p[0].slice();
     this.x = this.x.map((value, index) => value + gains[index] * robustResidual);
     this.x[0] = Math.max(0, this.x[0]);
-    this.p = this.p.map((row, rowIndex) =>
-      row.map((value, colIndex) => value - gains[rowIndex] * speedRow[colIndex])
-    );
+    this.p = josephScalarCovariance(this.p, gains, 0, sigma * sigma);
     this.stabilizeCovariance();
     return this.value();
   }
@@ -462,6 +467,7 @@ function armTimer() {
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsFilterTimestampMs = null;
   setMode("armed", text.autoPreparing);
   addEvent("ARM", text.armDetail);
 }
@@ -490,6 +496,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsFilterTimestampMs = null;
   state.lastCheckpointAt = onsetAt;
   state.speedMs = Math.max(0, initialSpeedMs);
   motionModel.zeroSpeed();
@@ -1100,6 +1107,7 @@ function buildRawSample(t, sampleIntervalSec, phase) {
     gpsHeadingDeg: Number.isFinite(state.gpsHeadingDeg) ? round(state.gpsHeadingDeg, 1) : null,
     gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
     gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
+    gpsObservationSequence: state.gpsObservationSequence,
     gpsInnovationClipped: state.gpsInnovationClipped,
     imuInnovationClipped: state.imuInnovationClipped,
     gravityErrorG: round(state.gravityErrorG, 5),
@@ -1482,6 +1490,8 @@ function stopGps() {
   state.gpsReceivedAt = 0;
   state.gpsTimestampMs = null;
   state.gpsAgeMs = null;
+  state.gpsFilterTimestampMs = null;
+  state.gpsObservationSequence = 0;
   state.gpsObservations = [];
   state.gpsStopEvidence = false;
   state.gpsStopObservationCount = 0;
@@ -1570,7 +1580,8 @@ function onGpsPosition(position) {
 
   state.gpsSpeedMs = speedMs;
   state.gpsSource = derived ? "position" : "sensor";
-  if (state.gpsObservations.at(-1)?.timestamp !== timestamp) {
+  if (!Number.isFinite(state.gpsObservations.at(-1)?.timestamp)
+    || timestamp > state.gpsObservations.at(-1).timestamp) {
     state.gpsObservations.push({
       receivedAt: state.gpsReceivedAt,
       timestamp,
@@ -1579,6 +1590,7 @@ function onGpsPosition(position) {
       longitude: coords.longitude,
       accuracy,
     });
+    state.gpsObservationSequence += 1;
   }
   state.gpsObservations = state.gpsObservations.filter((observation) =>
     state.gpsReceivedAt - observation.receivedAt <= GPS_STOP_HISTORY_MS);
@@ -1586,6 +1598,12 @@ function onGpsPosition(position) {
     render();
     return;
   }
+  const filterTimestamp = Number.isFinite(timestamp) ? timestamp : state.gpsReceivedAt;
+  if (Number.isFinite(state.gpsFilterTimestampMs) && filterTimestamp <= state.gpsFilterTimestampMs) {
+    render();
+    return;
+  }
+  state.gpsFilterTimestampMs = filterTimestamp;
   if (state.gpsResyncPending && resyncSpeedFromGps("欠測後GPS再同期")) {
     render();
     return;
@@ -2237,7 +2255,7 @@ function syncHistorySelectionControls() {
 function runToCsv(run, includeRunMetadata = false) {
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -2247,6 +2265,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(event.longG, 3),
     fixed(event.latG, 3),
     fixed(event.speedKmh, 2),
+    "",
     "",
     "",
     "",
@@ -2341,6 +2360,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.gpsStopObservationCount, 0),
     fixed(sample.gpsStopDwellMs, 0),
     fixed(sample.gpsStopDisplacementM, 2),
+    fixed(sample.gpsObservationSequence, 0),
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }

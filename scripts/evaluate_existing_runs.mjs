@@ -134,6 +134,7 @@ function loadCsv(file, suppliedLines = null) {
       gpsStopObservationCount: number(cells, index, "gps_stop_observation_count"),
       gpsStopDwellMs: number(cells, index, "gps_stop_dwell_ms"),
       gpsStopDisplacementM: number(cells, index, "gps_stop_displacement_m"),
+      gpsObservationSequence: number(cells, index, "gps_observation_sequence"),
     });
   }
   return {

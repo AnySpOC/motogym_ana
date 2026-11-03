@@ -1,108 +1,557 @@
 {
-  "generatedAt": "2026-10-19T09:38:13.742Z",
+  "generatedAt": "2026-11-03T10:52:44.043Z",
   "roots": [
-    "C:\\Users\\foxho\\Videos"
+    "Videos",
+    "Downloads",
+    "analysis"
   ],
   "method": {
-    "runs": 9,
+    "runs": 26,
     "dates": [
       "2026-10-03",
       "2026-10-04",
       "2026-10-10",
       "2026-10-12",
-      "2026-10-19"
+      "2026-10-19",
+      "2026-10-31",
+      "2026-11-01",
+      "2026-11-03"
     ],
-    "state": "speed and longitudinal acceleration bias",
-    "acceptance": ">= 10% overall RMSE improvement and no held-out date worse than current EKF",
+    "state": "speed and longitudinal acceleration bias; physics UKF adds a gated nonlinear bank observation",
+    "acceptance": "four-gate policy: >=10% overall, nested CV, chronological holdout, positive bootstrap lower bound",
     "reference": "GoPro GPX speed; useful field reference, not laboratory ground truth"
   },
   "aligned": {
     "baseline": {
-      "filter": "current-ekf",
+      "filter": "v31-adaptive-ekf",
       "config": {
         "drag": 0,
         "processNoise": 1.2,
         "gpsSigmaScale": 0.35,
-        "gpsPredictionSec": 0
+        "gpsPredictionSec": 0,
+        "adaptiveNoise": true,
+        "vibrationProcessMax": 0,
+        "vibrationObservationMax": 2,
+        "vibrationObservationReferenceG": 0.25
       },
       "aggregate": {
-        "rmse": 3.948,
-        "macroRmse": 3.56,
-        "macroAbsBias": 0.721
+        "rmse": 3.094,
+        "macroRmse": 2.967,
+        "macroAbsBias": 0.788
       }
     },
     "families": [
       {
         "family": "ukf",
         "bestConfig": {
-          "qSpeed": 1.2,
-          "qBias": 0.000005,
+          "qSpeed": 0.6,
+          "qBias": 0.00008,
           "gpsSigmaScale": 0.35
         },
         "aggregate": {
-          "rmse": 3.921,
-          "macroRmse": 3.584,
-          "macroAbsBias": 0.528
+          "runs": 26,
+          "count": 25954,
+          "rmse": 3.094,
+          "macroRmse": 2.979,
+          "macroAbsBias": 0.741
         },
-        "improvementRatio": 0.0068,
+        "improvementRatio": -0.0001,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
-            "config": {
-              "qSpeed": 0.6,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
             },
-            "rmse": 3.801,
-            "baselineRmse": 3.783,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.8489271791144244,
+              "macroRmse": 3.592192134098752,
+              "macroAbsBias": 0.4706374777510141
+            },
+            "improvementRatio": -0.017963100060628335,
+            "notWorse": false
           },
           {
             "date": "2026-10-04",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
             },
-            "rmse": 3.253,
-            "baselineRmse": 3.215,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2483457741132438,
+              "macroRmse": 3.1978264151910456,
+              "macroAbsBias": 0.6879311184177782
+            },
+            "improvementRatio": -0.010814737084757425,
+            "notWorse": false
           },
           {
             "date": "2026-10-10",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
             },
-            "rmse": 4.384,
-            "baselineRmse": 4.483,
-            "improved": true
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.431114456678412,
+              "macroRmse": 4.431114456678412,
+              "macroAbsBias": 0.3756289604683619
+            },
+            "improvementRatio": 0.011510581414713277,
+            "notWorse": true
           },
           {
             "date": "2026-10-12",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
             },
-            "rmse": 3.708,
-            "baselineRmse": 3.649,
-            "improved": false
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.7314093043681775,
+              "macroRmse": 3.7314093043681775,
+              "macroAbsBias": 0.7582581269371559
+            },
+            "improvementRatio": -0.025680902308222495,
+            "notWorse": false
           },
           {
             "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.9759188972251933,
+              "macroRmse": 3.9759188972251933,
+              "macroAbsBias": 0.3514980907103048
+            },
+            "improvementRatio": -0.026475801497337248,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 2.8253451578298296,
+              "macroRmse": 2.8253451578298296,
+              "macroAbsBias": 0.21683148773604088
+            },
+            "improvementRatio": 0.060384656793827304,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.117273872201437,
+              "macroRmse": 2.6151408049125497,
+              "macroAbsBias": 0.9802033935957798
+            },
+            "improvementRatio": 0.004530730934322446,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.5957363881865088,
+              "macroRmse": 2.66019313425195,
+              "macroAbsBias": 0.7132448085634703
+            },
+            "improvementRatio": -0.0029718591638328035,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
             "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
               "gpsSigmaScale": 0.35
             },
-            "rmse": 3.909,
-            "baselineRmse": 3.874,
-            "improved": false
+            "training": {
+              "runs": 23,
+              "count": 22685,
+              "rmse": 2.9699779257183785,
+              "macroRmse": 2.8986884311439978,
+              "macroAbsBias": 0.7759788177584268
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "test": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.8489271791144244,
+              "macroRmse": 3.592192134098752,
+              "macroAbsBias": 0.4706374777510141
+            },
+            "improvementRatio": -0.017963100060628335,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 23,
+              "count": 24073,
+              "rmse": 3.0821096370222976,
+              "macroRmse": 2.9501274379580464,
+              "macroAbsBias": 0.7476361689758054
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "test": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2483457741132438,
+              "macroRmse": 3.1978264151910456,
+              "macroAbsBias": 0.6879311184177782
+            },
+            "improvementRatio": -0.010814737084757425,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 22620,
+              "rmse": 2.8448267926977513,
+              "macroRmse": 2.920611834477192,
+              "macroAbsBias": 0.75535185124914
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.431114456678412,
+              "macroRmse": 4.431114456678412,
+              "macroAbsBias": 0.3756289604683619
+            },
+            "improvementRatio": 0.011510581414713277,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 25841,
+              "rmse": 3.0913841582342845,
+              "macroRmse": 2.9486000405696013,
+              "macroAbsBias": 0.7400466845903882
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.7314093043681775,
+              "macroRmse": 3.7314093043681775,
+              "macroAbsBias": 0.7582581269371559
+            },
+            "improvementRatio": -0.025680902308222495,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24648,
+              "rmse": 3.0406323865549862,
+              "macroRmse": 2.938819656855321,
+              "macroAbsBias": 0.7563170860394622
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.9759188972251933,
+              "macroRmse": 3.9759188972251933,
+              "macroAbsBias": 0.3514980907103048
+            },
+            "improvementRatio": -0.026475801497337248,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24435,
+              "rmse": 3.110418423527119,
+              "macroRmse": 2.9848426064311355,
+              "macroAbsBias": 0.7617037501584326
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "test": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 2.8253451578298296,
+              "macroRmse": 2.8253451578298296,
+              "macroAbsBias": 0.21683148773604088
+            },
+            "improvementRatio": 0.060384656793827304,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 16,
+              "count": 18207,
+              "rmse": 3.4273017398453893,
+              "macroRmse": 3.2024854126243416,
+              "macroAbsBias": 0.5853942973145911
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "test": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.145228029450161,
+              "macroRmse": 2.6614007510809707,
+              "macroAbsBias": 1.001974887809269
+            },
+            "improvementRatio": -0.008612351238037573,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 20,
+              "count": 19169,
+              "rmse": 3.2527118779872053,
+              "macroRmse": 3.0742625756548256,
+              "macroAbsBias": 0.7489978195158019
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.5957363881865088,
+              "macroRmse": 2.66019313425195,
+              "macroAbsBias": 0.7132448085634703
+            },
+            "improvementRatio": -0.0029718591638328035,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "qSpeed": 1.2,
+            "qBias": 0.00008,
+            "gpsSigmaScale": 0.35
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.353486099924062,
+            "macroRmse": 2.632694737130803,
+            "macroAbsBias": 0.8360072572465308
+          },
+          "test": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.37089242043146,
+            "macroRmse": 2.6668387116535612,
+            "macroAbsBias": 0.8957090828169952
+          },
+          "improvementRatio": -0.007395973363921461,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.1269103306309565,
+                "macroRmse": 2.6057960165993563,
+                "macroAbsBias": 0.8648600376826625
+              },
+              "test": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.145228029450161,
+                "macroRmse": 2.6614007510809707,
+                "macroAbsBias": 1.001974887809269
+              },
+              "improvementRatio": -0.008612351238037573,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.588045082691101,
+                "macroRmse": 2.6775259380165473,
+                "macroAbsBias": 0.787919289852978
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.6047559879562683,
+                "macroRmse": 2.675901979274547,
+                "macroAbsBias": 0.7185994078298727
+              },
+              "improvementRatio": -0.00645696065224303,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.010977251519227123,
+          "median": -0.00021925443230800816,
+          "upper95": 0.010288431521184246
+        }
       },
       {
         "family": "timestamp-robust-ekf",
@@ -112,141 +561,1573 @@
           "residualFloorMs": 3
         },
         "aggregate": {
-          "rmse": 3.948,
-          "macroRmse": 3.56,
-          "macroAbsBias": 0.721
+          "runs": 26,
+          "count": 25954,
+          "rmse": 3.096,
+          "macroRmse": 2.969,
+          "macroAbsBias": 0.788
         },
-        "improvementRatio": 0,
+        "improvementRatio": -0.0005,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
-            "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
             },
-            "rmse": 3.783,
-            "baselineRmse": 3.783,
-            "improved": true
+            "candidate": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7825747176079907,
+              "macroRmse": 3.5125217099244193,
+              "macroAbsBias": 0.6437134393022935
+            },
+            "improvementRatio": -0.0004142210435710114,
+            "notWorse": false
           },
           {
             "date": "2026-10-04",
-            "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
             },
-            "rmse": 3.215,
-            "baselineRmse": 3.215,
-            "improved": true
+            "candidate": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.21524844559932,
+              "macroRmse": 3.1665705760085037,
+              "macroAbsBias": 0.7212985607568277
+            },
+            "improvementRatio": -0.0005155664463907137,
+            "notWorse": false
           },
           {
             "date": "2026-10-10",
-            "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
             },
-            "rmse": 4.483,
-            "baselineRmse": 4.483,
-            "improved": true
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.4833414888423295,
+              "macroRmse": 4.4833414888423295,
+              "macroAbsBias": 0.8366463433769606
+            },
+            "improvementRatio": -0.00014018255513563774,
+            "notWorse": false
           },
           {
             "date": "2026-10-12",
-            "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
             },
-            "rmse": 3.649,
-            "baselineRmse": 3.649,
-            "improved": true
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.648533388906454,
+              "macroRmse": 3.648533388906454,
+              "macroAbsBias": 1.1637527744502445
+            },
+            "improvementRatio": -0.0029001680556466443,
+            "notWorse": false
           },
           {
             "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.874008380638801,
+              "macroRmse": 3.874008380638801,
+              "macroAbsBias": 0.3911130801785643
+            },
+            "improvementRatio": -0.0001652348338593638,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.009082452683083,
+              "macroRmse": 3.009082452683083,
+              "macroAbsBias": 0.6284532113241159
+            },
+            "improvementRatio": -0.0007202248114776007,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.128936625145877,
+              "macroRmse": 2.6075025691206806,
+              "macroAbsBias": 0.8644770145773819
+            },
+            "improvementRatio": -0.0009526939080310002,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.5899708278481666,
+              "macroRmse": 2.6797582397183763,
+              "macroAbsBias": 0.7882138488586881
+            },
+            "improvementRatio": -0.0007440925855369395,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
             "config": {
               "ageScale": 0,
               "gateSigma": 8,
               "residualFloorMs": 3
             },
-            "rmse": 3.874,
-            "baselineRmse": 3.874,
-            "improved": true
+            "training": {
+              "runs": 23,
+              "count": 22685,
+              "rmse": 2.98363941825169,
+              "macroRmse": 2.898619676896227,
+              "macroAbsBias": 0.806865840457666
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "test": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7825747176079907,
+              "macroRmse": 3.5125217099244193,
+              "macroAbsBias": 0.6437134393022935
+            },
+            "improvementRatio": -0.0004142210435710114,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 23,
+              "count": 24073,
+              "rmse": 3.0860976507680222,
+              "macroRmse": 2.943743737841782,
+              "macroAbsBias": 0.7967460420070743
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "test": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.21524844559932,
+              "macroRmse": 3.1665705760085037,
+              "macroAbsBias": 0.7212985607568277
+            },
+            "improvementRatio": -0.0005155664463907137,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 22620,
+              "rmse": 2.8342207114862252,
+              "macroRmse": 2.908899048381766,
+              "macroAbsBias": 0.7860963322022495
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.4833414888423295,
+              "macroRmse": 4.4833414888423295,
+              "macroAbsBias": 0.8366463433769606
+            },
+            "improvementRatio": -0.00014018255513563774,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 25841,
+              "rmse": 3.0930041003509694,
+              "macroRmse": 2.9422913723792017,
+              "macroAbsBias": 0.7730120749593182
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.648533388906454,
+              "macroRmse": 3.648533388906454,
+              "macroAbsBias": 1.1637527744502445
+            },
+            "improvementRatio": -0.0029001680556466443,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 24648,
+              "rmse": 3.048857634654015,
+              "macroRmse": 2.9332723727099075,
+              "macroAbsBias": 0.8039176627301853
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.874008380638801,
+              "macroRmse": 3.874008380638801,
+              "macroAbsBias": 0.3911130801785643
+            },
+            "improvementRatio": -0.0001652348338593638,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 24435,
+              "rmse": 3.1009398920951528,
+              "macroRmse": 2.967869409828136,
+              "macroAbsBias": 0.7944240574843633
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "test": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.009082452683083,
+              "macroRmse": 3.009082452683083,
+              "macroAbsBias": 0.6284532113241159
+            },
+            "improvementRatio": -0.0007202248114776007,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 16,
+              "count": 18207,
+              "rmse": 3.425199616545924,
+              "macroRmse": 3.195674500448731,
+              "macroAbsBias": 0.7402677814162112
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "test": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.128936625145877,
+              "macroRmse": 2.6075025691206806,
+              "macroAbsBias": 0.8644770145773819
+            },
+            "improvementRatio": -0.0009526939080310002,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 20,
+              "count": 19169,
+              "rmse": 3.2558589106000992,
+              "macroRmse": 3.056363413003812,
+              "macroAbsBias": 0.7879885777640534
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.5899708278481666,
+              "macroRmse": 2.6797582397183763,
+              "macroAbsBias": 0.7882138488586881
+            },
+            "improvementRatio": -0.0007440925855369395,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "ageScale": 0,
+            "gateSigma": 8,
+            "residualFloorMs": 3
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.353486099924062,
+            "macroRmse": 2.632694737130803,
+            "macroAbsBias": 0.8360072572465308
+          },
+          "test": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.3554510769250285,
+            "macroRmse": 2.6345984455948166,
+            "macroAbsBias": 0.8358783274328718
+          },
+          "improvementRatio": -0.0008349218637959367,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.1269103306309565,
+                "macroRmse": 2.6057960165993563,
+                "macroAbsBias": 0.8648600376826625
+              },
+              "test": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.128936625145877,
+                "macroRmse": 2.6075025691206806,
+                "macroAbsBias": 0.8644770145773819
+              },
+              "improvementRatio": -0.0009526939080310002,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.588045082691101,
+                "macroRmse": 2.6775259380165473,
+                "macroAbsBias": 0.787919289852978
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.5899708278481666,
+                "macroRmse": 2.6797582397183763,
+                "macroAbsBias": 0.7882138488586881
+              },
+              "improvementRatio": -0.0007440925855369395,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.0007274109913244722,
+          "median": -0.0005009816476193326,
+          "upper95": -0.000304770544638086
+        }
+      },
+      {
+        "family": "physics-ukf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.000005,
+          "gpsSigmaScale": 0.35,
+          "turnBankSigmaDeg": 5,
+          "turnYawMinDps": 4,
+          "turnRollMaxDps": 10,
+          "turnLongGMax": 0.1
+        },
+        "aggregate": {
+          "runs": 26,
+          "count": 25954,
+          "rmse": 3.099,
+          "macroRmse": 3.018,
+          "macroAbsBias": 0.772
+        },
+        "improvementRatio": -0.0014,
+        "accepted": false,
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
+          {
+            "date": "2026-10-03",
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.767955314067411,
+              "macroRmse": 3.5388044498377806,
+              "macroAbsBias": 0.3661346339686027
+            },
+            "improvementRatio": 0.0034523143977750175,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-04",
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2891560358090453,
+              "macroRmse": 3.2413039393826133,
+              "macroAbsBias": 0.74674552522132
+            },
+            "improvementRatio": -0.023514005209211597,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-10",
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.384636415137213,
+              "macroRmse": 4.384636415137213,
+              "macroAbsBias": 0.233154898995167
+            },
+            "improvementRatio": 0.02187886521988543,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-12",
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.736628370390924,
+              "macroRmse": 3.736628370390924,
+              "macroAbsBias": 0.3973485556219071
+            },
+            "improvementRatio": -0.027115506746055246,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.8975282372980486,
+              "macroRmse": 3.8975282372980486,
+              "macroAbsBias": 0.5449656914903729
+            },
+            "improvementRatio": -0.006237432064102937,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 2.9837269500408676,
+              "macroRmse": 2.9837269500408676,
+              "macroAbsBias": 0.3202670514049894
+            },
+            "improvementRatio": 0.0077121676880036955,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.189940069705517,
+              "macroRmse": 2.696597931890554,
+              "macroAbsBias": 1.0649946880678771
+            },
+            "improvementRatio": -0.02963441296364498,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.610220615175792,
+              "macroRmse": 2.6936311929915497,
+              "macroAbsBias": 0.7651491368451465
+            },
+            "improvementRatio": -0.008568449071077512,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 23,
+              "count": 22685,
+              "rmse": 2.989712385227763,
+              "macroRmse": 2.9501825333856404,
+              "macroAbsBias": 0.8250788902141758
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "test": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.767955314067411,
+              "macroRmse": 3.5388044498377806,
+              "macroAbsBias": 0.3661346339686027
+            },
+            "improvementRatio": 0.0034523143977750175,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 23,
+              "count": 24073,
+              "rmse": 3.083120312499491,
+              "macroRmse": 2.988986947792837,
+              "macroAbsBias": 0.775433991355126
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "test": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2891560358090453,
+              "macroRmse": 3.2413039393826133,
+              "macroAbsBias": 0.74674552522132
+            },
+            "improvementRatio": -0.023514005209211597,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 25,
+              "count": 22620,
+              "rmse": 2.8604630387719125,
+              "macroRmse": 2.9634390080898343,
+              "macroAbsBias": 0.7936825391134674
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.384636415137213,
+              "macroRmse": 4.384636415137213,
+              "macroAbsBias": 0.233154898995167
+            },
+            "improvementRatio": 0.02187886521988543,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 25,
+              "count": 25841,
+              "rmse": 3.0965750274444743,
+              "macroRmse": 2.9883251204567456,
+              "macroAbsBias": 0.7863552341506174
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.8815590750660642,
+              "macroRmse": 3.8815590750660642,
+              "macroAbsBias": 0.28084423812118037
+            },
+            "improvementRatio": -0.0669537136587474,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 25,
+              "count": 24648,
+              "rmse": 3.0503433784007323,
+              "macroRmse": 2.9829233352034015,
+              "macroAbsBias": 0.7812101074136593
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.8975282372980486,
+              "macroRmse": 3.8975282372980486,
+              "macroAbsBias": 0.5449656914903729
+            },
+            "improvementRatio": -0.006237432064102937,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 25,
+              "count": 24435,
+              "rmse": 3.105508744422395,
+              "macroRmse": 3.0194753866936885,
+              "macroAbsBias": 0.7901980530170747
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "test": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 2.9837269500408676,
+              "macroRmse": 2.9837269500408676,
+              "macroAbsBias": 0.3202670514049894
+            },
+            "improvementRatio": 0.0077121676880036955,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 10,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 16,
+              "count": 18207,
+              "rmse": 3.4104895476939547,
+              "macroRmse": 3.209166173630133,
+              "macroAbsBias": 0.6027292569034324
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "test": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.190332983291253,
+              "macroRmse": 2.72096520746292,
+              "macroAbsBias": 1.0937880774065765
+            },
+            "improvementRatio": -0.029819147402176557,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 10,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 20,
+              "count": 19169,
+              "rmse": 3.253836180438453,
+              "macroRmse": 3.1154412229716892,
+              "macroAbsBias": 0.7742161777880487
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.610220615175792,
+              "macroRmse": 2.6936311929915497,
+              "macroAbsBias": 0.7651491368451465
+            },
+            "improvementRatio": -0.008568449071077512,
+            "notWorse": false
+          }
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "qSpeed": 1.2,
+            "qBias": 0.000005,
+            "gpsSigmaScale": 0.35,
+            "turnBankSigmaDeg": 10,
+            "turnYawMinDps": 4,
+            "turnRollMaxDps": 10,
+            "turnLongGMax": 0.1
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.353486099924062,
+            "macroRmse": 2.632694737130803,
+            "macroAbsBias": 0.8360072572465308
+          },
+          "test": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.3942192891243907,
+            "macroRmse": 2.7100399395912906,
+            "macroAbsBias": 0.9707013815095082
+          },
+          "improvementRatio": -0.017307597101016637,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.1269103306309565,
+                "macroRmse": 2.6057960165993563,
+                "macroAbsBias": 0.8648600376826625
+              },
+              "test": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.190332983291253,
+                "macroRmse": 2.72096520746292,
+                "macroAbsBias": 1.0937880774065765
+              },
+              "improvementRatio": -0.029819147402176557,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.588045082691101,
+                "macroRmse": 2.6775259380165473,
+                "macroAbsBias": 0.787919289852978
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.607593183941096,
+                "macroRmse": 2.6918311598052416,
+                "macroAbsBias": 0.765556888347728
+              },
+              "improvementRatio": -0.007553230575747503,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.0150042683334102,
+          "median": -0.0021059347364170925,
+          "upper95": 0.0098762396892098
+        }
       },
       {
         "family": "bias-ekf",
         "bestConfig": {
           "qSpeed": 1.2,
-          "qBias": 0.000005,
+          "qBias": 0.00008,
           "gpsSigmaScale": 0.35
         },
         "aggregate": {
-          "rmse": 4.055,
-          "macroRmse": 3.845,
-          "macroAbsBias": 0.707
+          "runs": 26,
+          "count": 25954,
+          "rmse": 3.158,
+          "macroRmse": 3.074,
+          "macroAbsBias": 0.788
         },
-        "improvementRatio": -0.027,
+        "improvementRatio": -0.0205,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 4.2253667230927405,
+              "macroRmse": 4.380512617204949,
+              "macroAbsBias": 0.7838400738610236
+            },
+            "improvementRatio": -0.11752371717309457,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-04",
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2644145814739045,
+              "macroRmse": 3.20621345752323,
+              "macroAbsBias": 0.7103381778953842
+            },
+            "improvementRatio": -0.015815001347562366,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-10",
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.415429414601679,
+              "macroRmse": 4.415429414601679,
+              "macroAbsBias": 0.23442168914689904
+            },
+            "improvementRatio": 0.015009587877872526,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-12",
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.722328473336777,
+              "macroRmse": 3.722328473336777,
+              "macroAbsBias": 0.8503196122569062
+            },
+            "improvementRatio": -0.023184785102561903,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.9525083788107582,
+              "macroRmse": 3.9525083788107582,
+              "macroAbsBias": 0.3438197396894405
+            },
+            "improvementRatio": -0.02043183247430303,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 2.8900818355287856,
+              "macroRmse": 2.8900818355287856,
+              "macroAbsBias": 0.33635838837353244
+            },
+            "improvementRatio": 0.03885540205284053,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.119909551908507,
+              "macroRmse": 2.61443198157371,
+              "macroAbsBias": 0.9845003114581449
+            },
+            "improvementRatio": 0.0032915250923495672,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.6003661176144974,
+              "macroRmse": 2.6723164398241352,
+              "macroAbsBias": 0.7331831714483815
+            },
+            "improvementRatio": -0.0047607497279703445,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 23,
+              "count": 22685,
+              "rmse": 2.972173398803535,
+              "macroRmse": 2.9033568230230267,
+              "macroAbsBias": 0.7886972220184639
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "test": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 4.2253667230927405,
+              "macroRmse": 4.380512617204949,
+              "macroAbsBias": 0.7838400738610236
+            },
+            "improvementRatio": -0.11752371717309457,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 23,
+              "count": 24073,
+              "rmse": 3.1490099625456494,
+              "macroRmse": 3.0565262786336858,
+              "macroAbsBias": 0.798284425840069
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "test": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2644145814739045,
+              "macroRmse": 3.20621345752323,
+              "macroAbsBias": 0.7103381778953842
+            },
+            "improvementRatio": -0.015815001347562366,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 22620,
+              "rmse": 2.926744795629293,
+              "macroRmse": 3.020132614661711,
+              "macroAbsBias": 0.8102853855544336
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.415429414601679,
+              "macroRmse": 4.415429414601679,
+              "macroAbsBias": 0.23442168914689904
+            },
+            "improvementRatio": 0.015009587877872526,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 25841,
+              "rmse": 3.154823693819625,
+              "macroRmse": 3.047856652312307,
+              "macroAbsBias": 0.7856494686300333
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.722328473336777,
+              "macroRmse": 3.722328473336777,
+              "macroAbsBias": 0.8503196122569062
+            },
+            "improvementRatio": -0.023184785102561903,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24648,
+              "rmse": 3.109727576072944,
+              "macroRmse": 3.0386494560933475,
+              "macroAbsBias": 0.805909463532732
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.9525083788107582,
+              "macroRmse": 3.9525083788107582,
+              "macroAbsBias": 0.3438197396894405
+            },
+            "improvementRatio": -0.02043183247430303,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24435,
+              "rmse": 3.173396628209306,
+              "macroRmse": 3.0811465178246267,
+              "macroAbsBias": 0.8062079175853683
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "test": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 2.8900818355287856,
+              "macroRmse": 2.8900818355287856,
+              "macroAbsBias": 0.33635838837353244
+            },
+            "improvementRatio": 0.03885540205284053,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-11-01",
             "config": {
               "qSpeed": 1.2,
               "qBias": 0.00002,
               "gpsSigmaScale": 0.35
             },
-            "rmse": 4.184,
-            "baselineRmse": 3.783,
-            "improved": false
+            "training": {
+              "runs": 16,
+              "count": 18207,
+              "rmse": 3.487503459630638,
+              "macroRmse": 3.3508367653596576,
+              "macroAbsBias": 0.683526391071581
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "test": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1305116709220875,
+              "macroRmse": 2.626803020120844,
+              "macroAbsBias": 1.003861205969205
+            },
+            "improvementRatio": -0.0016932261972993777,
+            "notWorse": false
           },
           {
-            "date": "2026-10-04",
+            "heldOutDate": "2026-11-03",
             "config": {
               "qSpeed": 1.2,
-              "qBias": 0.000005,
+              "qBias": 0.00008,
               "gpsSigmaScale": 0.35
             },
-            "rmse": 3.242,
-            "baselineRmse": 3.215,
-            "improved": false
-          },
-          {
-            "date": "2026-10-10",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "training": {
+              "runs": 20,
+              "count": 19169,
+              "rmse": 3.3324763957724692,
+              "macroRmse": 3.194242307109982,
+              "macroAbsBias": 0.8046228649658727
             },
-            "rmse": 4.413,
-            "baselineRmse": 4.483,
-            "improved": true
-          },
-          {
-            "date": "2026-10-12",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
             },
-            "rmse": 3.708,
-            "baselineRmse": 3.649,
-            "improved": false
-          },
-          {
-            "date": "2026-10-19",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.6003661176144974,
+              "macroRmse": 2.6723164398241352,
+              "macroAbsBias": 0.7331831714483815
             },
-            "rmse": 3.907,
-            "baselineRmse": 3.874,
-            "improved": false
+            "improvementRatio": -0.0047607497279703445,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "qSpeed": 1.2,
+            "qBias": 0.000005,
+            "gpsSigmaScale": 0.35
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.353486099924062,
+            "macroRmse": 2.632694737130803,
+            "macroAbsBias": 0.8360072572465308
+          },
+          "test": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.3626749472585686,
+            "macroRmse": 2.649185879034987,
+            "macroAbsBias": 0.9109258328403083
+          },
+          "improvementRatio": -0.003904355897748035,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.1269103306309565,
+                "macroRmse": 2.6057960165993563,
+                "macroAbsBias": 0.8648600376826625
+              },
+              "test": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.141451697427841,
+                "macroRmse": 2.634975920384929,
+                "macroAbsBias": 1.0112198272689814
+              },
+              "improvementRatio": -0.0068368499543516635,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.588045082691101,
+                "macroRmse": 2.6775259380165473,
+                "macroAbsBias": 0.787919289852978
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.592281977715462,
+                "macroRmse": 2.672869143451751,
+                "macroAbsBias": 0.7437691754591862
+              },
+              "improvementRatio": -0.0016371024804389467,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.059064745913094664,
+          "median": -0.01823811129517664,
+          "upper95": 0.008500521406652382
+        }
       },
       {
         "family": "particle",
@@ -257,94 +2138,1606 @@
           "gpsSigmaScale": 0.7
         },
         "aggregate": {
-          "rmse": 4.687,
-          "macroRmse": 4.445,
-          "macroAbsBias": 0.946
+          "runs": 26,
+          "count": 25954,
+          "rmse": 3.511,
+          "macroRmse": 3.357,
+          "macroAbsBias": 0.839
         },
-        "improvementRatio": -0.1872,
+        "improvementRatio": -0.1347,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
             },
-            "rmse": 5.285,
-            "baselineRmse": 3.783,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 5.284610003620846,
+              "macroRmse": 5.810984019795803,
+              "macroAbsBias": 1.4923115163448424
+            },
+            "improvementRatio": -0.39767206069485284,
+            "notWorse": false
           },
           {
             "date": "2026-10-04",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
             },
-            "rmse": 3.392,
-            "baselineRmse": 3.215,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.3915460384180647,
+              "macroRmse": 3.3173550140904045,
+              "macroAbsBias": 0.6733805573666508
+            },
+            "improvementRatio": -0.055375552828968,
+            "notWorse": false
           },
           {
             "date": "2026-10-10",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
             },
-            "rmse": 4.953,
-            "baselineRmse": 4.483,
-            "improved": false
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.952936335015255,
+              "macroRmse": 4.952936335015255,
+              "macroAbsBias": 0.5908200618611855
+            },
+            "improvementRatio": -0.10489701991565852,
+            "notWorse": false
           },
           {
             "date": "2026-10-12",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
             },
-            "rmse": 3.626,
-            "baselineRmse": 3.649,
-            "improved": true
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6257109192514374,
+              "macroRmse": 3.6257109192514374,
+              "macroAbsBias": 1.026313000156316
+            },
+            "improvementRatio": 0.003373218045753802,
+            "notWorse": true
           },
           {
             "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 4.0406522416073525,
+              "macroRmse": 4.0406522416073525,
+              "macroAbsBias": 0.4022550121090189
+            },
+            "improvementRatio": -0.043188217740197155,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.1031232256326793,
+              "macroRmse": 3.1031232256326793,
+              "macroAbsBias": 0.341352555605909
+            },
+            "improvementRatio": -0.03199504194507005,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.248694694430857,
+              "macroRmse": 2.764147044342754,
+              "macroAbsBias": 0.861174114301887
+            },
+            "improvementRatio": -0.05725881436843296,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.676568331047774,
+              "macroRmse": 2.756308678856875,
+              "macroAbsBias": 0.7246659283055908
+            },
+            "improvementRatio": -0.03420467786620823,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
             "config": {
               "particles": 160,
               "qSpeed": 0.6,
               "qBias": 0.00008,
               "gpsSigmaScale": 0.7
             },
-            "rmse": 4.041,
-            "baselineRmse": 3.874,
-            "improved": false
+            "training": {
+              "runs": 23,
+              "count": 22685,
+              "rmse": 3.174740415477521,
+              "macroRmse": 3.037122186102031,
+              "macroAbsBias": 0.7539399571602085
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 3.7810085443030186,
+              "macroRmse": 3.5103767951300995,
+              "macroAbsBias": 0.6428519584131677
+            },
+            "test": {
+              "runs": 3,
+              "count": 3269,
+              "rmse": 5.284610003620846,
+              "macroRmse": 5.810984019795803,
+              "macroAbsBias": 1.4923115163448424
+            },
+            "improvementRatio": -0.39767206069485284,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 23,
+              "count": 24073,
+              "rmse": 3.520146480932697,
+              "macroRmse": 3.362378143367953,
+              "macroAbsBias": 0.8607570387660595
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.2135916255847663,
+              "macroRmse": 3.1644131837856606,
+              "macroAbsBias": 0.7209444783628042
+            },
+            "test": {
+              "runs": 3,
+              "count": 1881,
+              "rmse": 3.3915460384180647,
+              "macroRmse": 3.3173550140904045,
+              "macroAbsBias": 0.6733805573666508
+            },
+            "improvementRatio": -0.055375552828968,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 22620,
+              "rmse": 3.2447127892429353,
+              "macroRmse": 3.2933530401887547,
+              "macroAbsBias": 0.8490693400743256
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.48271309066734,
+              "macroRmse": 4.48271309066734,
+              "macroAbsBias": 0.8351069704470316
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 4.952936335015255,
+              "macroRmse": 4.952936335015255,
+              "macroAbsBias": 0.5908200618611855
+            },
+            "improvementRatio": -0.10489701991565852,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 25841,
+              "rmse": 3.5104746476244206,
+              "macroRmse": 3.3464420568193076,
+              "macroAbsBias": 0.8316496225425203
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6379826279020153,
+              "macroRmse": 3.6379826279020153,
+              "macroAbsBias": 1.1633459528737375
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 3.6257109192514374,
+              "macroRmse": 3.6257109192514374,
+              "macroAbsBias": 1.026313000156316
+            },
+            "improvementRatio": 0.003373218045753802,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 24648,
+              "rmse": 3.4806717727641376,
+              "macroRmse": 3.329844403925071,
+              "macroAbsBias": 0.856611942064412
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 3.873368365260491,
+              "macroRmse": 3.873368365260491,
+              "macroAbsBias": 0.39119754879658686
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 4.0406522416073525,
+              "macroRmse": 4.0406522416073525,
+              "macroAbsBias": 0.4022550121090189
+            },
+            "improvementRatio": -0.043188217740197155,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 24435,
+              "rmse": 3.5347858718193055,
+              "macroRmse": 3.367345564564058,
+              "macroAbsBias": 0.8590480403245365
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.0069167966001227,
+              "macroRmse": 3.0069167966001227,
+              "macroAbsBias": 0.6282003474395781
+            },
+            "test": {
+              "runs": 1,
+              "count": 1519,
+              "rmse": 3.1031232256326793,
+              "macroRmse": 3.1031232256326793,
+              "macroAbsBias": 0.341352555605909
+            },
+            "improvementRatio": -0.03199504194507005,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 16,
+              "count": 18207,
+              "rmse": 3.9268982699984365,
+              "macroRmse": 3.7278307435191618,
+              "macroAbsBias": 0.8253632762937783
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.1269103306309565,
+              "macroRmse": 2.6057960165993563,
+              "macroAbsBias": 0.8648600376826625
+            },
+            "test": {
+              "runs": 10,
+              "count": 7747,
+              "rmse": 2.248694694430857,
+              "macroRmse": 2.764147044342754,
+              "macroAbsBias": 0.861174114301887
+            },
+            "improvementRatio": -0.05725881436843296,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 20,
+              "count": 19169,
+              "rmse": 3.7622453732750762,
+              "macroRmse": 3.5374455133296445,
+              "macroAbsBias": 0.8734778996942889
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.588045082691101,
+              "macroRmse": 2.6775259380165473,
+              "macroAbsBias": 0.787919289852978
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.676568331047774,
+              "macroRmse": 2.756308678856875,
+              "macroAbsBias": 0.7246659283055908
+            },
+            "improvementRatio": -0.03420467786620823,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "particles": 160,
+            "qSpeed": 0.6,
+            "qBias": 0.00008,
+            "gpsSigmaScale": 0.7
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.353486099924062,
+            "macroRmse": 2.632694737130803,
+            "macroAbsBias": 0.8360072572465308
+          },
+          "test": {
+            "runs": 16,
+            "count": 14532,
+            "rmse": 2.4577570360466194,
+            "macroRmse": 2.7612076572855493,
+            "macroAbsBias": 0.8099835445532759
+          },
+          "improvementRatio": -0.04430488717393392,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.1269103306309565,
+                "macroRmse": 2.6057960165993563,
+                "macroAbsBias": 0.8648600376826625
+              },
+              "test": {
+                "runs": 10,
+                "count": 7747,
+                "rmse": 2.248694694430857,
+                "macroRmse": 2.764147044342754,
+                "macroAbsBias": 0.861174114301887
+              },
+              "improvementRatio": -0.05725881436843296,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.588045082691101,
+                "macroRmse": 2.6775259380165473,
+                "macroAbsBias": 0.787919289852978
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.676568331047774,
+                "macroRmse": 2.756308678856875,
+                "macroAbsBias": 0.7246659283055908
+              },
+              "improvementRatio": -0.03420467786620823,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.23798281267199464,
+          "median": -0.13159560867218642,
+          "upper95": -0.04363391364363098
+        }
       }
     ],
     "decision": "keep the current on-device filter; no alternative passed the 10% cross-date gate"
   },
   "realTime": {
     "baseline": {
-      "filter": "current-ekf",
+      "filter": "v31-adaptive-ekf",
       "config": {
         "drag": 0,
         "processNoise": 1.2,
         "gpsSigmaScale": 0.35,
-        "gpsPredictionSec": 0
+        "gpsPredictionSec": 0,
+        "adaptiveNoise": true,
+        "vibrationProcessMax": 0,
+        "vibrationObservationMax": 2,
+        "vibrationObservationReferenceG": 0.25
       },
       "aggregate": {
-        "rmse": 5.193,
-        "macroRmse": 5.338,
-        "macroAbsBias": 1.29
+        "rmse": 4.146,
+        "macroRmse": 4.24,
+        "macroAbsBias": 1.233
       }
     },
     "families": [
+      {
+        "family": "timestamp-robust-ekf",
+        "bestConfig": {
+          "ageScale": 1,
+          "gateSigma": 8,
+          "residualFloorMs": 3
+        },
+        "aggregate": {
+          "runs": 26,
+          "count": 26046,
+          "rmse": 4.11,
+          "macroRmse": 4.16,
+          "macroAbsBias": 1.244
+        },
+        "improvementRatio": 0.0087,
+        "accepted": false,
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
+          {
+            "date": "2026-10-03",
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200308291838923,
+              "macroRmse": 5.662491795778802,
+              "macroAbsBias": 1.3737179291379782
+            },
+            "improvementRatio": -0.00005895652332210156,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-04",
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9261489164294,
+              "macroRmse": 4.054040464777236,
+              "macroAbsBias": 1.8492385276014847
+            },
+            "improvementRatio": 0.00033732511237922374,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-10",
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.978642885767866,
+              "macroRmse": 5.978642885767866,
+              "macroAbsBias": 1.3451560081482743
+            },
+            "improvementRatio": -0.04923147117571259,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-12",
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.670088014598774,
+              "macroRmse": 8.670088014598774,
+              "macroAbsBias": 0.7694830624524852
+            },
+            "improvementRatio": -0.07397263252081704,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 4.982119562479929,
+              "macroRmse": 4.982119562479929,
+              "macroAbsBias": 0.46545097071700553
+            },
+            "improvementRatio": 0.02613161195658493,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.484403270447829,
+              "macroRmse": 4.484403270447829,
+              "macroAbsBias": 0.6259396672580743
+            },
+            "improvementRatio": 0.08374174136321316,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.2639731258219937,
+              "macroRmse": 3.851383831371988,
+              "macroAbsBias": 1.4692500830263682
+            },
+            "improvementRatio": 0.06513079148394929,
+            "notWorse": true
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.655916524646949,
+              "macroRmse": 2.732333045685408,
+              "macroAbsBias": 0.7952546428144212
+            },
+            "improvementRatio": 0.0015602695398543945,
+            "notWorse": true
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 23,
+              "count": 22762,
+              "rmse": 3.9273840996464844,
+              "macroRmse": 3.964574422411237,
+              "macroAbsBias": 1.2268597381969786
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "test": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200308291838923,
+              "macroRmse": 5.662491795778802,
+              "macroAbsBias": 1.3737179291379782
+            },
+            "improvementRatio": -0.00005895652332210156,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 23,
+              "count": 24150,
+              "rmse": 4.123721623496375,
+              "macroRmse": 4.174372422107093,
+              "macroAbsBias": 1.1648353123104342
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "test": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9261489164294,
+              "macroRmse": 4.054040464777236,
+              "macroAbsBias": 1.8492385276014847
+            },
+            "improvementRatio": 0.00033732511237922374,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 22712,
+              "rmse": 3.757860054813271,
+              "macroRmse": 4.087761768681079,
+              "macroAbsBias": 1.2397508703118465
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.978642885767866,
+              "macroRmse": 5.978642885767866,
+              "macroAbsBias": 1.3451560081482743
+            },
+            "improvementRatio": -0.04923147117571259,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 25933,
+              "rmse": 4.078645894456533,
+              "macroRmse": 3.980103963527843,
+              "macroAbsBias": 1.2627777881396782
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.670088014598774,
+              "macroRmse": 8.670088014598774,
+              "macroAbsBias": 0.7694830624524852
+            },
+            "improvementRatio": -0.07397263252081704,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 24740,
+              "rmse": 4.05839524879091,
+              "macroRmse": 4.127622701612597,
+              "macroAbsBias": 1.2749390718090974
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 4.982119562479929,
+              "macroRmse": 4.982119562479929,
+              "macroAbsBias": 0.46545097071700553
+            },
+            "improvementRatio": 0.02613161195658493,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 25,
+              "count": 24508,
+              "rmse": 4.084996782172108,
+              "macroRmse": 4.147531353293882,
+              "macroAbsBias": 1.2685195239474545
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "test": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.484403270447829,
+              "macroRmse": 4.484403270447829,
+              "macroAbsBias": 0.6259396672580743
+            },
+            "improvementRatio": 0.08374174136321316,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "ageScale": 0,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 16,
+              "count": 18256,
+              "rmse": 4.395568710120381,
+              "macroRmse": 4.332574900983136,
+              "macroAbsBias": 1.0535316073400485
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "test": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4901131263009595,
+              "macroRmse": 4.090360680780205,
+              "macroAbsBias": 1.5205832929142744
+            },
+            "improvementRatio": 0.00035963219067277274,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "ageScale": 1,
+              "gateSigma": 8,
+              "residualFloorMs": 3
+            },
+            "training": {
+              "runs": 20,
+              "count": 19261,
+              "rmse": 4.511539577200889,
+              "macroRmse": 4.5889344414341195,
+              "macroAbsBias": 1.3783699954528954
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.655916524646949,
+              "macroRmse": 2.732333045685408,
+              "macroAbsBias": 0.7952546428144212
+            },
+            "improvementRatio": 0.0015602695398543945,
+            "notWorse": true
+          }
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "ageScale": 0,
+            "gateSigma": 8,
+            "residualFloorMs": 3
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.131949890921518,
+            "macroRmse": 3.580958902490225,
+            "macroAbsBias": 1.2446837757928135
+          },
+          "test": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.131499417949823,
+            "macroRmse": 3.580651193897035,
+            "macroAbsBias": 1.2446274385647724
+          },
+          "improvementRatio": 0.00014383147476297538,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.4913687348875335,
+                "macroRmse": 4.091402612249425,
+                "macroAbsBias": 1.520850167882566
+              },
+              "test": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.4901131263009595,
+                "macroRmse": 4.090360680780205,
+                "macroAbsBias": 1.5205832929142744
+              },
+              "improvementRatio": 0.00035963219067277274,
+              "notWorse": true
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.660066946076886,
+                "macroRmse": 2.7302193862248925,
+                "macroAbsBias": 0.7844064556432263
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.660819355097498,
+                "macroRmse": 2.731135382425084,
+                "macroAbsBias": 0.7847010146489356
+              },
+              "improvementRatio": -0.00028285341529527165,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.02194498178964752,
+          "median": 0.009521922576580851,
+          "upper95": 0.04147693114814115
+        }
+      },
+      {
+        "family": "physics-ukf",
+        "bestConfig": {
+          "qSpeed": 1.2,
+          "qBias": 0.000005,
+          "gpsSigmaScale": 0.35,
+          "turnBankSigmaDeg": 5,
+          "turnYawMinDps": 4,
+          "turnRollMaxDps": 15,
+          "turnLongGMax": 0.2
+        },
+        "aggregate": {
+          "runs": 26,
+          "count": 26046,
+          "rmse": 4.203,
+          "macroRmse": 4.351,
+          "macroAbsBias": 1.227
+        },
+        "improvementRatio": -0.0137,
+        "accepted": false,
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
+          {
+            "date": "2026-10-03",
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.220471571771457,
+              "macroRmse": 5.691592750614965,
+              "macroAbsBias": 1.1993311887914617
+            },
+            "improvementRatio": -0.003936509075554803,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-04",
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "candidate": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 4.176071365172279,
+              "macroRmse": 4.246461789346864,
+              "macroAbsBias": 1.8581105168079641
+            },
+            "improvementRatio": -0.0632970782031181,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-10",
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.534275671070584,
+              "macroRmse": 5.534275671070584,
+              "macroAbsBias": 0.392098601796914
+            },
+            "improvementRatio": 0.028753462082130067,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-12",
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 7.9859603683979525,
+              "macroRmse": 7.9859603683979525,
+              "macroAbsBias": 0.9594517042456436
+            },
+            "improvementRatio": 0.01077095577187543,
+            "notWorse": true
+          },
+          {
+            "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.116110893041124,
+              "macroRmse": 5.116110893041124,
+              "macroAbsBias": 0.6850957797537082
+            },
+            "improvementRatio": -0.0000600358890700077,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 5.067134694789674,
+              "macroRmse": 5.067134694789674,
+              "macroAbsBias": 0.19793617383329046
+            },
+            "improvementRatio": -0.03532259070500269,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.6405886113324266,
+              "macroRmse": 4.266328000713171,
+              "macroAbsBias": 1.6194409940580434
+            },
+            "improvementRatio": -0.04273964962618017,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.747700626154145,
+              "macroRmse": 2.8222751675012048,
+              "macroAbsBias": 0.7188044476343775
+            },
+            "improvementRatio": -0.03294416338149027,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 23,
+              "count": 22762,
+              "rmse": 4.034675006271486,
+              "macroRmse": 4.175643391629517,
+              "macroAbsBias": 1.231136975497398
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "test": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.220471571771457,
+              "macroRmse": 5.691592750614965,
+              "macroAbsBias": 1.1993311887914617
+            },
+            "improvementRatio": -0.003936509075554803,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 23,
+              "count": 24150,
+              "rmse": 4.204739677612131,
+              "macroRmse": 4.3641387344036175,
+              "macroAbsBias": 1.1452092370604625
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "test": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 4.176071365172279,
+              "macroRmse": 4.246461789346864,
+              "macroAbsBias": 1.8581105168079641
+            },
+            "improvementRatio": -0.0632970782031181,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 25,
+              "count": 22712,
+              "rmse": 3.969764088137779,
+              "macroRmse": 4.303212023530127,
+              "macroAbsBias": 1.260881816040705
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.534275671070584,
+              "macroRmse": 5.534275671070584,
+              "macroAbsBias": 0.392098601796914
+            },
+            "improvementRatio": 0.028753462082130067,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 25,
+              "count": 25933,
+              "rmse": 4.17868555967283,
+              "macroRmse": 4.2051446356370334,
+              "macroAbsBias": 1.2381876919427557
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 7.9859603683979525,
+              "macroRmse": 7.9859603683979525,
+              "macroAbsBias": 0.9594517042456436
+            },
+            "improvementRatio": 0.01077095577187543,
+            "notWorse": true
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 25,
+              "count": 24740,
+              "rmse": 4.1488544196401,
+              "macroRmse": 4.319938614651306,
+              "macroAbsBias": 1.2491619289224332
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.116110893041124,
+              "macroRmse": 5.116110893041124,
+              "macroAbsBias": 0.6850957797537082
+            },
+            "improvementRatio": -0.0000600358890700077,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 25,
+              "count": 24508,
+              "rmse": 4.142397624664957,
+              "macroRmse": 4.321897662581365,
+              "macroAbsBias": 1.2686483131592499
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "test": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 5.067134694789674,
+              "macroRmse": 5.067134694789674,
+              "macroAbsBias": 0.19793617383329046
+            },
+            "improvementRatio": -0.03532259070500269,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 10,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.2
+            },
+            "training": {
+              "runs": 16,
+              "count": 18256,
+              "rmse": 4.41068356598869,
+              "macroRmse": 4.389710681496711,
+              "macroAbsBias": 0.9378503415698424
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "test": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.652706344507912,
+              "macroRmse": 4.320588260996306,
+              "macroAbsBias": 1.682127882100423
+            },
+            "improvementRatio": -0.04621041828329708,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35,
+              "turnBankSigmaDeg": 5,
+              "turnYawMinDps": 4,
+              "turnRollMaxDps": 15,
+              "turnLongGMax": 0.1
+            },
+            "training": {
+              "runs": 20,
+              "count": 19261,
+              "rmse": 4.605373147899092,
+              "macroRmse": 4.810383142030195,
+              "macroAbsBias": 1.3522754267064276
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.7584133391206973,
+              "macroRmse": 2.8336684449691725,
+              "macroAbsBias": 0.7620187978255389
+            },
+            "improvementRatio": -0.03697139772698356,
+            "notWorse": false
+          }
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "qSpeed": 1.2,
+            "qBias": 0.000005,
+            "gpsSigmaScale": 0.35,
+            "turnBankSigmaDeg": 10,
+            "turnYawMinDps": 4,
+            "turnRollMaxDps": 15,
+            "turnLongGMax": 0.2
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.131949890921518,
+            "macroRmse": 3.580958902490225,
+            "macroAbsBias": 1.2446837757928135
+          },
+          "test": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.261546068700191,
+            "macroRmse": 3.75770325612315,
+            "macroAbsBias": 1.3318473631776022
+          },
+          "improvementRatio": -0.04137875198908169,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.4913687348875335,
+                "macroRmse": 4.091402612249425,
+                "macroAbsBias": 1.520850167882566
+              },
+              "test": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.652706344507912,
+                "macroRmse": 4.320588260996306,
+                "macroAbsBias": 1.682127882100423
+              },
+              "improvementRatio": -0.04621041828329708,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.660066946076886,
+                "macroRmse": 2.7302193862248925,
+                "macroAbsBias": 0.7844064556432263
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.744539496029105,
+                "macroRmse": 2.8195615813345563,
+                "macroAbsBias": 0.7480464983062337
+              },
+              "improvementRatio": -0.03175579850604902,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.035337086998636955,
+          "median": -0.014584030519292634,
+          "upper95": 0.0062588166002646595
+        }
+      },
       {
         "family": "ukf",
         "bestConfig": {
@@ -353,213 +3746,1021 @@
           "gpsSigmaScale": 0.35
         },
         "aggregate": {
-          "rmse": 5.164,
-          "macroRmse": 5.378,
-          "macroAbsBias": 1.124
+          "runs": 26,
+          "count": 26046,
+          "rmse": 4.204,
+          "macroRmse": 4.384,
+          "macroAbsBias": 1.234
         },
-        "improvementRatio": 0.0055,
+        "improvementRatio": -0.014,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
             },
-            "rmse": 5.233,
-            "baselineRmse": 5.2,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.232745945239965,
+              "macroRmse": 5.697548110454977,
+              "macroAbsBias": 1.2007630559275526
+            },
+            "improvementRatio": -0.006296964732031508,
+            "notWorse": false
           },
           {
             "date": "2026-10-04",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
             },
-            "rmse": 4.023,
-            "baselineRmse": 3.926,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 4.023271727699238,
+              "macroRmse": 4.142715095551075,
+              "macroAbsBias": 1.833574352210059
+            },
+            "improvementRatio": -0.024391754546399892,
+            "notWorse": false
           },
           {
             "date": "2026-10-10",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
             },
-            "rmse": 5.532,
-            "baselineRmse": 5.699,
-            "improved": true
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.532386845796895,
+              "macroRmse": 5.532386845796895,
+              "macroAbsBias": 0.3926942123427822
+            },
+            "improvementRatio": 0.029084944486845,
+            "notWorse": true
           },
           {
             "date": "2026-10-12",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
             },
-            "rmse": 8.199,
-            "baselineRmse": 8.078,
-            "improved": false
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.199045032293407,
+              "macroRmse": 8.199045032293407,
+              "macroAbsBias": 0.20069037610303228
+            },
+            "improvementRatio": -0.015624058563420804,
+            "notWorse": false
           },
           {
             "date": "2026-10-19",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.000005,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
             },
-            "rmse": 5.153,
-            "baselineRmse": 5.115,
-            "improved": false
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.152646007479946,
+              "macroRmse": 5.152646007479946,
+              "macroAbsBias": 0.41956444683165256
+            },
+            "improvementRatio": -0.007201653539812854,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 5.053133510730308,
+              "macroRmse": 5.053133510730308,
+              "macroAbsBias": 0.3183347623543095
+            },
+            "improvementRatio": -0.03246185322190674,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.659223219568188,
+              "macroRmse": 4.348412324489077,
+              "macroAbsBias": 1.7067552014351606
+            },
+            "improvementRatio": -0.04807698568282605,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.762645592435436,
+              "macroRmse": 2.839114624275442,
+              "macroAbsBias": 0.7623063521953127
+            },
+            "improvementRatio": -0.03856243035906838,
+            "notWorse": false
           }
-        ]
-      },
-      {
-        "family": "timestamp-robust-ekf",
-        "bestConfig": {
-          "ageScale": 0,
-          "gateSigma": 8,
-          "residualFloorMs": 3
-        },
-        "aggregate": {
-          "rmse": 5.193,
-          "macroRmse": 5.338,
-          "macroAbsBias": 1.29
-        },
-        "improvementRatio": 0,
-        "accepted": false,
+        ],
         "crossValidation": [
           {
-            "date": "2026-10-03",
+            "heldOutDate": "2026-10-03",
             "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+              "qSpeed": 0.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
             },
-            "rmse": 5.2,
-            "baselineRmse": 5.2,
-            "improved": true
+            "training": {
+              "runs": 23,
+              "count": 22762,
+              "rmse": 4.102889918679005,
+              "macroRmse": 4.219907234144779,
+              "macroAbsBias": 1.1423937378581515
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "test": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.467271163283108,
+              "macroRmse": 5.991295329501104,
+              "macroAbsBias": 1.4197803348423783
+            },
+            "improvementRatio": -0.05139795330278663,
+            "notWorse": false
           },
           {
-            "date": "2026-10-04",
+            "heldOutDate": "2026-10-04",
             "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
             },
-            "rmse": 3.926,
-            "baselineRmse": 3.926,
-            "improved": true
+            "training": {
+              "runs": 23,
+              "count": 24150,
+              "rmse": 4.252104922333338,
+              "macroRmse": 4.422338736547316,
+              "macroAbsBias": 1.0995193039374989
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "test": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 4.043100019792259,
+              "macroRmse": 4.1643674346453805,
+              "macroAbsBias": 1.815023436366137
+            },
+            "improvementRatio": -0.0294403667957257,
+            "notWorse": false
           },
           {
-            "date": "2026-10-10",
+            "heldOutDate": "2026-10-10",
             "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
             },
-            "rmse": 5.699,
-            "baselineRmse": 5.699,
-            "improved": true
+            "training": {
+              "runs": 25,
+              "count": 22712,
+              "rmse": 4.008885569858619,
+              "macroRmse": 4.346350286985557,
+              "macroAbsBias": 1.2055306850795766
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.54813606988549,
+              "macroRmse": 5.54813606988549,
+              "macroAbsBias": 0.5957471726714695
+            },
+            "improvementRatio": 0.02632100928012969,
+            "notWorse": true
           },
           {
-            "date": "2026-10-12",
+            "heldOutDate": "2026-10-12",
             "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
             },
-            "rmse": 8.078,
-            "baselineRmse": 8.078,
-            "improved": true
+            "training": {
+              "runs": 25,
+              "count": 25933,
+              "rmse": 4.178070567484499,
+              "macroRmse": 4.231110678902748,
+              "macroAbsBias": 1.2749998309386024
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.199045032293407,
+              "macroRmse": 8.199045032293407,
+              "macroAbsBias": 0.20069037610303228
+            },
+            "improvementRatio": -0.015624058563420804,
+            "notWorse": false
           },
           {
-            "date": "2026-10-19",
+            "heldOutDate": "2026-10-19",
             "config": {
-              "ageScale": 0,
-              "gateSigma": 8,
-              "residualFloorMs": 3
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
             },
-            "rmse": 5.115,
-            "baselineRmse": 5.115,
-            "improved": true
+            "training": {
+              "runs": 25,
+              "count": 24740,
+              "rmse": 4.178161923167842,
+              "macroRmse": 4.359002982510746,
+              "macroAbsBias": 1.2130778407949356
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.231818681755749,
+              "macroRmse": 5.231818681755749,
+              "macroAbsBias": 0.4070682797874909
+            },
+            "improvementRatio": -0.02267775035104293,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24508,
+              "rmse": 4.1700782210408045,
+              "macroRmse": 4.360615700547666,
+              "macroAbsBias": 1.2240721263432353
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "test": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 5.191500730832762,
+              "macroRmse": 5.191500730832762,
+              "macroAbsBias": 0.13221114108000578
+            },
+            "improvementRatio": -0.060733197366838416,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 16,
+              "count": 18256,
+              "rmse": 4.4158212689041925,
+              "macroRmse": 4.40579304749821,
+              "macroAbsBias": 0.9380083834510307
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "test": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.659223219568188,
+              "macroRmse": 4.348412324489077,
+              "macroAbsBias": 1.7067552014351606
+            },
+            "improvementRatio": -0.04807698568282605,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 20,
+              "count": 19261,
+              "rmse": 4.639609520039393,
+              "macroRmse": 4.851753747997778,
+              "macroAbsBias": 1.3219708329983302
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.795485352055439,
+              "macroRmse": 2.86196971409481,
+              "macroAbsBias": 0.7157662732823816
+            },
+            "improvementRatio": -0.05090789394540241,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "qSpeed": 1.2,
+            "qBias": 0.000005,
+            "gpsSigmaScale": 0.35
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.131949890921518,
+            "macroRmse": 3.580958902490225,
+            "macroAbsBias": 1.2446837757928135
+          },
+          "test": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.2725479490302503,
+            "macroRmse": 3.782425686908964,
+            "macroAbsBias": 1.352586882970218
+          },
+          "improvementRatio": -0.044891541373723545,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.4913687348875335,
+                "macroRmse": 4.091402612249425,
+                "macroAbsBias": 1.520850167882566
+              },
+              "test": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.659223219568188,
+                "macroRmse": 4.348412324489077,
+                "macroAbsBias": 1.7067552014351606
+              },
+              "improvementRatio": -0.04807698568282605,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.660066946076886,
+                "macroRmse": 2.7302193862248925,
+                "macroAbsBias": 0.7844064556432263
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.762645592435436,
+                "macroRmse": 2.839114624275442,
+                "macroAbsBias": 0.7623063521953127
+              },
+              "improvementRatio": -0.03856243035906838,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.035108192392445454,
+          "median": -0.014645507047920548,
+          "upper95": 0.006796184283686148
+        }
       },
       {
         "family": "bias-ekf",
         "bestConfig": {
           "qSpeed": 1.2,
-          "qBias": 0.00002,
+          "qBias": 0.000005,
           "gpsSigmaScale": 0.35
         },
         "aggregate": {
-          "rmse": 5.405,
-          "macroRmse": 5.631,
-          "macroAbsBias": 1.244
+          "runs": 26,
+          "count": 26046,
+          "rmse": 4.291,
+          "macroRmse": 4.405,
+          "macroAbsBias": 1.248
         },
-        "improvementRatio": -0.0408,
+        "improvementRatio": -0.035,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.00002,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
             },
-            "rmse": 5.813,
-            "baselineRmse": 5.2,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.799983631143422,
+              "macroRmse": 6.409401394569856,
+              "macroAbsBias": 1.680095643398472
+            },
+            "improvementRatio": -0.11538109906221329,
+            "notWorse": false
           },
           {
             "date": "2026-10-04",
-            "config": {
-              "qSpeed": 1.2,
-              "qBias": 0.00002,
-              "gpsSigmaScale": 0.35
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
             },
-            "rmse": 4.002,
-            "baselineRmse": 3.926,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9947057954454546,
+              "macroRmse": 4.1235884626671,
+              "macroAbsBias": 1.8401805440932488
+            },
+            "improvementRatio": -0.017118394096932787,
+            "notWorse": false
           },
           {
             "date": "2026-10-10",
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.703204427204115,
+              "macroRmse": 5.703204427204115,
+              "macroAbsBias": 0.24279909600955332
+            },
+            "improvementRatio": -0.0008929594734707626,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-12",
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.199045032293402,
+              "macroRmse": 8.199045032293402,
+              "macroAbsBias": 0.20069037610301893
+            },
+            "improvementRatio": -0.015624058563420145,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1521735832983016,
+              "macroRmse": 5.1521735832983016,
+              "macroAbsBias": 0.41448847264995897
+            },
+            "improvementRatio": -0.007109307507068897,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.952714913772424,
+              "macroRmse": 4.952714913772424,
+              "macroAbsBias": 0.3319933961413168
+            },
+            "improvementRatio": -0.011944213920883032,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.5897757596733335,
+              "macroRmse": 4.223904372414109,
+              "macroAbsBias": 1.6259828554635487
+            },
+            "improvementRatio": -0.02818580111646957,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.7138611414474845,
+              "macroRmse": 2.7788068819637743,
+              "macroAbsBias": 0.7409360409116946
+            },
+            "improvementRatio": -0.020222872755114262,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
             "config": {
               "qSpeed": 1.2,
               "qBias": 0.000005,
               "gpsSigmaScale": 0.35
             },
-            "rmse": 5.703,
-            "baselineRmse": 5.699,
-            "improved": false
+            "training": {
+              "runs": 23,
+              "count": 22762,
+              "rmse": 4.026573387656829,
+              "macroRmse": 4.143034276543186,
+              "macroAbsBias": 1.1919981640560544
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "test": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.799983631143422,
+              "macroRmse": 6.409401394569856,
+              "macroAbsBias": 1.680095643398472
+            },
+            "improvementRatio": -0.11538109906221329,
+            "notWorse": false
           },
           {
-            "date": "2026-10-12",
+            "heldOutDate": "2026-10-04",
             "config": {
               "qSpeed": 1.2,
-              "qBias": 0.00002,
+              "qBias": 0.000005,
               "gpsSigmaScale": 0.35
             },
-            "rmse": 8.202,
-            "baselineRmse": 8.078,
-            "improved": false
+            "training": {
+              "runs": 23,
+              "count": 24150,
+              "rmse": 4.3131287211089875,
+              "macroRmse": 4.441183789400068,
+              "macroAbsBias": 1.1711175248349965
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "test": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9947057954454546,
+              "macroRmse": 4.1235884626671,
+              "macroAbsBias": 1.8401805440932488
+            },
+            "improvementRatio": -0.017118394096932787,
+            "notWorse": false
           },
           {
-            "date": "2026-10-19",
+            "heldOutDate": "2026-10-10",
             "config": {
               "qSpeed": 1.2,
-              "qBias": 0.00002,
+              "qBias": 0.000005,
               "gpsSigmaScale": 0.35
             },
-            "rmse": 5.183,
-            "baselineRmse": 5.115,
-            "improved": false
+            "training": {
+              "runs": 25,
+              "count": 22712,
+              "rmse": 4.042072625938731,
+              "macroRmse": 4.352591524679949,
+              "macroAbsBias": 1.2885378242990044
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.703204427204115,
+              "macroRmse": 5.703204427204115,
+              "macroAbsBias": 0.24279909600955332
+            },
+            "improvementRatio": -0.0008929594734707626,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 25933,
+              "rmse": 4.265888942075317,
+              "macroRmse": 4.252757900476378,
+              "macroAbsBias": 1.2902221730952659
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.199045032293402,
+              "macroRmse": 8.199045032293402,
+              "macroAbsBias": 0.20069037610301893
+            },
+            "improvementRatio": -0.015624058563420145,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24740,
+              "rmse": 4.240413066216993,
+              "macroRmse": 4.3746327584361815,
+              "macroAbsBias": 1.2816702492333882
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1521735832983016,
+              "macroRmse": 5.1521735832983016,
+              "macroAbsBias": 0.41448847264995897
+            },
+            "improvementRatio": -0.007109307507068897,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 25,
+              "count": 24508,
+              "rmse": 4.245764809360813,
+              "macroRmse": 4.382611105217217,
+              "macroAbsBias": 1.284970052293734
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "test": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.952714913772424,
+              "macroRmse": 4.952714913772424,
+              "macroAbsBias": 0.3319933961413168
+            },
+            "improvementRatio": -0.011944213920883032,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 16,
+              "count": 18256,
+              "rmse": 4.557154569001314,
+              "macroRmse": 4.51743430125386,
+              "macroAbsBias": 1.0122760093030734
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "test": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.5897757596733335,
+              "macroRmse": 4.223904372414109,
+              "macroAbsBias": 1.6259828554635487
+            },
+            "improvementRatio": -0.02818580111646957,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "qSpeed": 1.2,
+              "qBias": 0.000005,
+              "gpsSigmaScale": 0.35
+            },
+            "training": {
+              "runs": 20,
+              "count": 19261,
+              "rmse": 4.72244152868406,
+              "macroRmse": 4.892257562621009,
+              "macroAbsBias": 1.400531422900725
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.7138611414474845,
+              "macroRmse": 2.7788068819637743,
+              "macroAbsBias": 0.7409360409116946
+            },
+            "improvementRatio": -0.020222872755114262,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "qSpeed": 1.2,
+            "qBias": 0.000005,
+            "gpsSigmaScale": 0.35
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.131949890921518,
+            "macroRmse": 3.580958902490225,
+            "macroAbsBias": 1.2446837757928135
+          },
+          "test": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.2118730113045806,
+            "macroRmse": 3.6819928134952336,
+            "macroAbsBias": 1.2940903000066033
+          },
+          "improvementRatio": -0.025518645944730203,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.4913687348875335,
+                "macroRmse": 4.091402612249425,
+                "macroAbsBias": 1.520850167882566
+              },
+              "test": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.5897757596733335,
+                "macroRmse": 4.223904372414109,
+                "macroAbsBias": 1.6259828554635487
+              },
+              "improvementRatio": -0.02818580111646957,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.660066946076886,
+                "macroRmse": 2.7302193862248925,
+                "macroAbsBias": 0.7844064556432263
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.7138611414474845,
+                "macroRmse": 2.7788068819637743,
+                "macroAbsBias": 0.7409360409116946
+              },
+              "improvementRatio": -0.020222872755114262,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.06755369347720848,
+          "median": -0.03428081089833751,
+          "upper95": -0.008608690755371053
+        }
       },
       {
         "family": "particle",
@@ -570,77 +4771,521 @@
           "gpsSigmaScale": 0.7
         },
         "aggregate": {
-          "rmse": 5.984,
-          "macroRmse": 6.042,
-          "macroAbsBias": 1.573
+          "runs": 26,
+          "count": 26046,
+          "rmse": 4.608,
+          "macroRmse": 4.588,
+          "macroAbsBias": 1.281
         },
-        "improvementRatio": -0.1522,
+        "improvementRatio": -0.1116,
         "accepted": false,
-        "crossValidation": [
+        "gates": {
+          "enoughDates": true,
+          "enoughRuns": true,
+          "overallImprovement": false,
+          "finalCandidateNoDateWorse": false,
+          "nestedImprovement": false,
+          "nestedNoDateWorse": false,
+          "temporalHoldoutImproved": false,
+          "bootstrapLowerBoundPositive": false
+        },
+        "finalCandidateByDate": [
           {
             "date": "2026-10-03",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
             },
-            "rmse": 6.684,
-            "baselineRmse": 5.2,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 6.683731191239422,
+              "macroRmse": 7.357331008620058,
+              "macroAbsBias": 2.3181591489825863
+            },
+            "improvementRatio": -0.2853324967835031,
+            "notWorse": false
           },
           {
             "date": "2026-10-04",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
             },
-            "rmse": 4.074,
-            "baselineRmse": 3.926,
-            "improved": false
+            "candidate": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 4.0737607322456215,
+              "macroRmse": 4.194761340300598,
+              "macroAbsBias": 1.8736630131406118
+            },
+            "improvementRatio": -0.03724709305025681,
+            "notWorse": false
           },
           {
             "date": "2026-10-10",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
             },
-            "rmse": 6.316,
-            "baselineRmse": 5.699,
-            "improved": false
+            "candidate": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 6.31609062608983,
+              "macroRmse": 6.31609062608983,
+              "macroAbsBias": 0.7498988630889524
+            },
+            "improvementRatio": -0.10845240070568571,
+            "notWorse": false
           },
           {
             "date": "2026-10-12",
-            "config": {
-              "particles": 160,
-              "qSpeed": 0.6,
-              "qBias": 0.00008,
-              "gpsSigmaScale": 0.7
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
             },
-            "rmse": 8.073,
-            "baselineRmse": 8.078,
-            "improved": true
+            "candidate": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.073360262184941,
+              "macroRmse": 8.073360262184941,
+              "macroAbsBias": 0.36122203975783773
+            },
+            "improvementRatio": -0.000055358084962163086,
+            "notWorse": false
           },
           {
             "date": "2026-10-19",
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.3298777174729794,
+              "macroRmse": 5.3298777174729794,
+              "macroAbsBias": 0.46643633334260565
+            },
+            "improvementRatio": -0.04184561532285337,
+            "notWorse": false
+          },
+          {
+            "date": "2026-10-31",
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "candidate": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 5.225675028885462,
+              "macroRmse": 5.225675028885462,
+              "macroAbsBias": 0.2803435513767276
+            },
+            "improvementRatio": -0.06771572791449242,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-01",
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "candidate": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.5890525096019767,
+              "macroRmse": 4.217688053214681,
+              "macroAbsBias": 1.4529293320996142
+            },
+            "improvementRatio": -0.027978647382139052,
+            "notWorse": false
+          },
+          {
+            "date": "2026-11-03",
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "candidate": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.8511566171790985,
+              "macroRmse": 2.9203155596955397,
+              "macroAbsBias": 0.7218327937580993
+            },
+            "improvementRatio": -0.0718364142616917,
+            "notWorse": false
+          }
+        ],
+        "crossValidation": [
+          {
+            "heldOutDate": "2026-10-03",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.25,
+              "qBias": 0.00002,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 23,
+              "count": 22762,
+              "rmse": 4.507590776177978,
+              "macroRmse": 4.213804114725527,
+              "macroAbsBias": 1.175493543754268
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 5.200001717816372,
+              "macroRmse": 5.661750881352749,
+              "macroAbsBias": 1.3728194848654898
+            },
+            "test": {
+              "runs": 3,
+              "count": 3284,
+              "rmse": 16.318180088093015,
+              "macroRmse": 16.16447847931183,
+              "macroAbsBias": 10.062599452051359
+            },
+            "improvementRatio": -2.1381105187298823,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-04",
             "config": {
               "particles": 160,
               "qSpeed": 0.6,
               "qBias": 0.00008,
               "gpsSigmaScale": 0.7
             },
-            "rmse": 5.33,
-            "baselineRmse": 5.115,
-            "improved": false
+            "training": {
+              "runs": 23,
+              "count": 24150,
+              "rmse": 4.647726863408507,
+              "macroRmse": 4.639816110904932,
+              "macroAbsBias": 1.2031594920895055
+            },
+            "baseline": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 3.9274737519541443,
+              "macroRmse": 4.055354679236895,
+              "macroAbsBias": 1.8499805606388449
+            },
+            "test": {
+              "runs": 3,
+              "count": 1896,
+              "rmse": 4.0737607322456215,
+              "macroRmse": 4.194761340300598,
+              "macroAbsBias": 1.8736630131406118
+            },
+            "improvementRatio": -0.03724709305025681,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-10",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 22712,
+              "rmse": 4.300972320725224,
+              "macroRmse": 4.519358557825016,
+              "macroAbsBias": 1.3017503397756605
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 5.698116240326378,
+              "macroRmse": 5.698116240326378,
+              "macroAbsBias": 0.9941857716747963
+            },
+            "test": {
+              "runs": 1,
+              "count": 3334,
+              "rmse": 6.31609062608983,
+              "macroRmse": 6.31609062608983,
+              "macroAbsBias": 0.7498988630889524
+            },
+            "improvementRatio": -0.10845240070568571,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-12",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 25933,
+              "rmse": 4.587536994803148,
+              "macroRmse": 4.449067772381212,
+              "macroAbsBias": 1.3172974127089048
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.072913361161202,
+              "macroRmse": 8.072913361161202,
+              "macroAbsBias": 0.49825499247525956
+            },
+            "test": {
+              "runs": 1,
+              "count": 113,
+              "rmse": 8.073360262184941,
+              "macroRmse": 8.073360262184941,
+              "macroAbsBias": 0.36122203975783773
+            },
+            "improvementRatio": -0.000055358084962163086,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-19",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 24740,
+              "rmse": 4.567103921999389,
+              "macroRmse": 4.55880707416969,
+              "macroAbsBias": 1.3130888409655141
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.1158037612140115,
+              "macroRmse": 5.1158037612140115,
+              "macroAbsBias": 0.44269861993683507
+            },
+            "test": {
+              "runs": 1,
+              "count": 1306,
+              "rmse": 5.3298777174729794,
+              "macroRmse": 5.3298777174729794,
+              "macroAbsBias": 0.46643633334260565
+            },
+            "improvementRatio": -0.04184561532285337,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-10-31",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 25,
+              "count": 24508,
+              "rmse": 4.566837086302845,
+              "macroRmse": 4.562975181713191,
+              "macroAbsBias": 1.3205325522441493
+            },
+            "baseline": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 4.894256862819162,
+              "macroRmse": 4.894256862819162,
+              "macroAbsBias": 0.5422683282901571
+            },
+            "test": {
+              "runs": 1,
+              "count": 1538,
+              "rmse": 5.225675028885462,
+              "macroRmse": 5.225675028885462,
+              "macroAbsBias": 0.2803435513767276
+            },
+            "improvementRatio": -0.06771572791449242,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-01",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 16,
+              "count": 18256,
+              "rmse": 4.980201666720036,
+              "macroRmse": 4.8201983774730275,
+              "macroAbsBias": 1.1727727522802698
+            },
+            "baseline": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.4913687348875335,
+              "macroRmse": 4.091402612249425,
+              "macroAbsBias": 1.520850167882566
+            },
+            "test": {
+              "runs": 10,
+              "count": 7790,
+              "rmse": 3.5890525096019767,
+              "macroRmse": 4.217688053214681,
+              "macroAbsBias": 1.4529293320996142
+            },
+            "improvementRatio": -0.027978647382139052,
+            "notWorse": false
+          },
+          {
+            "heldOutDate": "2026-11-03",
+            "config": {
+              "particles": 160,
+              "qSpeed": 0.6,
+              "qBias": 0.00008,
+              "gpsSigmaScale": 0.7
+            },
+            "training": {
+              "runs": 20,
+              "count": 19261,
+              "rmse": 5.084725182653466,
+              "macroRmse": 5.088908060677101,
+              "macroAbsBias": 1.4481330297465933
+            },
+            "baseline": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.660066946076886,
+              "macroRmse": 2.7302193862248925,
+              "macroAbsBias": 0.7844064556432263
+            },
+            "test": {
+              "runs": 6,
+              "count": 6785,
+              "rmse": 2.8511566171790985,
+              "macroRmse": 2.9203155596955397,
+              "macroAbsBias": 0.7218327937580993
+            },
+            "improvementRatio": -0.0718364142616917,
+            "notWorse": false
           }
-        ]
+        ],
+        "temporalHoldout": {
+          "trainingDates": [
+            "2026-10-03",
+            "2026-10-04",
+            "2026-10-10",
+            "2026-10-12",
+            "2026-10-19",
+            "2026-10-31"
+          ],
+          "holdoutDates": [
+            "2026-11-01",
+            "2026-11-03"
+          ],
+          "config": {
+            "particles": 160,
+            "qSpeed": 0.6,
+            "qBias": 0.00008,
+            "gpsSigmaScale": 0.7
+          },
+          "baseline": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.131949890921518,
+            "macroRmse": 3.580958902490225,
+            "macroAbsBias": 1.2446837757928135
+          },
+          "test": {
+            "runs": 16,
+            "count": 14575,
+            "rmse": 3.2663491817211,
+            "macroRmse": 3.731173368145004,
+            "macroAbsBias": 1.1787681302215463
+          },
+          "improvementRatio": -0.042912337515092686,
+          "byDate": [
+            {
+              "date": "2026-11-01",
+              "baseline": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.4913687348875335,
+                "macroRmse": 4.091402612249425,
+                "macroAbsBias": 1.520850167882566
+              },
+              "test": {
+                "runs": 10,
+                "count": 7790,
+                "rmse": 3.5890525096019767,
+                "macroRmse": 4.217688053214681,
+                "macroAbsBias": 1.4529293320996142
+              },
+              "improvementRatio": -0.027978647382139052,
+              "notWorse": false
+            },
+            {
+              "date": "2026-11-03",
+              "baseline": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.660066946076886,
+                "macroRmse": 2.7302193862248925,
+                "macroAbsBias": 0.7844064556432263
+              },
+              "test": {
+                "runs": 6,
+                "count": 6785,
+                "rmse": 2.8511566171790985,
+                "macroRmse": 2.9203155596955397,
+                "macroAbsBias": 0.7218327937580993
+              },
+              "improvementRatio": -0.0718364142616917,
+              "notWorse": false
+            }
+          ]
+        },
+        "bootstrap": {
+          "iterations": 2000,
+          "seed": 20261103,
+          "lower95": -0.17863562199641017,
+          "median": -0.10935476502716218,
+          "upper95": -0.04540601973335778
+        }
       }
     ],
     "decision": "keep the current on-device filter; no alternative passed the 10% cross-date gate"
   },
-  "excludedCount": 7
+  "excludedCount": 15
 }

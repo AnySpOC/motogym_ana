@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-03T10:41:12.479Z",
+  "generatedAt": "2026-11-03T11:07:44.798Z",
   "appVersion": "v36",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
@@ -14,6 +14,13 @@
         "manualStartSpeedKmh": 28.8,
         "calibrationCompleted": true
       },
+      "error": null
+    },
+    {
+      "name": "modelSelection",
+      "passed": true,
+      "exitCode": 0,
+      "metrics": null,
       "error": null
     },
     {

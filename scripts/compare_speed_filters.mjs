@@ -16,6 +16,7 @@ import {
   replayTimestampEkf,
   replayUkf,
 } from "./lib/speed_filters.mjs";
+import { evaluateGeneralization } from "./lib/model_selection.mjs";
 
 const V31 = {
   ...CURRENT,
@@ -104,38 +105,29 @@ function evaluateCandidate(matched, replay, config, offsetMode) {
 function evaluateFamily(matched, family, replay, familyConfigs, offsetMode) {
   const evaluated = familyConfigs.map((config) => evaluateCandidate(matched, replay, config, offsetMode));
   evaluated.sort((a, b) => score(a.aggregate) - score(b.aggregate));
-  const dates = [...new Set(matched.map((item) => item.run.date))];
-  const crossValidation = dates.map((date) => {
-    const training = matched.map((item, index) => item.run.date !== date ? index : -1).filter((index) => index >= 0);
-    const testing = matched.map((item, index) => item.run.date === date ? index : -1).filter((index) => index >= 0);
-    const selected = [...evaluated].sort((a, b) => score(aggregate(training.map((index) => a.perRun[index])))
-      - score(aggregate(training.map((index) => b.perRun[index]))))[0];
-    return { date, config: selected.config, test: aggregate(testing.map((index) => selected.perRun[index])) };
-  });
-  return { family, best: evaluated[0], crossValidation };
+  return { family, evaluated };
 }
 
-function compactFamily(result, baseline, baselineByDate) {
-  const improvement = (baseline.rmse - result.best.aggregate.rmse) / baseline.rmse;
-  const folds = result.crossValidation.map((fold) => ({
-    date: fold.date,
-    config: fold.config,
-    rmse: round(fold.test.rmse),
-    baselineRmse: round(baselineByDate.get(fold.date)?.rmse),
-    improved: fold.test.rmse <= baselineByDate.get(fold.date)?.rmse,
-  }));
-  const accepted = improvement >= 0.1 && folds.every((fold) => fold.improved);
+function compactFamily(result, baselinePerRun, dates) {
+  const generalization = evaluateGeneralization({
+    evaluated: result.evaluated,
+    baselinePerRun,
+    dates,
+    aggregate,
+    score,
+  });
   return {
     family: result.family,
-    bestConfig: result.best.config,
-    aggregate: {
-      rmse: round(result.best.aggregate.rmse),
-      macroRmse: round(result.best.aggregate.macroRmse),
-      macroAbsBias: round(result.best.aggregate.macroAbsBias),
-    },
-    improvementRatio: round(improvement, 4),
-    accepted,
-    crossValidation: folds,
+    bestConfig: generalization.finalCandidate.config,
+    aggregate: Object.fromEntries(Object.entries(generalization.finalCandidate.aggregate)
+      .map(([key, value]) => [key, Number.isFinite(value) ? round(value) : value])),
+    improvementRatio: round(generalization.finalCandidate.improvementRatio, 4),
+    accepted: generalization.accepted,
+    gates: generalization.gates,
+    finalCandidateByDate: generalization.finalCandidate.byDate,
+    crossValidation: generalization.nested.folds,
+    temporalHoldout: generalization.temporalHoldout,
+    bootstrap: generalization.bootstrap,
   };
 }
 
@@ -147,16 +139,14 @@ function evaluateMode(matched, mode) {
     "replaySpeedKmh",
   ));
   const baseline = aggregate(baselinePerRun);
-  const dates = [...new Set(matched.map((item) => item.run.date))];
-  const baselineByDate = new Map(dates.map((date) => [date, aggregate(matched
-    .map((item, index) => item.run.date === date ? baselinePerRun[index] : null))]));
+  const dates = matched.map((item) => item.run.date);
   const families = [
     evaluateFamily(matched, "physics-ukf", replayUkf, physicsUkfConfigs(), mode),
     evaluateFamily(matched, "timestamp-robust-ekf", replayTimestampEkf, timestampConfigs(), mode),
     evaluateFamily(matched, "bias-ekf", replayBiasEkf, configs(), mode),
     evaluateFamily(matched, "ukf", replayUkf, configs(), mode),
     evaluateFamily(matched, "particle", replayParticleFilter, particleConfigs(), mode),
-  ].map((result) => compactFamily(result, baseline, baselineByDate));
+  ].map((result) => compactFamily(result, baselinePerRun, dates));
   families.sort((a, b) => a.aggregate.rmse - b.aggregate.rmse);
   return {
     baseline: { filter: "v31-adaptive-ekf", config: V31, aggregate: {
@@ -175,12 +165,12 @@ function main() {
   if (!matched.length) throw new Error("No GPS-matched runs passed the quality gate");
   const output = {
     generatedAt: new Date().toISOString(),
-    roots: options.roots.map((root) => path.resolve(root)),
+    roots: options.roots.map((root) => path.basename(path.resolve(root))),
     method: {
       runs: matched.length,
       dates: [...new Set(matched.map((item) => item.run.date))],
       state: "speed and longitudinal acceleration bias; physics UKF adds a gated nonlinear bank observation",
-      acceptance: ">= 10% overall RMSE improvement and no held-out date worse than current EKF",
+      acceptance: "four-gate policy: >=10% overall, nested CV, chronological holdout, positive bootstrap lower bound",
       reference: "GoPro GPX speed; useful field reference, not laboratory ground truth",
     },
     aligned: evaluateMode(matched, "aligned"),

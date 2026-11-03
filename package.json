@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:unit && npm run test:simulation && npm run test:recorded",
-    "test:unit": "node tests/motion-model.test.mjs && node tests/speed-filters.test.mjs",
+    "test:unit": "node tests/motion-model.test.mjs && node tests/speed-filters.test.mjs && node tests/model-selection.test.mjs",
     "test:simulation": "node tests/automatic-timing.simulation.test.mjs",
     "test:robustness": "node tests/automatic-timing.robustness.test.mjs",
     "test:stop-robustness": "node tests/automatic-stop.robustness.test.mjs",

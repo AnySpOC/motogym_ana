@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { evaluateGeneralization } from "./lib/model_selection.mjs";
 
 const EARTH_RADIUS_M = 6_371_000;
 const CURRENT = { drag: 0, processNoise: 1.2, gpsSigmaScale: 0.35, gpsPredictionSec: 0 };
@@ -492,6 +493,10 @@ function aggregate(runResults) {
   };
 }
 
+function candidateScore(metric) {
+  return metric.macroRmse + metric.macroAbsBias * 0.15;
+}
+
 function speedAtEvent(event, track, offsetSec) {
   const value = interpolate(track.points, event.t + offsetSec * 1000);
   return Number.isFinite(value) ? value : null;
@@ -567,8 +572,7 @@ function main() {
     ));
     return { candidate, perRun, aggregate: aggregate(perRun) };
   });
-  evaluated.sort((a, b) => (a.aggregate.macroRmse + a.aggregate.macroAbsBias * 0.15)
-    - (b.aggregate.macroRmse + b.aggregate.macroAbsBias * 0.15));
+  evaluated.sort((a, b) => candidateScore(a.aggregate) - candidateScore(b.aggregate));
   const current = evaluated.find((item) => candidateId(item.candidate) === candidateId(CURRENT));
   const dates = [...new Set(matched.map((item) => item.run.date))];
   const adaptiveNoiseConfig = {
@@ -591,23 +595,23 @@ function main() {
     const adaptive = aggregate(indexes.map((index) => adaptiveNoisePerRun[index]));
     return { date, baseline, adaptive, improved: adaptive.rmse <= baseline.rmse };
   });
-  const crossValidation = dates.map((heldOutDate) => {
-    const trainingIndexes = matched.map((item, index) => item.run.date !== heldOutDate ? index : -1).filter((i) => i >= 0);
-    const testIndexes = matched.map((item, index) => item.run.date === heldOutDate ? index : -1).filter((i) => i >= 0);
-    const ranked = evaluated.map((item) => ({
-      ...item,
-      training: aggregate(trainingIndexes.map((index) => item.perRun[index])),
-    })).sort((a, b) => (a.training.macroRmse + a.training.macroAbsBias * 0.15)
-      - (b.training.macroRmse + b.training.macroAbsBias * 0.15));
-    const selected = ranked[0];
-    return {
-      heldOutDate,
-      candidate: selected.candidate,
-      training: selected.training,
-      test: aggregate(testIndexes.map((index) => selected.perRun[index])),
-      currentTest: aggregate(testIndexes.map((index) => current.perRun[index])),
-    };
+  const runDates = matched.map((item) => item.run.date);
+  const alignedGeneralization = evaluateGeneralization({
+    evaluated,
+    baselinePerRun: current.perRun,
+    dates: runDates,
+    aggregate,
+    score: candidateScore,
   });
+  const crossValidation = alignedGeneralization.nested.folds.map((fold) => ({
+    heldOutDate: fold.heldOutDate,
+    candidate: fold.config,
+    training: fold.training,
+    test: fold.test,
+    currentTest: fold.baseline,
+    improvementRatio: fold.improvementRatio,
+    notWorse: fold.notWorse,
+  }));
 
   const realTimeCurrentPerRun = matched.map((item) => compare(
     replaySpeed(item.run.samples, CURRENT), item.track.points, 0, "replaySpeedKmh",
@@ -618,34 +622,31 @@ function main() {
     ));
     return { candidate, perRun, aggregate: aggregate(perRun) };
   });
-  realTimeEvaluated.sort((a, b) => (a.aggregate.macroRmse + a.aggregate.macroAbsBias * 0.15)
-    - (b.aggregate.macroRmse + b.aggregate.macroAbsBias * 0.15));
-  const realTimeCrossValidation = dates.map((heldOutDate) => {
-    const trainingIndexes = matched.map((item, index) => item.run.date !== heldOutDate ? index : -1).filter((i) => i >= 0);
-    const testIndexes = matched.map((item, index) => item.run.date === heldOutDate ? index : -1).filter((i) => i >= 0);
-    const ranked = realTimeEvaluated.map((item) => ({
-      ...item,
-      training: aggregate(trainingIndexes.map((index) => item.perRun[index])),
-    })).sort((a, b) => (a.training.macroRmse + a.training.macroAbsBias * 0.15)
-      - (b.training.macroRmse + b.training.macroAbsBias * 0.15));
-    const selected = ranked[0];
-    return {
-      heldOutDate,
-      candidate: selected.candidate,
-      training: selected.training,
-      test: aggregate(testIndexes.map((index) => selected.perRun[index])),
-      currentTest: aggregate(testIndexes.map((index) => realTimeCurrentPerRun[index])),
-    };
-  });
-  const alignedImprovementRatio = (current.aggregate.rmse - evaluated[0].aggregate.rmse)
-    / current.aggregate.rmse;
+  realTimeEvaluated.sort((a, b) => candidateScore(a.aggregate) - candidateScore(b.aggregate));
   const realTimeCurrentAggregate = aggregate(realTimeCurrentPerRun);
-  const realTimeImprovementRatio = (realTimeCurrentAggregate.rmse - realTimeEvaluated[0].aggregate.rmse)
-    / realTimeCurrentAggregate.rmse;
-  const alignedAccepted = alignedImprovementRatio >= 0.1
-    && crossValidation.every((fold) => fold.test.rmse <= fold.currentTest.rmse);
-  const realTimeAccepted = realTimeImprovementRatio >= 0.1
-    && realTimeCrossValidation.every((fold) => fold.test.rmse <= fold.currentTest.rmse);
+  const realTimeGeneralization = evaluateGeneralization({
+    evaluated: realTimeEvaluated,
+    baselinePerRun: realTimeCurrentPerRun,
+    dates: runDates,
+    aggregate,
+    score: candidateScore,
+  });
+  const realTimeCrossValidation = realTimeGeneralization.nested.folds.map((fold) => ({
+    heldOutDate: fold.heldOutDate,
+    candidate: fold.config,
+    training: fold.training,
+    test: fold.test,
+    currentTest: fold.baseline,
+    improvementRatio: fold.improvementRatio,
+    notWorse: fold.notWorse,
+  }));
+  const alignedImprovementRatio = alignedGeneralization.finalCandidate.improvementRatio;
+  const realTimeImprovementRatio = realTimeGeneralization.finalCandidate.improvementRatio;
+  const alignedAccepted = alignedGeneralization.accepted;
+  const realTimeAccepted = realTimeGeneralization.accepted;
+  const adaptiveNoiseImprovement = (current.aggregate.rmse - adaptiveNoiseAggregate.rmse) / current.aggregate.rmse;
+  const adaptiveNoiseAccepted = adaptiveNoiseImprovement >= 0.1
+    && adaptiveNoiseByDate.every((item) => item.improved);
 
   const recordedAggregate = aggregate(matched.map((item) => compare(
     item.run.samples, item.track.points, item.sync.offsetSec, "appSpeedKmh",
@@ -688,7 +689,7 @@ function main() {
   });
   const output = {
     generatedAt: new Date().toISOString(),
-    roots: options.roots.map((root) => path.resolve(root)),
+    roots: options.roots.map((root) => path.basename(path.resolve(root))),
     method: {
       candidateCount: evaluated.length,
       objective: "macro RMSE + 0.15 * macro absolute bias",
@@ -700,15 +701,18 @@ function main() {
     decision: {
       accepted: alignedAccepted,
       improvementRatio: alignedImprovementRatio,
-      rule: "overall RMSE improvement >= 10% and no held-out date worse than current",
+      rule: "four-gate generalization policy: final candidate, nested CV, temporal holdout, and date bootstrap",
+      gates: alignedGeneralization.gates,
       recommendation: alignedAccepted ? "candidate is eligible for on-device validation" : "keep current settings",
     },
+    generalization: alignedGeneralization,
     adaptiveNoiseEvaluation: {
       config: adaptiveNoiseConfig,
       baseline: current.aggregate,
       adaptive: adaptiveNoiseAggregate,
-      accepted: adaptiveNoiseByDate.every((item) => item.improved),
-      rule: "no evaluated date may have worse RMSE",
+      improvementRatio: adaptiveNoiseImprovement,
+      accepted: adaptiveNoiseAccepted,
+      rule: ">= 10% overall RMSE improvement and no evaluated date worse",
       byDate: adaptiveNoiseByDate,
     },
     baselines: { recordedAppSpeed: recordedAggregate, iphoneGpsSpeed: iphoneGpsAggregate },
@@ -722,9 +726,11 @@ function main() {
       decision: {
         accepted: realTimeAccepted,
         improvementRatio: realTimeImprovementRatio,
-        rule: "overall RMSE improvement >= 10% and no held-out date worse than current",
+        rule: "four-gate generalization policy: final candidate, nested CV, temporal holdout, and date bootstrap",
+        gates: realTimeGeneralization.gates,
         recommendation: realTimeAccepted ? "candidate is eligible for on-device validation" : "keep current settings",
       },
+      generalization: realTimeGeneralization,
       topCandidates: realTimeEvaluated.slice(0, 10).map((item) => ({
         candidate: item.candidate, aggregate: item.aggregate,
       })),

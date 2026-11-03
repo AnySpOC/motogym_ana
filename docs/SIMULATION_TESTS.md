@@ -28,6 +28,8 @@ npm run release:gate
 
 `test:endurance`は30、60、100 Hzで各8走、合計24走をボタン再操作なしで連続実行する。走行IDの一意性、IndexedDBの全件保持、自動再待機、次走と重なるSTOP後5秒保存、前走集計への混入がないことを要求する。
 
+`model-selection.test.mjs`は、全日で安定して20%改善する候補を採用し、集計値だけ良く最新日を悪化させる候補と、日数・走行数不足を拒否する。実ログの候補採用には全体、日付leave-one-out、最新日ホールドアウト、日付ブートストラップの全ゲートを要求する。
+
 ## 3. 合成シナリオと合格基準
 
 | シナリオ | 入力 | 合格基準 |
@@ -55,7 +57,7 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 
 | 層 | コマンド・方法 | 確認対象 |
 |---|---|---|
-| 単体回帰 | `npm run test:unit` | Joseph共分散更新、フィルタ、較正、CSV、イベント |
+| 単体回帰 | `npm run test:unit` | Joseph共分散更新、フィルタ、較正、CSV、イベント、過学習防止判定 |
 | 合成時系列 | `npm run test:simulation` | START/STOP状態遷移、振動、GPSガード、連続走行、取付方向 |
 | START耐性 | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
 | STOP耐性 | `npm run test:stop-robustness` | 36条件のGPS誤報、徐行、停止、再待機、保存 |

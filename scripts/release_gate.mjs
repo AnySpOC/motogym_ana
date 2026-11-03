@@ -46,6 +46,7 @@ function runCheck(name, script, args = []) {
 const options = parseOptions(process.argv);
 const checks = [
   runCheck("unit", "tests/motion-model.test.mjs"),
+  runCheck("modelSelection", "tests/model-selection.test.mjs"),
   runCheck("deterministicSimulation", "tests/automatic-timing.simulation.test.mjs"),
   runCheck("robustnessSimulation", "tests/automatic-timing.robustness.test.mjs"),
   runCheck("stopRobustnessSimulation", "tests/automatic-stop.robustness.test.mjs", ["--summary-only"]),
@@ -130,6 +131,7 @@ const markdown = `# リリース判定レポート
 | 項目 | 結果 |
 |---|---:|
 | 決定論シナリオ | ${acceptance.deterministicScenariosPassed ?? "-"}件合格 / ${acceptance.deterministicScenariosFailed ?? "-"}件失敗 |
+| 過学習防止ゲート | ${byName.modelSelection.passed ? "合格" : "不合格"} |
 | 耐性試験 | ${acceptance.robustnessTrials ?? "-"}条件 |
 | 耐性試験の誤START | ${acceptance.robustnessFalseStarts ?? "-"}件 |
 | 耐性試験の未検知 | ${acceptance.robustnessMissedStarts ?? "-"}件 |

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-02T04:01:31.002Z",
-  "appVersion": "v35",
+  "generatedAt": "2026-11-03T10:41:12.479Z",
+  "appVersion": "v36",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -21,7 +21,7 @@
       "passed": true,
       "exitCode": 0,
       "metrics": {
-        "passed": 12,
+        "passed": 13,
         "failed": 0,
         "scenarios": [
           {
@@ -47,6 +47,18 @@
             "passed": true,
             "duplicateCallbacks": 10,
             "outOfOrderCallbacks": 1
+          },
+          {
+            "name": "one-hertz-gps-stop-evidence",
+            "passed": true,
+            "gpsIntervalsMs": [
+              0,
+              1010,
+              2030,
+              3040,
+              4060
+            ],
+            "stopLatencyMs": 4033
           },
           {
             "name": "moving-auto-enable-guard",
@@ -163,10 +175,10 @@
           "rearmFailures": 0,
           "postStopSaveFailures": 0,
           "stopLatencyMs": {
-            "min": 1133,
-            "median": 2170,
-            "p95": 3000,
-            "max": 3370
+            "min": 1867,
+            "median": 2767,
+            "p95": 3367,
+            "max": 3378
           }
         }
       },
@@ -223,7 +235,7 @@
     }
   ],
   "acceptance": {
-    "deterministicScenariosPassed": 12,
+    "deterministicScenariosPassed": 13,
     "deterministicScenariosFailed": 0,
     "robustnessTrials": 24,
     "robustnessFalseStarts": 0,
@@ -233,7 +245,7 @@
     "stopRobustnessFalseGpsStops": 0,
     "stopRobustnessFalseCrawlStops": 0,
     "stopRobustnessMissedStops": 0,
-    "stopRobustnessLatencyP95Ms": 3000,
+    "stopRobustnessLatencyP95Ms": 3367,
     "stopRobustnessRearmFailures": 0,
     "stopRobustnessSaveFailures": 0,
     "enduranceRuns": 24,
@@ -258,9 +270,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v35 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
+      "three consecutive v36 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v35, schemaVersion 7, pre-start samples, and post-STOP samples"
+      "each exported run reports appVersion v36, schemaVersion 7, pre-start samples, and post-STOP samples"
     ]
   }
 }

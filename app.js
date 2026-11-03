@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v35";
+const APP_VERSION = "v36";
 const LOG_SCHEMA_VERSION = 7;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -32,9 +32,11 @@ const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
 const GPS_STRICT_STOP_SPEED_MS = 0.15;
-const GPS_STOP_HISTORY_MS = 3500;
+const GPS_DWELL_MEAN_SPEED_MS = 0.4;
+const GPS_STOP_MAX_OBSERVATION_GAP_MS = 1600;
 const GPS_STRICT_STOP_HOLD_MS = 1800;
 const GPS_DWELL_HOLD_MS = 2200;
+const GPS_STOP_HISTORY_MS = 3500;
 const GPS_STRICT_STOP_MAX_DISPLACEMENT_M = 1.5;
 const GPS_DWELL_MAX_DISPLACEMENT_M = 0.75;
 const IMU_STOP_SPEED_MS = 0.35;
@@ -222,6 +224,7 @@ const state = {
   gpsStopObservationCount: 0,
   gpsStopDwellMs: 0,
   gpsStopDisplacementM: null,
+  gpsStopLatch: null,
   gpsInnovationClipped: false,
   imuInnovationClipped: false,
   gravityErrorG: 0,
@@ -467,6 +470,7 @@ function armTimer() {
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsStopLatch = null;
   state.gpsFilterTimestampMs = null;
   setMode("armed", text.autoPreparing);
   addEvent("ARM", text.armDetail);
@@ -496,6 +500,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsStopLatch = null;
   state.gpsFilterTimestampMs = null;
   state.lastCheckpointAt = onsetAt;
   state.speedMs = Math.max(0, initialSpeedMs);
@@ -644,6 +649,7 @@ function resyncSpeedFromGps(reason) {
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsStopLatch = null;
   addEvent("SYNC", `${reason} ${(state.gpsSpeedMs * 3.6).toFixed(1)} km/h`);
   return true;
 }
@@ -1428,6 +1434,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsStopLatch = null;
   state.lastSensorGapSec = 0;
   state.zeroSpeedCandidateAt = 0;
   state.speedMs = 0;
@@ -1497,6 +1504,7 @@ function stopGps() {
   state.gpsStopObservationCount = 0;
   state.gpsStopDwellMs = 0;
   state.gpsStopDisplacementM = null;
+  state.gpsStopLatch = null;
   state.gpsInnovationClipped = false;
 }
 
@@ -1509,7 +1517,10 @@ function hasFreshGps() {
 
 function gpsStopEvidence(t = nowMs()) {
   const empty = { confirmed: false, onsetAt: 0, count: 0, dwellMs: 0, displacementM: null };
-  if (!hasFreshGps() || state.gpsSpeedMs >= GPS_STOP_SPEED_MS) return empty;
+  if (!hasFreshGps() || state.gpsSpeedMs >= GPS_STOP_SPEED_MS) {
+    state.gpsStopLatch = null;
+    return empty;
+  }
 
   const recent = state.gpsObservations.filter((observation) =>
     t - observation.receivedAt <= GPS_STOP_HISTORY_MS);
@@ -1520,15 +1531,51 @@ function gpsStopEvidence(t = nowMs()) {
   }
   if (lowSpeed.length < 2) return { ...empty, count: lowSpeed.length };
 
+  if (state.gpsStopLatch) {
+    const displacementM = haversineMeters(
+      state.gpsStopLatch.latitude,
+      state.gpsStopLatch.longitude,
+      state.gpsLatitude,
+      state.gpsLongitude,
+    );
+    if (displacementM <= state.gpsStopLatch.maxDisplacementM) {
+      return {
+        confirmed: true,
+        onsetAt: state.gpsStopLatch.onsetAt,
+        count: lowSpeed.length,
+        dwellMs: Math.max(0, t - state.gpsStopLatch.onsetAt),
+        displacementM,
+      };
+    }
+    state.gpsStopLatch = null;
+  }
+
   const first = lowSpeed[0];
   const last = lowSpeed.at(-1);
   const dwellMs = Math.max(0, last.receivedAt - first.receivedAt);
   const displacementM = haversineMeters(first.latitude, first.longitude, last.latitude, last.longitude);
+  const continuousObservations = lowSpeed.every((observation, index) => index === 0
+    || observation.receivedAt - lowSpeed[index - 1].receivedAt <= GPS_STOP_MAX_OBSERVATION_GAP_MS);
   const strictStop = dwellMs >= GPS_STRICT_STOP_HOLD_MS
+    && continuousObservations
     && lowSpeed.every((observation) => observation.speedMs < GPS_STRICT_STOP_SPEED_MS)
     && displacementM <= GPS_STRICT_STOP_MAX_DISPLACEMENT_M;
+  const meanSpeedMs = lowSpeed.reduce((sum, observation) => sum + observation.speedMs, 0)
+    / lowSpeed.length;
   const positionDwell = dwellMs >= GPS_DWELL_HOLD_MS
+    && continuousObservations
+    && meanSpeedMs <= GPS_DWELL_MEAN_SPEED_MS
     && displacementM <= GPS_DWELL_MAX_DISPLACEMENT_M;
+  if (strictStop || positionDwell) {
+    state.gpsStopLatch = {
+      onsetAt: first.receivedAt,
+      latitude: first.latitude,
+      longitude: first.longitude,
+      maxDisplacementM: strictStop
+        ? GPS_STRICT_STOP_MAX_DISPLACEMENT_M
+        : GPS_DWELL_MAX_DISPLACEMENT_M,
+    };
+  }
   return {
     confirmed: strictStop || positionDwell,
     onsetAt: first.receivedAt,

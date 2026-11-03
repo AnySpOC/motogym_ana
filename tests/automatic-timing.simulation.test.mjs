@@ -116,6 +116,38 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
+  armAtStandstill(harness);
+  launch(harness);
+  harness.runFor(1800, () => ({}), { gpsEveryMs: 500, gpsSpeed: 5 });
+
+  const stoppedAt = harness.clock;
+  const gpsIntervalsMs = [0, 1010, 2030, 3040, 4060];
+  let gpsIndex = 0;
+  let detectedAt = null;
+  while (harness.clock - stoppedAt < 5000 && harness.api.state.mode === "running") {
+    const elapsedMs = harness.clock - stoppedAt;
+    if (gpsIndex < gpsIntervalsMs.length && elapsedMs >= gpsIntervalsMs[gpsIndex]) {
+      harness.gps(0.3);
+      gpsIndex += 1;
+    }
+    harness.step();
+    if (harness.api.state.mode === "armed") detectedAt = harness.clock;
+  }
+
+  assert.notEqual(detectedAt, null,
+    "1 Hz GPS stop evidence must remain confirmed between position callbacks");
+  const latencyMs = detectedAt - stoppedAt;
+  assert.ok(latencyMs >= 3900 && latencyMs <= 4300,
+    `1 Hz GPS STOP latency ${latencyMs} ms must not wait for another evidence cycle`);
+  record("one-hertz-gps-stop-evidence", {
+    gpsIntervalsMs,
+    stopLatencyMs: Math.round(latencyMs),
+  });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
   harness.gps(6);
   harness.api.enableAutoMeasurement();
   harness.runFor(2500, () => ({ rawY: 0.3 }), { gpsEveryMs: 400, gpsSpeed: 6 });
@@ -185,7 +217,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v35");
+  assert.equal(firstRun.appVersion, "v36");
   assert.equal(firstRun.schemaVersion, 7);
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
@@ -232,7 +264,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
     "continuous 2.5 km/h position movement must not be classified as STOP");
   assert.equal(harness.api.state.autoStopCandidate, false);
 
-  for (let elapsedMs = 0; elapsedMs < 2600; elapsedMs += 500) {
+  for (let elapsedMs = 0; elapsedMs < 3200; elapsedMs += 500) {
     harness.gps(0, { longitude });
     harness.runFor(500);
   }

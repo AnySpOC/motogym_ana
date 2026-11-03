@@ -52,7 +52,7 @@ for (const sampleHz of sampleRates) {
   for (const run of savedRuns) {
     const rideSamples = run.samples.filter((sample) => sample.phase !== "poststop");
     const postStopSamples = run.samples.filter((sample) => sample.phase === "poststop");
-    assert.equal(run.appVersion, "v35");
+    assert.equal(run.appVersion, "v36");
     assert.equal(run.schemaVersion, 7);
     assert.equal(run.summary.status, "complete");
     assert.equal(run.diagnostics.postStopCaptureStatus, "complete");

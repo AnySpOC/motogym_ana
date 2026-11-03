@@ -36,6 +36,7 @@ const stable = evaluateGeneralization({
 assert.equal(stable.accepted, true, "a stable 20% improvement on every date must pass");
 assert.ok(Object.values(stable.gates).every(Boolean));
 assert.deepEqual(stable.temporalHoldout.holdoutDates, ["2026-10-05"]);
+assert.equal(stable.bootstrap.basis, "nested-out-of-fold");
 
 const overfit = evaluateGeneralization({
   evaluated: [
@@ -55,6 +56,23 @@ assert.equal(overfit.finalCandidate.config.id, "overfit");
 assert.equal(overfit.accepted, false, "an aggregate winner that harms an unseen date must be rejected");
 assert.equal(overfit.gates.finalCandidateNoDateWorse, false);
 assert.equal(overfit.gates.temporalHoldoutImproved, false);
+
+const uniqueDates = [...new Set(dates)];
+const selectionTrap = evaluateGeneralization({
+  evaluated: uniqueDates.map((badDate) => ({
+    config: { badDate },
+    perRun: dates.map((date) => metric(date === badDate ? 11 : 5)),
+  })),
+  baselinePerRun: baseline,
+  dates,
+  aggregate,
+  score,
+  bootstrapIterations: 1000,
+});
+assert.ok(selectionTrap.finalCandidate.improvementRatio > 0.1);
+assert.ok(selectionTrap.bootstrap.lower95 < 0,
+  "bootstrap must use candidates selected without the held-out date");
+assert.equal(selectionTrap.gates.bootstrapLowerBoundPositive, false);
 
 const insufficient = evaluateGeneralization({
   evaluated: [{ config: { id: "small" }, perRun: dates.slice(0, 6).map(() => metric(5)) }],

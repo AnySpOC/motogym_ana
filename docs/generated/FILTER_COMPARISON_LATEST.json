@@ -18,7 +18,7 @@
       "2026-11-03"
     ],
     "state": "speed and longitudinal acceleration bias; physics UKF adds a gated nonlinear bank observation",
-    "acceptance": "four-gate policy: >=10% overall, nested CV, chronological holdout, positive bootstrap lower bound",
+    "acceptance": "four-gate policy: >=10% overall, nested CV, chronological holdout, positive nested out-of-fold bootstrap lower bound",
     "reference": "GoPro GPX speed; useful field reference, not laboratory ground truth"
   },
   "aligned": {
@@ -548,9 +548,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.010977251519227123,
-          "median": -0.00021925443230800816,
-          "upper95": 0.010288431521184246
+          "basis": "nested-out-of-fold",
+          "lower95": -0.012775937928408171,
+          "median": -0.002199913036342896,
+          "upper95": 0.008472808198225162
         }
       },
       {
@@ -1060,9 +1061,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.0007274109913244722,
-          "median": -0.0005009816476193326,
-          "upper95": -0.000304770544638086
+          "basis": "nested-out-of-fold",
+          "lower95": -0.0007274109913243053,
+          "median": -0.00050098164761948,
+          "upper95": -0.0003047705446382078
         }
       },
       {
@@ -1612,9 +1614,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.0150042683334102,
-          "median": -0.0021059347364170925,
-          "upper95": 0.0098762396892098
+          "basis": "nested-out-of-fold",
+          "lower95": -0.015680224428046775,
+          "median": -0.0024408811876408423,
+          "upper95": 0.009735966957303525
         }
       },
       {
@@ -2124,9 +2127,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.059064745913094664,
-          "median": -0.01823811129517664,
-          "upper95": 0.008500521406652382
+          "basis": "nested-out-of-fold",
+          "lower95": -0.059361864741127514,
+          "median": -0.019006015158873242,
+          "upper95": 0.007879336248153521
         }
       },
       {
@@ -2646,9 +2650,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.23798281267199464,
-          "median": -0.13159560867218642,
-          "upper95": -0.04363391364363098
+          "basis": "nested-out-of-fold",
+          "lower95": -0.2379828126719949,
+          "median": -0.1315956086721866,
+          "upper95": -0.04363391364363132
         }
       }
     ],
@@ -3181,9 +3186,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.02194498178964752,
-          "median": 0.009521922576580851,
-          "upper95": 0.04147693114814115
+          "basis": "nested-out-of-fold",
+          "lower95": -0.024931946430041024,
+          "median": -0.003766487543525444,
+          "upper95": 0.02093141071769444
         }
       },
       {
@@ -3733,9 +3739,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.035337086998636955,
-          "median": -0.014584030519292634,
-          "upper95": 0.0062588166002646595
+          "basis": "nested-out-of-fold",
+          "lower95": -0.037432914665827724,
+          "median": -0.015725450541372313,
+          "upper95": 0.0057250402008258245
         }
       },
       {
@@ -4245,9 +4252,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.035108192392445454,
-          "median": -0.014645507047920548,
-          "upper95": 0.006796184283686148
+          "basis": "nested-out-of-fold",
+          "lower95": -0.04917391045911937,
+          "median": -0.03019002255667744,
+          "upper95": -0.004417552696447391
         }
       },
       {
@@ -4757,8 +4765,9 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.06755369347720848,
-          "median": -0.03428081089833751,
+          "basis": "nested-out-of-fold",
+          "lower95": -0.06755369347720867,
+          "median": -0.03428081089833772,
           "upper95": -0.008608690755371053
         }
       },
@@ -5279,9 +5288,10 @@
         "bootstrap": {
           "iterations": 2000,
           "seed": 20261103,
-          "lower95": -0.17863562199641017,
-          "median": -0.10935476502716218,
-          "upper95": -0.04540601973335778
+          "basis": "nested-out-of-fold",
+          "lower95": -1.3543665086107612,
+          "median": -0.6699670461197776,
+          "upper95": -0.04540601973335765
         }
       }
     ],

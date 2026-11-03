@@ -50,6 +50,7 @@ function bootstrapImprovement({
   aggregate,
   iterations,
   seed,
+  basis,
 }) {
   const random = seededRandom(seed);
   const improvements = [];
@@ -67,6 +68,7 @@ function bootstrapImprovement({
   return {
     iterations: improvements.length,
     seed,
+    basis,
     lower95: percentile(improvements, 0.05),
     median: percentile(improvements, 0.5),
     upper95: percentile(improvements, 0.95),
@@ -157,14 +159,19 @@ export function evaluateGeneralization({
     };
   });
 
+  const nestedDates = nestedFolds.flatMap((fold) =>
+    fold.selectedPerRun.map(() => fold.heldOutDate));
+  const nestedCandidatePerRun = nestedFolds.flatMap((fold) => fold.selectedPerRun);
+  const nestedBaselinePerRun = nestedFolds.flatMap((fold) => fold.baselinePerRun);
   const bootstrap = bootstrapImprovement({
-    candidatePerRun: finalCandidate.perRun,
-    baselinePerRun,
-    dates,
+    candidatePerRun: nestedCandidatePerRun,
+    baselinePerRun: nestedBaselinePerRun,
+    dates: nestedDates,
     uniqueDates,
     aggregate,
     iterations: bootstrapIterations,
     seed: bootstrapSeed,
+    basis: "nested-out-of-fold",
   });
   const overallImprovement = improvementRatio(baselineAggregate, finalAggregate);
   const nestedImprovement = improvementRatio(nestedBaseline, nestedTest);

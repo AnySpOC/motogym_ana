@@ -170,7 +170,7 @@ function main() {
       runs: matched.length,
       dates: [...new Set(matched.map((item) => item.run.date))],
       state: "speed and longitudinal acceleration bias; physics UKF adds a gated nonlinear bank observation",
-      acceptance: "four-gate policy: >=10% overall, nested CV, chronological holdout, positive bootstrap lower bound",
+      acceptance: "four-gate policy: >=10% overall, nested CV, chronological holdout, positive nested out-of-fold bootstrap lower bound",
       reference: "GoPro GPX speed; useful field reference, not laboratory ground truth",
     },
     aligned: evaluateMode(matched, "aligned"),

@@ -217,8 +217,10 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v36");
-  assert.equal(firstRun.schemaVersion, 7);
+  assert.equal(firstRun.appVersion, "v37");
+  assert.equal(firstRun.schemaVersion, 8);
+  assert.ok(["good", "review"].includes(firstRun.quality.status));
+  assert.ok(Number.isFinite(firstRun.quality.metrics.observedSampleRateHz));
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
   assert.equal(firstRun.diagnostics.preflight.calibrationCompleted, true);
   assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);

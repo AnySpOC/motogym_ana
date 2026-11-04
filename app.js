@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v36";
-const LOG_SCHEMA_VERSION = 7;
+const APP_VERSION = "v37";
+const LOG_SCHEMA_VERSION = 8;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -2053,6 +2053,84 @@ function buildCurrentRun() {
   });
 }
 
+function assessRunQuality(run) {
+  const samples = run.samples || [];
+  const events = run.events || [];
+  const measurementSamples = samples.filter((sample) =>
+    sample.phase === "running" || (!sample.phase && Number(sample.timeMs) >= 0));
+  const intervals = measurementSamples
+    .map((sample) => sample.sensorIntervalMs)
+    .filter((value) => Number.isFinite(value) && value > 0 && value < 1000);
+  const gpsSamples = measurementSamples.filter((sample) =>
+    sample.gpsFresh === true || (sample.gpsFresh === undefined && Number.isFinite(sample.gpsSpeedKmh)));
+  const gpsAccuracy = measurementSamples
+    .map((sample) => sample.gpsAccuracyM)
+    .filter((value) => Number.isFinite(value) && value >= 0);
+  const gpsObservationKeys = new Set(measurementSamples.map((sample) => {
+    if (Number.isFinite(sample.gpsObservationSequence) && sample.gpsObservationSequence > 0) {
+      return `s:${sample.gpsObservationSequence}`;
+    }
+    return Number.isFinite(sample.gpsTimestampMs) ? `t:${sample.gpsTimestampMs}` : null;
+  }).filter(Boolean));
+  const ratio = (count) => measurementSamples.length ? count / measurementSamples.length : 0;
+  const metrics = {
+    sampleCount: measurementSamples.length,
+    observedSampleRateHz: intervals.length ? round(1000 / percentile(intervals, 0.5), 1) : null,
+    sensorIntervalP95Ms: intervals.length ? round(percentile(intervals, 0.95), 1) : null,
+    sensorGapCount: events.filter((event) => event.type === "GAP").length,
+    gpsFreshRatio: round(ratio(gpsSamples.length), 3),
+    gpsObservationCount: gpsObservationKeys.size,
+    gpsAccuracyP95M: gpsAccuracy.length ? round(percentile(gpsAccuracy, 0.95), 1) : null,
+    gpsInnovationClippedRatio: round(ratio(measurementSamples
+      .filter((sample) => sample.gpsInnovationClipped).length), 3),
+    imuInnovationClippedRatio: round(ratio(measurementSamples
+      .filter((sample) => sample.imuInnovationClipped).length), 3),
+  };
+
+  if (run.diagnostics?.noStartAttempt) {
+    return { status: "diagnostic", score: null, reasons: ["NO_START_DIAGNOSTIC"], metrics };
+  }
+
+  let score = 100;
+  let invalid = false;
+  const reasons = [];
+  const penalize = (reason, points, fatal = false) => {
+    if (!reasons.includes(reason)) reasons.push(reason);
+    score -= points;
+    invalid ||= fatal;
+  };
+
+  if (measurementSamples.length < 30) penalize("TOO_FEW_SAMPLES", 60, true);
+  if (!Number.isFinite(run.durationMs) || run.durationMs < 500) penalize("RUN_TOO_SHORT", 50, true);
+  if (run.calibration?.quality?.passed === false) penalize("CALIBRATION_FAILED", 60, true);
+  else if (run.calibration?.quality?.passed !== true) penalize("CALIBRATION_UNKNOWN", 10);
+  if (events.some((event) => event.type === "INTERRUPT")) penalize("RUN_INTERRUPTED", 30);
+  if (events.some((event) => event.type === "START")
+    && !events.some((event) => event.type === "STOP" || event.type === "INTERRUPT")) {
+    penalize("RUN_NOT_FINALIZED", 30);
+  }
+  if (!Number.isFinite(metrics.observedSampleRateHz)) penalize("SAMPLE_RATE_UNKNOWN", 25);
+  else if (metrics.observedSampleRateHz < 15) penalize("SAMPLE_RATE_CRITICAL", 50, true);
+  else if (metrics.observedSampleRateHz < 30) penalize("SAMPLE_RATE_LOW", 20);
+  if (metrics.sensorIntervalP95Ms > 100) penalize("SENSOR_INTERVAL_UNSTABLE", 30);
+  else if (metrics.sensorIntervalP95Ms > 50) penalize("SENSOR_INTERVAL_SLOW", 15);
+  if (metrics.sensorGapCount > 0) penalize("SENSOR_GAP", Math.min(40, 20 * metrics.sensorGapCount));
+  if (metrics.gpsFreshRatio < 0.2) penalize("GPS_COVERAGE_CRITICAL", 40);
+  else if (metrics.gpsFreshRatio < 0.5) penalize("GPS_COVERAGE_LOW", 20);
+  if (metrics.gpsObservationCount < 3) penalize("GPS_OBSERVATIONS_LOW", 15);
+  if (!Number.isFinite(metrics.gpsAccuracyP95M)) penalize("GPS_ACCURACY_UNKNOWN", 10);
+  else if (metrics.gpsAccuracyP95M > 50) penalize("GPS_ACCURACY_CRITICAL", 30);
+  else if (metrics.gpsAccuracyP95M > 30) penalize("GPS_ACCURACY_LOW", 15);
+  if (metrics.imuInnovationClippedRatio > 0.3) penalize("IMU_OUTLIERS_HIGH", 25);
+  else if (metrics.imuInnovationClippedRatio > 0.1) penalize("IMU_OUTLIERS", 10);
+  if (metrics.gpsInnovationClippedRatio > 0.3) penalize("GPS_OUTLIERS_HIGH", 20);
+  else if (metrics.gpsInnovationClippedRatio > 0.1) penalize("GPS_OUTLIERS", 10);
+
+  score = clamp(Math.round(score), 0, 100);
+  const status = invalid || score < 50 ? "invalid" : (score < 80 ? "review" : "good");
+  return { status, score, reasons, metrics };
+}
+
 function buildRun(run) {
   const samples = run.samples || [];
   const rideSamples = samples.filter((sample) => sample.phase !== "poststop");
@@ -2062,7 +2140,7 @@ function buildRun(run) {
     .filter((value) => Number.isFinite(value) && value > 0 && value < 1000);
   const medianIntervalMs = sampleIntervals.length ? percentile(sampleIntervals, 0.5) : null;
   const maxByAbs = (key) => rideSamples.reduce((max, sample) => Math.max(max, Math.abs(sample[key] || 0)), 0);
-  return {
+  const normalizedRun = {
     id: run.id,
     startedAtIso: run.startedAtIso,
     endedAtIso: run.endedAtIso,
@@ -2102,6 +2180,11 @@ function buildRun(run) {
     events,
     samples,
   };
+  const quality = assessRunQuality(normalizedRun);
+  normalizedRun.quality = quality;
+  normalizedRun.summary.dataQualityStatus = quality.status;
+  normalizedRun.summary.dataQualityScore = quality.score;
+  return normalizedRun;
 }
 
 function queueRunSave(run) {
@@ -2219,7 +2302,7 @@ function loadRuns() {
   return dbGetAll(RUN_STORE)
     .then((runs) => {
       state.storageAvailable = true;
-      state.savedRuns = runs.sort((a, b) => b.startedAtIso.localeCompare(a.startedAtIso));
+      state.savedRuns = runs.map(buildRun).sort((a, b) => b.startedAtIso.localeCompare(a.startedAtIso));
       const existingIds = new Set(state.savedRuns.map((run) => run.id));
       state.selectedRunIds = new Set([...state.selectedRunIds].filter((id) => existingIds.has(id)));
       setStorageStatus(`${text.storageReady} / ${state.savedRuns.length} runs`);
@@ -2264,12 +2347,19 @@ function renderHistory() {
       const runStatus = run.summary?.status === "interrupted"
         ? "中断"
         : (run.summary?.status === "no-start" ? "未発進診断" : "完了");
+      const quality = run.quality || assessRunQuality(run);
+      const qualityLabel = quality.status === "good"
+        ? "品質良好"
+        : (quality.status === "review"
+          ? "要確認"
+          : (quality.status === "invalid" ? "解析不可" : "診断"));
+      const qualityScore = Number.isFinite(quality.score) ? ` ${quality.score}点` : "";
       return `<article class="history-card">
         <label class="run-selector" aria-label="${escapeHtml(date)} を選択">
           <input type="checkbox" data-select-run="${escapeHtml(run.id)}"${state.selectedRunIds.has(run.id) ? " checked" : ""}>
         </label>
         <div>
-          <strong>${formatTime(run.durationMs)}</strong>
+          <strong>${formatTime(run.durationMs)} <span class="data-quality ${quality.status}" title="${escapeHtml(quality.reasons.join(", "))}">${qualityLabel}${qualityScore}</span></strong>
           <small>${escapeHtml(date)} / ${runStatus} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
         </div>
         <div class="history-actions">
@@ -2300,9 +2390,11 @@ function syncHistorySelectionControls() {
 }
 
 function runToCsv(run, includeRunMetadata = false) {
+  const quality = run.quality || assessRunQuality(run);
+  const qualityColumns = [quality.status, quality.score, quality.reasons.join("|")];
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -2355,6 +2447,7 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     "",
     "",
+    ...qualityColumns,
   ].map(csvCell).join(","));
   const sampleRows = run.samples.map((sample) => [
     ...metadata,
@@ -2408,6 +2501,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.gpsStopDwellMs, 0),
     fixed(sample.gpsStopDisplacementM, 2),
     fixed(sample.gpsObservationSequence, 0),
+    ...qualityColumns,
   ].map(csvCell).join(","));
   return eventHeader + eventRows.concat(sampleRows).join("\n");
 }

@@ -61,7 +61,7 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 | 合成時系列 | `npm run test:simulation` | START/STOP状態遷移、振動、GPSガード、連続走行、取付方向 |
 | START耐性 | `npm run test:robustness` | 24条件の誤検知、未検知、P95遅延 |
 | STOP耐性 | `npm run test:stop-robustness` | 36条件のGPS誤報、徐行、停止、再待機、保存 |
-| 連続走行耐久 | `npm run test:endurance` | 3サンプル周期、合計24走の保存競合と再待機 |
+| 連続走行耐久 | `npm run test:endurance` | 3サンプル周期、合計24走の保存競合、再待機、品質判定 |
 | 長時間耐性 | `npm run test:soak`、`npm run test:stop-soak` | START 200条件、STOP 120条件 |
 | 匿名実走固定データ | `npm run test:recorded` | 10月18日の正常START/STOP、GPS速度、停止候補 |
 | 既存ログ再生 | `npm run evaluate:existing -- --root <データルート> --json <出力JSON>` | 複数日の速度誤差、候補係数の過学習 |

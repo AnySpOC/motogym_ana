@@ -63,7 +63,7 @@ const stopSoakEvidence = fs.existsSync("docs/generated/STOP_ROBUSTNESS_SOAK_LATE
 const softwareGatePassed = checks.every((check) => check.passed);
 const report = {
   generatedAt: new Date().toISOString(),
-  appVersion: "v36",
+  appVersion: "v37",
   softwareGatePassed,
   releaseStatus: softwareGatePassed ? "FIELD_VALIDATION_REQUIRED" : "SOFTWARE_GATE_FAILED",
   checks: checks.map((check) => ({
@@ -111,9 +111,9 @@ const report = {
     reason: "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     required: [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v36 closed-course runs with START, STOP, rearm, persistence, and post-STOP diagnostics",
+      "three consecutive v37 closed-course runs with START, STOP, rearm, persistence, post-STOP diagnostics, and data-quality classification",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v36, schemaVersion 7, pre-start samples, and post-STOP samples",
+      "each exported run reports appVersion v37, schemaVersion 8, data quality, pre-start samples, and post-STOP samples",
     ],
   },
 };
@@ -154,9 +154,9 @@ const markdown = `# リリース判定レポート
 自動試験は${softwareGatePassed ? "合格" : "不合格"}。製品リリースには次の実機確認が残る。
 
 1. 実車静止30秒で誤START 0件。
-2. v36の閉鎖コース連続3走でSTART、STOP、再待機、保存がすべて成立。
+2. v37の閉鎖コース連続3走でSTART、STOP、再待機、保存、品質判定がすべて成立。
 3. 動画または観測基準に対するSTART遅延300 ms以内。
-4. 各出力がappVersion v36、schemaVersion 7、発進前とSTOP後のサンプルを含む。
+4. 各出力がappVersion v37、schemaVersion 8、品質判定、発進前とSTOP後のサンプルを含む。
 
 合成試験はiOSのバックグラウンド停止、実GPSマルチパス、取付部の共振を再現しないため、自動試験合格だけで製品リリース可とは判定しない。
 `;

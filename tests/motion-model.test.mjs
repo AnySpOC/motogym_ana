@@ -54,7 +54,7 @@ source += `\nglobalThis.testApi = {
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
   calibrateAndProjectSample, motionModel, runToCsv, runsToCsv,
   handleAppBackground, evaluateCalibration, currentProfile, deriveGravityVector,
-  coordinatedTurnErrorDeg
+  coordinatedTurnErrorDeg, buildRun, assessRunQuality
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -531,6 +531,50 @@ assert.ok(selectedCsvLines.some((line) => line.startsWith("run-previous,")));
 for (const line of selectedCsvLines.slice(1)) {
   assert.equal(line.split(",").length, selectedHeaderColumns, "selected CSV rows must match the header width");
 }
+
+const qualitySamples = Array.from({ length: 120 }, (_, index) => ({
+  phase: "running",
+  timeMs: index * 16.67,
+  sensorIntervalMs: 16.67,
+  gpsFresh: true,
+  gpsSpeedKmh: 10,
+  gpsAccuracyM: 5,
+  gpsObservationSequence: Math.floor(index / 30) + 1,
+  gpsInnovationClipped: false,
+  imuInnovationClipped: false,
+}));
+const goodRun = api.buildRun({
+  id: "quality-good",
+  startedAtIso: "2026-11-03T00:00:00.000Z",
+  endedAtIso: "2026-11-03T00:00:02.000Z",
+  durationMs: 2000,
+  appVersion: "v37",
+  schemaVersion: 8,
+  calibration: { quality: { passed: true } },
+  events: [{ type: "START" }, { type: "STOP" }],
+  samples: qualitySamples,
+});
+assert.equal(goodRun.quality.status, "good");
+assert.equal(goodRun.quality.score, 100);
+assert.equal(goodRun.quality.metrics.gpsObservationCount, 4);
+
+const invalidRun = api.buildRun({
+  ...goodRun,
+  id: "quality-invalid",
+  events: [{ type: "START" }, { type: "GAP" }, { type: "STOP" }],
+  samples: qualitySamples.map((sample) => ({
+    ...sample,
+    sensorIntervalMs: 80,
+    gpsFresh: false,
+    gpsSpeedKmh: null,
+    gpsAccuracyM: null,
+    gpsObservationSequence: null,
+  })),
+});
+assert.equal(invalidRun.quality.status, "invalid");
+assert.ok(invalidRun.quality.reasons.includes("SAMPLE_RATE_CRITICAL"));
+assert.ok(invalidRun.quality.reasons.includes("GPS_COVERAGE_CRITICAL"));
+assert.match(api.runToCsv(goodRun).split("\n")[0], /data_quality_status,data_quality_score,data_quality_reasons/);
 
 api.motionModel.reset();
 api.motionModel.setSpeed(10);

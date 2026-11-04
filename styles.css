@@ -405,6 +405,30 @@ button.danger:not(:disabled) {
   font-variant-numeric: tabular-nums;
 }
 
+.data-quality {
+  display: inline-block;
+  margin-left: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
+
+.data-quality.good {
+  color: var(--green);
+}
+
+.data-quality.review,
+.data-quality.diagnostic {
+  color: #ffd36b;
+}
+
+.data-quality.invalid {
+  color: #ff9a9f;
+}
+
 .history-card small {
   color: var(--muted);
   line-height: 1.6;

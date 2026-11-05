@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v37";
+const APP_VERSION = "v38";
 const LOG_SCHEMA_VERSION = 8;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -53,6 +53,9 @@ const CALIBRATION_MAX_GRAVITY_DRIFT_DEG = 7;
 const CALIBRATION_MAX_VIBRATION_G = 0.6;
 const LEARNED_START_G_MIN = 0.1;
 const LEARNED_START_G_MAX = 0.24;
+const IMPORT_FILE_MAX_BYTES = 100 * 1024 * 1024;
+const IMPORT_RUN_MAX = 1000;
+const IMPORT_SAMPLE_MAX = RAW_SAMPLE_LIMIT + PRESTART_SAMPLE_LIMIT + POST_STOP_SAMPLE_LIMIT;
 
 const sensitivityProfiles = {
   calm: { startG: 0.22, accelG: 0.32, brakeG: -0.34, turnRate: 48, bankAngle: 24, deadbandG: 0.035 },
@@ -131,6 +134,8 @@ const elements = {
   exportSelectedJsonButton: document.querySelector("#exportSelectedJsonButton"),
   exportSelectedCsvButton: document.querySelector("#exportSelectedCsvButton"),
   deleteSelectedButton: document.querySelector("#deleteSelectedButton"),
+  importJsonButton: document.querySelector("#importJsonButton"),
+  importJsonInput: document.querySelector("#importJsonInput"),
   longG: document.querySelector("#longG"),
   latG: document.querySelector("#latG"),
   speed: document.querySelector("#speed"),
@@ -244,6 +249,8 @@ const state = {
   storageAvailable: false,
   storagePersisted: null,
   storageCheckPending: false,
+  storageUsageBytes: null,
+  storageQuotaBytes: null,
   selectedRunIds: new Set(),
   postStopCaptures: [],
   currentRunId: "",
@@ -1714,6 +1721,7 @@ function render() {
   elements.clearButton.disabled = state.mode === "running";
   elements.storageRetryButton.disabled = state.storageCheckPending;
   elements.storageRetryButton.hidden = state.storageAvailable;
+  elements.importJsonButton.disabled = state.mode === "running";
   renderPreflight();
   drawTrace();
 }
@@ -1992,6 +2000,18 @@ function dbPut(storeName, value) {
     tx.objectStore(storeName).put(value);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  }));
+}
+
+function dbPutMany(storeName, values) {
+  if (!values.length) return Promise.resolve();
+  return runDbOperation((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    values.forEach((value) => store.put(value));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("import transaction aborted"));
   }));
 }
 
@@ -2306,6 +2326,7 @@ function loadRuns() {
       const existingIds = new Set(state.savedRuns.map((run) => run.id));
       state.selectedRunIds = new Set([...state.selectedRunIds].filter((id) => existingIds.has(id)));
       setStorageStatus(`${text.storageReady} / ${state.savedRuns.length} runs`);
+      refreshStorageEstimate();
       renderHistory();
       render();
     })
@@ -2332,7 +2353,25 @@ function recoverStorage() {
 }
 
 function setStorageStatus(message) {
-  elements.storageStatus.textContent = message;
+  const capacity = Number.isFinite(state.storageUsageBytes) && Number.isFinite(state.storageQuotaBytes)
+    ? ` / ${formatBytes(state.storageUsageBytes)} / ${formatBytes(state.storageQuotaBytes)}`
+    : "";
+  elements.storageStatus.textContent = `${message}${capacity}`;
+}
+
+async function refreshStorageEstimate() {
+  if (!navigator.storage?.estimate) return;
+  try {
+    const estimate = await navigator.storage.estimate();
+    state.storageUsageBytes = Number.isFinite(estimate.usage) ? estimate.usage : null;
+    state.storageQuotaBytes = Number.isFinite(estimate.quota) ? estimate.quota : null;
+    if (state.storageAvailable) {
+      setStorageStatus(`${text.storageReady} / ${state.savedRuns.length} runs`);
+    }
+  } catch {
+    state.storageUsageBytes = null;
+    state.storageQuotaBytes = null;
+  }
 }
 
 function renderHistory() {
@@ -2516,6 +2555,14 @@ function fixed(value, digits) {
   return Number.isFinite(value) ? value.toFixed(digits) : "";
 }
 
+function formatBytes(value) {
+  if (!Number.isFinite(value) || value < 0) return "--";
+  if (value < 1024) return `${Math.round(value)} B`;
+  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`;
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+  return `${(value / 1024 ** 3).toFixed(1)} GB`;
+}
+
 function csvCell(value) {
   const textValue = String(value ?? "");
   return /[",\n]/.test(textValue) ? `"${textValue.replaceAll("\"", "\"\"")}"` : textValue;
@@ -2538,14 +2585,109 @@ function downloadText(content, filename, type) {
   URL.revokeObjectURL(link.href);
 }
 
+function parseRunBackup(content, existingIds = new Set()) {
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error("JSONを読み取れません");
+  }
+  const sourceRuns = Array.isArray(parsed?.runs)
+    ? parsed.runs
+    : (parsed && typeof parsed === "object" && parsed.id ? [parsed] : null);
+  if (!sourceRuns) throw new Error("Gym Anaの走行JSONではありません");
+  if (parsed.backupVersion !== undefined
+    && (!Number.isInteger(parsed.backupVersion) || parsed.backupVersion < 1 || parsed.backupVersion > 1)) {
+    throw new Error("未対応のバックアップ形式です");
+  }
+  if (sourceRuns.length > IMPORT_RUN_MAX) throw new Error(`一度に復元できるのは${IMPORT_RUN_MAX}走までです`);
+
+  const knownIds = new Set(existingIds);
+  const runs = [];
+  let skipped = 0;
+  sourceRuns.forEach((run, index) => {
+    if (!run || typeof run !== "object" || Array.isArray(run)) {
+      throw new Error(`${index + 1}件目の走行形式が不正です`);
+    }
+    if (typeof run.id !== "string" || !run.id.trim() || run.id.length > 200) {
+      throw new Error(`${index + 1}件目の走行IDが不正です`);
+    }
+    if (knownIds.has(run.id)) {
+      skipped += 1;
+      return;
+    }
+    if (!run.startedAtIso || !Number.isFinite(Date.parse(run.startedAtIso))) {
+      throw new Error(`${index + 1}件目の開始日時が不正です`);
+    }
+    if (run.endedAtIso && !Number.isFinite(Date.parse(run.endedAtIso))) {
+      throw new Error(`${index + 1}件目の終了日時が不正です`);
+    }
+    if (!Number.isFinite(run.durationMs) || run.durationMs < 0 || run.durationMs > 24 * 60 * 60 * 1000) {
+      throw new Error(`${index + 1}件目の計測時間が不正です`);
+    }
+    if (!Array.isArray(run.samples) || !Array.isArray(run.events)) {
+      throw new Error(`${index + 1}件目のサンプルまたはイベントが不正です`);
+    }
+    if (run.samples.length > IMPORT_SAMPLE_MAX) {
+      throw new Error(`${index + 1}件目のサンプル数が上限を超えています`);
+    }
+    if (!run.samples.every((sample) => sample && typeof sample === "object" && !Array.isArray(sample))
+      || !run.events.every((event) => event && typeof event === "object" && !Array.isArray(event))) {
+      throw new Error(`${index + 1}件目の記録内容が不正です`);
+    }
+    if (run.schemaVersion !== undefined
+      && (!Number.isInteger(run.schemaVersion) || run.schemaVersion < 1 || run.schemaVersion > LOG_SCHEMA_VERSION)) {
+      throw new Error(`${index + 1}件目のschema版に対応していません`);
+    }
+    knownIds.add(run.id);
+    runs.push(buildRun(run));
+  });
+  return { runs, skipped, total: sourceRuns.length };
+}
+
+async function importRunBackup(file) {
+  if (!file) return;
+  if (file.size > IMPORT_FILE_MAX_BYTES) {
+    setStorageStatus("JSONが100 MBを超えています");
+    return;
+  }
+  elements.importJsonButton.disabled = true;
+  setStorageStatus("JSONを確認中");
+  try {
+    const existingIds = new Set(state.savedRuns.map((run) => run.id));
+    const result = parseRunBackup(await file.text(), existingIds);
+    if (result.runs.length) {
+      await dbPutMany(RUN_STORE, result.runs);
+      await loadRuns();
+    }
+    setStorageStatus(`復元 ${result.runs.length}件 / 重複 ${result.skipped}件`);
+    refreshStorageEstimate();
+  } catch (error) {
+    setStorageStatus(`復元できません: ${error.message}`);
+  } finally {
+    elements.importJsonButton.disabled = state.mode === "running";
+    elements.importJsonInput.value = "";
+  }
+}
+
+function backupDocument(runs) {
+  return {
+    backupVersion: 1,
+    appVersion: APP_VERSION,
+    schemaVersion: LOG_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    runs,
+  };
+}
+
 function exportAllJson() {
-  downloadText(JSON.stringify({ exportedAt: new Date().toISOString(), runs: state.savedRuns }, null, 2), `gym-ana-all-${makeRunId()}.json`, "application/json;charset=utf-8");
+  downloadText(JSON.stringify(backupDocument(state.savedRuns), null, 2), `gym-ana-all-${makeRunId()}.json`, "application/json;charset=utf-8");
 }
 
 function exportSelectedJson() {
   const runs = selectedRuns();
   if (!runs.length) return;
-  downloadText(JSON.stringify({ exportedAt: new Date().toISOString(), runs }, null, 2), `gym-ana-selected-${makeRunId()}.json`, "application/json;charset=utf-8");
+  downloadText(JSON.stringify(backupDocument(runs), null, 2), `gym-ana-selected-${makeRunId()}.json`, "application/json;charset=utf-8");
 }
 
 function exportSelectedCsv() {
@@ -2613,6 +2755,8 @@ elements.exportAllButton.addEventListener("click", exportAllJson);
 elements.exportSelectedJsonButton.addEventListener("click", exportSelectedJson);
 elements.exportSelectedCsvButton.addEventListener("click", exportSelectedCsv);
 elements.deleteSelectedButton.addEventListener("click", deleteSelectedRuns);
+elements.importJsonButton.addEventListener("click", () => elements.importJsonInput.click());
+elements.importJsonInput.addEventListener("change", () => importRunBackup(elements.importJsonInput.files?.[0]));
 elements.selectAllRuns.addEventListener("change", () => {
   state.selectedRunIds = elements.selectAllRuns.checked
     ? new Set(state.savedRuns.map((run) => run.id))

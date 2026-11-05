@@ -2,7 +2,7 @@
 
 ## 1. 対象と方針
 
-本書はPWA版v37の実装構造を、ソースコードの責務、状態、データフロー、試験境界の観点で記述する。物理・観測モデルの数式と要求仕様は`SYSTEM_DESIGN.md`を正とし、本書はコードを変更するときの案内図とする。
+本書はPWA版v38の実装構造を、ソースコードの責務、状態、データフロー、試験境界の観点で記述する。物理・観測モデルの数式と要求仕様は`SYSTEM_DESIGN.md`を正とし、本書はコードを変更するときの案内図とする。
 
 設計上の優先順位は次の通りである。
 
@@ -74,7 +74,7 @@ DeviceMotion / DeviceOrientation / Geolocation
 | GPS | `startGps`、`onGpsPosition`、`gpsStopEvidence`、`resyncSpeedFromGps` | 新鮮度、重複時刻、速度外れ値、位置滞留を判定 |
 | サンプル | `buildRawSample`、`storePreStartSample`、`storeRawSample`、`capturePostStopSamples` | 診断区間を含むschema 8行を生成 |
 | 品質判定 | `assessRunQuality` | GPS、IMU周期、欠測、較正、外れ値から走行品質を判定 |
-| 永続化 | `openDb`、`runDbOperation`、`queueRunSave`、`checkpointCurrentRun` | IndexedDB再接続、直列保存、走行中チェックポイント |
+| 永続化 | `openDb`、`runDbOperation`、`queueRunSave`、`checkpointCurrentRun`、`dbPutMany` | IndexedDB再接続、直列保存、走行中チェックポイント、復元の一括保存 |
 | 履歴・出力 | `loadRuns`、`renderHistory`、`selectedRuns`、`runsToCsv`、JSON出力関数 | 選択走行の出力・削除 |
 | 中断 | `handleAppBackground` | PWA実行停止前に走行または待機診断を保存 |
 
@@ -115,6 +115,8 @@ UKF、バイアスEKF、粒子フィルタは比較用実装であり、本番�
 v37の走行オブジェクトは`quality`に`good`、`review`、`invalid`、`diagnostic`の状態、0〜100点、理由コード、品質指標を保持する。判定対象は走行中サンプルだけとし、GPS被覆率、GPS観測数と精度、IMU周期P95、センサー欠測、較正結果、GPS/IMU外れ値率、正常終了を評価する。品質が低くても原本は削除せず、解析・学習へ投入する前の選別情報として扱う。品質点は入力データの健全性であり、タイムや速度の正確さを保証する精度点ではない。
 
 保存は`queueRunSave`で直列化し、同じ走行のSTOP保存とSTOP後追記の競合を防ぐ。15秒ごとのチェックポイントはSafari中断時の損失範囲を制限する。最大サンプル数は1走20,000件で、容量はIndexedDBと端末空き容量に依存する。
+
+v38のJSONバックアップは`backupVersion`、アプリ版、schema版、出力日時、走行配列を持つ。復元時はJSON構造、日時、計測時間、schema版、走行数、サンプル数を検証し、同じ走行IDは既存データを優先してスキップする。複数走行は1つのIndexedDBトランザクションで保存し、未来schemaは解釈せず拒否する。Storage Estimate APIが利用可能な場合は、オリジン全体の使用量と上限を履歴欄へ表示する。
 
 CSV/JSONには位置情報を含み得る。ブラウザーからサーバーへ自動送信はしないが、公開リポジトリへ実走原本を登録しない。回帰試験には絶対時刻と座標を除いた匿名fixtureだけを使う。
 

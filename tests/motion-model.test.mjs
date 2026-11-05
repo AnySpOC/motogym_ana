@@ -54,7 +54,8 @@ source += `\nglobalThis.testApi = {
   enableAutoMeasurement, startManualMeasurement, onGpsPosition,
   calibrateAndProjectSample, motionModel, runToCsv, runsToCsv,
   handleAppBackground, evaluateCalibration, currentProfile, deriveGravityVector,
-  coordinatedTurnErrorDeg, buildRun, assessRunQuality
+  coordinatedTurnErrorDeg, buildRun, assessRunQuality,
+  parseRunBackup, backupDocument, formatBytes
 };\n`;
 vm.runInNewContext(source, sandbox, { filename: "app.js" });
 
@@ -575,6 +576,30 @@ assert.equal(invalidRun.quality.status, "invalid");
 assert.ok(invalidRun.quality.reasons.includes("SAMPLE_RATE_CRITICAL"));
 assert.ok(invalidRun.quality.reasons.includes("GPS_COVERAGE_CRITICAL"));
 assert.match(api.runToCsv(goodRun).split("\n")[0], /data_quality_status,data_quality_score,data_quality_reasons/);
+
+const backup = api.backupDocument([goodRun, goodRun]);
+assert.equal(backup.backupVersion, 1);
+assert.equal(backup.appVersion, "v38");
+assert.equal(backup.schemaVersion, 8);
+const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
+assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");
+assert.equal(parsedBackup.skipped, 1);
+const existingBackup = api.parseRunBackup(JSON.stringify(api.backupDocument([goodRun])), new Set([goodRun.id]));
+assert.equal(existingBackup.runs.length, 0, "existing run IDs must be preserved");
+assert.equal(existingBackup.skipped, 1);
+assert.throws(() => api.parseRunBackup("not-json"), /JSON/);
+assert.throws(() => api.parseRunBackup(JSON.stringify({
+  runs: [{ ...goodRun, id: "future", schemaVersion: 999 }],
+})), /schema版/);
+assert.throws(() => api.parseRunBackup(JSON.stringify({
+  backupVersion: 2,
+  runs: [],
+})), /バックアップ形式/);
+assert.throws(() => api.parseRunBackup(JSON.stringify({
+  runs: [{ ...goodRun, id: "string-schema", schemaVersion: "8" }],
+})), /schema版/);
+assert.equal(api.formatBytes(1536), "1.5 KB");
+assert.equal(api.formatBytes(5 * 1024 * 1024), "5.0 MB");
 
 api.motionModel.reset();
 api.motionModel.setSpeed(10);

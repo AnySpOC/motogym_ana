@@ -65,6 +65,7 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 | 長時間耐性 | `npm run test:soak`、`npm run test:stop-soak` | START 200条件、STOP 120条件 |
 | 匿名実走固定データ | `npm run test:recorded` | 10月18日の正常START/STOP、GPS速度、停止候補 |
 | 既存ログ再生 | `npm run evaluate:existing -- --root <データルート> --json <出力JSON>` | 複数日の速度誤差、候補係数の過学習 |
+| 実機3走監査 | `npm run audit:field -- --csv <選択CSV>` | 版、schema、START/STOP、発進前・STOP後、品質、GPS速度、START確定待ち時間 |
 | iPhone実機 | 閉鎖コースで定型手順 | iOS権限、実振動、GPS遅延、取付、保存、画面動作 |
 
 ## 5. 限界
@@ -81,3 +82,4 @@ START検出上限300 msは、100 msの前方向確定と100 msのSTART保持、�
 6. 実機で静止30秒の誤STARTが0件である。
 7. 連続3走すべてでSTART・STOP・再待機・保存が成立する。
 8. START時刻を動画または目視基準と比較し、遅延300 ms以内を目標とする。
+9. v41の3走を選択CSVへ出力し、`npm run audit:field -- --csv <選択CSV>`が合格する。

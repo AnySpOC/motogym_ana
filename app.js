@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v40";
-const LOG_SCHEMA_VERSION = 9;
+const APP_VERSION = "v41";
+const LOG_SCHEMA_VERSION = 10;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -207,6 +207,7 @@ const state = {
   strongStartCandidateAt: 0,
   startCandidateLastAt: 0,
   startCandidateVelocityMs: 0,
+  startDecisionLatencyMs: 0,
   autoReadyCandidateAt: 0,
   autoStartReady: false,
   autoStopCandidate: false,
@@ -502,6 +503,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.events = state.events.filter((event) => event.type === "ARM");
   state.currentRunId = makeRunId();
   state.measurementMode = mode;
+  state.startDecisionLatencyMs = mode === "auto" ? Math.max(0, Math.round(detectedAt - onsetAt)) : 0;
   state.startCandidateAt = 0;
   state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
@@ -1458,6 +1460,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
+  state.startDecisionLatencyMs = 0;
   state.autoReadyCandidateAt = 0;
   state.autoStartReady = false;
   state.autoStopCandidate = false;
@@ -2099,6 +2102,7 @@ function buildCurrentRun() {
       sensitivity: state.sensitivity,
       startThresholdG: round(currentProfile().startG, 4),
       gentleStartThresholdG: round(gentleStartThreshold(), 4),
+      startDecisionLatencyMs: state.startDecisionLatencyMs,
       stationaryThresholdG: round(currentProfile().stationaryG, 4),
       stationaryYawRateDps: round(currentProfile().stationaryYawRate, 2),
       preflight: preflightSnapshot(),
@@ -2118,6 +2122,9 @@ function assessRunQuality(run) {
     if (!Number.isFinite(sample.timeMs) || !Number.isFinite(sample.gpsSpeedKmh)) return nearest;
     return !nearest || Math.abs(sample.timeMs) < Math.abs(nearest.timeMs) ? sample : nearest;
   }, null);
+  const inferredDecisionLatencyMs = samples
+    .filter((sample) => sample.phase === "prestart" && Number.isFinite(sample.timeMs) && sample.timeMs >= 0)
+    .reduce((maximum, sample) => Math.max(maximum, sample.timeMs), 0);
   const measurementSamples = samples.filter((sample) =>
     sample.phase === "running" || (!sample.phase && Number(sample.timeMs) >= 0));
   const intervals = measurementSamples
@@ -2151,6 +2158,9 @@ function assessRunQuality(run) {
     startDetectionMode: autoStart
       ? (String(startEvent.detail).includes("緩発進") ? "gentle" : "strong")
       : (manualStart ? "manual" : null),
+    startDecisionLatencyMs: Number.isFinite(run.diagnostics?.startDecisionLatencyMs)
+      ? run.diagnostics.startDecisionLatencyMs
+      : inferredDecisionLatencyMs,
   };
 
   if (run.diagnostics?.noStartAttempt) {
@@ -2448,7 +2458,9 @@ function renderHistory() {
           ? "強発進"
           : (quality.metrics?.startDetectionMode === "manual" ? "手動" : ""));
       const startAudit = startModeLabel
-        ? ` / START ${startModeLabel}${Number.isFinite(quality.metrics?.startGpsSpeedKmh)
+        ? ` / START ${startModeLabel}${Number.isFinite(quality.metrics?.startDecisionLatencyMs)
+          ? ` ${Math.round(quality.metrics.startDecisionLatencyMs)} ms`
+          : ""}${Number.isFinite(quality.metrics?.startGpsSpeedKmh)
           ? ` GPS ${quality.metrics.startGpsSpeedKmh.toFixed(1)} km/h`
           : ""}`
         : "";
@@ -2495,10 +2507,11 @@ function runToCsv(run, includeRunMetadata = false) {
     quality.reasons.join("|"),
     quality.metrics?.startDetectionMode,
     quality.metrics?.startGpsSpeedKmh,
+    quality.metrics?.startDecisionLatencyMs,
   ];
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",

@@ -587,12 +587,12 @@ assert.equal(invalidRun.quality.status, "invalid");
 assert.ok(invalidRun.quality.reasons.includes("SAMPLE_RATE_CRITICAL"));
 assert.ok(invalidRun.quality.reasons.includes("GPS_COVERAGE_CRITICAL"));
 assert.match(api.runToCsv(goodRun).split("\n")[0],
-  /data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh/);
+  /data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms/);
 
 const backup = api.backupDocument([goodRun, goodRun]);
 assert.equal(backup.backupVersion, 1);
-assert.equal(backup.appVersion, "v40");
-assert.equal(backup.schemaVersion, 9);
+assert.equal(backup.appVersion, "v41");
+assert.equal(backup.schemaVersion, 10);
 const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
 assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");
 assert.equal(parsedBackup.skipped, 1);

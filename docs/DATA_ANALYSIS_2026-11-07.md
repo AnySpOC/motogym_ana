@@ -51,4 +51,4 @@ GoPro GPXと同期できた自動START 9件のうち、7件はSTART時0.05から
 
 今回のデータだけを理由にEKF、UKF、粒子フィルタへ変更する根拠はない。主な誤差はGPS基準の平滑化、時刻差、START遅延であり、より複雑な速度フィルタ候補は過去日へ一般化しなかった。
 
-次回はv40を表示したiPhoneで、通常発進1回と意図的な緩発進2回を含む閉鎖コース3走を行う。CSVで`START`、`STOP`、自動再待機、保存、`start_detection_mode`、`start_gps_speed_kmh`、品質理由を確認し、GoProなしでも`AUTO_START_GPS_MOVING`が出ないことを合格条件とする。
+次回はv41を表示したiPhoneで、通常発進1回と意図的な緩発進2回を含む閉鎖コース3走を行う。3走を選択CSVで出力し、`npm run audit:field -- --csv <CSV>`でSTART/STOP、自動再待機、保存、検出方式、START時GPS速度、確定待ち時間、品質を一括判定する。

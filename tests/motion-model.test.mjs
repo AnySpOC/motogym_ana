@@ -559,6 +559,16 @@ assert.equal(goodRun.quality.status, "good");
 assert.equal(goodRun.quality.score, 100);
 assert.equal(goodRun.quality.metrics.gpsObservationCount, 4);
 
+const lateAutoStartRun = api.buildRun({
+  ...goodRun,
+  id: "quality-late-auto-start",
+  events: [{ type: "START", detail: "発進を検出" }, { type: "STOP" }],
+  samples: qualitySamples.map((sample) => ({ ...sample, gpsSpeedKmh: 3 })),
+});
+assert.equal(lateAutoStartRun.quality.status, "review");
+assert.ok(lateAutoStartRun.quality.reasons.includes("AUTO_START_GPS_MOVING"));
+assert.equal(lateAutoStartRun.quality.metrics.startGpsSpeedKmh, 3);
+
 const invalidRun = api.buildRun({
   ...goodRun,
   id: "quality-invalid",
@@ -579,7 +589,7 @@ assert.match(api.runToCsv(goodRun).split("\n")[0], /data_quality_status,data_qua
 
 const backup = api.backupDocument([goodRun, goodRun]);
 assert.equal(backup.backupVersion, 1);
-assert.equal(backup.appVersion, "v38");
+assert.equal(backup.appVersion, "v39");
 assert.equal(backup.schemaVersion, 8);
 const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
 assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");

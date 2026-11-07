@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v38";
+const APP_VERSION = "v39";
 const LOG_SCHEMA_VERSION = 8;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -23,6 +23,9 @@ const VIBRATION_LEVEL_TAU_SEC = 0.35;
 const BANK_OBSERVATION_VARIANCE = 30;
 const BANK_DYNAMICS_SCALE = 2;
 const START_CONFIRM_MS = 100;
+const GENTLE_START_CONFIRM_MS = 350;
+const GENTLE_START_RATIO = 0.72;
+const GENTLE_START_MIN_G = 0.12;
 const PRESTART_RETENTION_MS = PRESTART_BUFFER_MS + AXIS_LOCK_HOLD_MS + START_CONFIRM_MS + 250;
 const AUTO_READY_HOLD_MS = 600;
 const CHECKPOINT_INTERVAL_MS = 15000;
@@ -201,6 +204,7 @@ const state = {
   vibrationEnergy: 0,
   vibrationG: 0,
   startCandidateAt: 0,
+  strongStartCandidateAt: 0,
   startCandidateLastAt: 0,
   startCandidateVelocityMs: 0,
   autoReadyCandidateAt: 0,
@@ -499,6 +503,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.currentRunId = makeRunId();
   state.measurementMode = mode;
   state.startCandidateAt = 0;
+  state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
   state.autoStopCandidate = false;
@@ -827,6 +832,7 @@ function startCalibration() {
   state.vibrationEnergy = 0;
   state.vibrationG = 0;
   state.startCandidateAt = 0;
+  state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
   state.deviceOffsetX = 0;
@@ -985,6 +991,7 @@ function estimateConfidence(sample, dt) {
 
 function detectEvents(t) {
   const profile = currentProfile();
+  const gentleStartG = gentleStartThreshold(profile);
   if (state.autoMeasurementEnabled && state.mode === "armed") {
     const lowDynamics = Math.abs(state.longG) < profile.stationaryG
       && Math.abs(state.latG) < profile.stationaryG
@@ -1004,6 +1011,7 @@ function detectEvents(t) {
         setMode("armed", !gpsFresh ? text.gpsStandstill : text.autoPreparing);
       }
       state.startCandidateAt = 0;
+      state.strongStartCandidateAt = 0;
       state.startCandidateLastAt = 0;
       state.startCandidateVelocityMs = 0;
       return;
@@ -1012,13 +1020,14 @@ function detectEvents(t) {
       state.autoStartReady = false;
       state.autoReadyCandidateAt = 0;
       state.startCandidateAt = 0;
+      state.strongStartCandidateAt = 0;
       state.startCandidateLastAt = 0;
       state.startCandidateVelocityMs = 0;
       resetForwardAxis();
       setMode("armed", !gpsFresh ? text.gpsStandstill : text.gpsMoving);
       return;
     }
-    if (state.longG > profile.startG) {
+    if (state.longG > gentleStartG) {
       if (!state.startCandidateAt) {
         state.startCandidateAt = t;
         state.startCandidateLastAt = t;
@@ -1028,11 +1037,23 @@ function detectEvents(t) {
         state.startCandidateVelocityMs += Math.max(0, state.longG * G) * candidateDt;
         state.startCandidateLastAt = t;
       }
-      if (t - state.startCandidateAt >= START_CONFIRM_MS) {
-        startRun("auto", text.startDetail, state.startCandidateAt, state.startCandidateVelocityMs);
+      if (state.longG > profile.startG) {
+        state.strongStartCandidateAt ||= t;
+      } else {
+        state.strongStartCandidateAt = 0;
+      }
+      const strongConfirmed = state.strongStartCandidateAt
+        && t - state.strongStartCandidateAt >= START_CONFIRM_MS;
+      const gentleConfirmed = t - state.startCandidateAt >= GENTLE_START_CONFIRM_MS;
+      if (strongConfirmed || gentleConfirmed) {
+        const detail = gentleConfirmed && !strongConfirmed
+          ? `${text.startDetail}（緩発進）`
+          : text.startDetail;
+        startRun("auto", detail, state.startCandidateAt, state.startCandidateVelocityMs);
       }
     } else {
       state.startCandidateAt = 0;
+      state.strongStartCandidateAt = 0;
       state.startCandidateLastAt = 0;
       state.startCandidateVelocityMs = 0;
     }
@@ -1430,6 +1451,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.lastStopCandidateAt = 0;
   state.lastBrakeAt = 0;
   state.startCandidateAt = 0;
+  state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
   state.autoReadyCandidateAt = 0;
@@ -1824,6 +1846,14 @@ function currentProfile() {
   };
 }
 
+function gentleStartThreshold(profile = currentProfile()) {
+  return Math.min(profile.startG, Math.max(
+    GENTLE_START_MIN_G,
+    profile.stationaryG + 0.04,
+    profile.startG * GENTLE_START_RATIO,
+  ));
+}
+
 function applyDeadband(value, deadband) {
   if (!Number.isFinite(value)) return 0;
   return Math.abs(value) < deadband ? 0 : value;
@@ -2064,6 +2094,7 @@ function buildCurrentRun() {
       preStartBufferMs: PRESTART_BUFFER_MS,
       sensitivity: state.sensitivity,
       startThresholdG: round(currentProfile().startG, 4),
+      gentleStartThresholdG: round(gentleStartThreshold(), 4),
       stationaryThresholdG: round(currentProfile().stationaryG, 4),
       stationaryYawRateDps: round(currentProfile().stationaryYawRate, 2),
       preflight: preflightSnapshot(),
@@ -2076,6 +2107,13 @@ function buildCurrentRun() {
 function assessRunQuality(run) {
   const samples = run.samples || [];
   const events = run.events || [];
+  const startEvent = events.find((event) => event.type === "START");
+  const autoStart = String(startEvent?.detail || "").includes(text.startDetail);
+  const manualStart = String(startEvent?.detail || "").includes(text.manualStart);
+  const startGpsSample = samples.reduce((nearest, sample) => {
+    if (!Number.isFinite(sample.timeMs) || !Number.isFinite(sample.gpsSpeedKmh)) return nearest;
+    return !nearest || Math.abs(sample.timeMs) < Math.abs(nearest.timeMs) ? sample : nearest;
+  }, null);
   const measurementSamples = samples.filter((sample) =>
     sample.phase === "running" || (!sample.phase && Number(sample.timeMs) >= 0));
   const intervals = measurementSamples
@@ -2105,6 +2143,10 @@ function assessRunQuality(run) {
       .filter((sample) => sample.gpsInnovationClipped).length), 3),
     imuInnovationClippedRatio: round(ratio(measurementSamples
       .filter((sample) => sample.imuInnovationClipped).length), 3),
+    startGpsSpeedKmh: startGpsSample ? round(startGpsSample.gpsSpeedKmh, 3) : null,
+    startDetectionMode: autoStart
+      ? (String(startEvent.detail).includes("緩発進") ? "gentle" : "strong")
+      : (manualStart ? "manual" : null),
   };
 
   if (run.diagnostics?.noStartAttempt) {
@@ -2145,6 +2187,7 @@ function assessRunQuality(run) {
   else if (metrics.imuInnovationClippedRatio > 0.1) penalize("IMU_OUTLIERS", 10);
   if (metrics.gpsInnovationClippedRatio > 0.3) penalize("GPS_OUTLIERS_HIGH", 20);
   else if (metrics.gpsInnovationClippedRatio > 0.1) penalize("GPS_OUTLIERS", 10);
+  if (autoStart && metrics.startGpsSpeedKmh > 2) penalize("AUTO_START_GPS_MOVING", 25);
 
   score = clamp(Math.round(score), 0, 100);
   const status = invalid || score < 50 ? "invalid" : (score < 80 ? "review" : "good");
@@ -2273,6 +2316,7 @@ function saveArmedDiagnostic(reason) {
       preStartBufferMs: PRESTART_BUFFER_MS,
       sensitivity: state.sensitivity,
       startThresholdG: round(profile.startG, 4),
+      gentleStartThresholdG: round(gentleStartThreshold(profile), 4),
       stationaryThresholdG: round(profile.stationaryG, 4),
       stationaryYawRateDps: round(profile.stationaryYawRate, 2),
       preflight: preflightSnapshot(),
@@ -2311,6 +2355,7 @@ function handleAppBackground(event) {
     state.autoStartReady = false;
     state.autoReadyCandidateAt = 0;
     state.startCandidateAt = 0;
+    state.strongStartCandidateAt = 0;
     state.preStartSamples = [];
     setMode(state.sensorEnabled ? "sensor-on" : "idle", text.backgroundArmCancelled);
     addEvent("AUTO", text.backgroundArmCancelled);

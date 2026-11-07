@@ -57,6 +57,35 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
+  harness.api.state.bikeProfile.startGNormal = 0.18;
+  harness.api.state.bikeProfile.stationaryG = 0.05;
+  armAtStandstill(harness);
+  assert.equal(harness.api.state.autoStartReady, true);
+  const onsetAt = harness.clock;
+  let detectedAt = null;
+  let movingGpsInjected = false;
+  for (let index = 0; index < 50; index += 1) {
+    harness.step({ rawY: 0.15, gravityZ: 1 });
+    if (!movingGpsInjected && harness.api.state.startCandidateAt) {
+      harness.gps(1.2);
+      movingGpsInjected = true;
+    }
+    if (harness.api.state.mode === "running") {
+      detectedAt = harness.clock;
+      break;
+    }
+  }
+  assert.equal(harness.api.state.mode, "running", "sustained gentle launch must trigger START");
+  assert.equal(movingGpsInjected, true, "moving GPS must be exercised during the launch candidate");
+  const startEvent = harness.api.state.events.find((event) => event.type === "START");
+  assert.match(startEvent.detail, /緩発進/);
+  assert.ok(detectedAt - onsetAt <= 650, "gentle START must be detected within 650 ms");
+  record("gentle-launch", { latencyMs: detectedAt - onsetAt, launchG: 0.15 });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
   harness.api.state.storageAvailable = false;
   harness.api.render();
   assert.equal(harness.elements.get("#autoOnButton").disabled, false,
@@ -217,7 +246,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v38");
+  assert.equal(firstRun.appVersion, "v39");
   assert.equal(firstRun.schemaVersion, 8);
   assert.ok(["good", "review"].includes(firstRun.quality.status));
   assert.ok(Number.isFinite(firstRun.quality.metrics.observedSampleRateHz));

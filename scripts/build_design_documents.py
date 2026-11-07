@@ -686,7 +686,7 @@ def build_design_doc():
 
     add_heading(doc, "自動計測処理", 1)
     add_figure(doc, ASSETS / "activity_diagram.png", "図3  自動計測アクティビティ図", width=5.75)
-    add_para(doc, "Auto待機は低運動とGPS停止を600 ms確認してから発進待ちになる。確認後の最初の明確な水平加速で車体前方向を確定し、前後Gが感度しきい値を140 ms継続して超えるとSTARTする。手動開始は操作時刻から直ちに計測する。")
+    add_para(doc, "Auto待機は低運動とGPS停止を600 ms確認してから発進待ちになる。確認後の水平加速で車体前方向を確定し、強発進は学習しきい値を100 ms、緩発進は低いしきい値を350 ms継続するとSTARTする。手動開始は操作時刻から直ちに計測する。")
 
     add_heading(doc, "状態管理", 1)
     add_figure(doc, ASSETS / "state_transition_diagram.png", "図4  主要な状態遷移")
@@ -720,7 +720,7 @@ def build_design_doc():
     add_code_block(doc, "b_a = mean([a_x, a_y, a_z])\nb_w = mean([gyro_x, gyro_y, gyro_z])\ng_d = normalize(mean(accelerationIncludingGravity))\nyaw_rate = dot(gyro - b_w, g_d)")
     add_para(doc, "完了条件は15 Hz以上かつ60サンプル以上、平均加速度0.12 G以下、重力0.75から1.25 G、前半と後半の重力方向差7度以下、振動RMS 0.6 G以下とする。条件外はfailed状態とし理由を表示する。")
     add_heading(doc, "エンジン振動除去", 2)
-    add_para(doc, "補正済み3軸加速度は、車体軸決定、イベント判定、速度積分の前に時定数0.08秒の一次低域通過フィルタへ通す。Auto待機後は低運動とGPS停止を600 ms確認し、その後に前後Gがしきい値を140 ms継続した場合だけSTARTする。確認区間の加速度は仮積分して現在速度へ引き継ぐ。")
+    add_para(doc, "補正済み3軸加速度は、車体軸決定、イベント判定、速度積分の前に時定数0.08秒の一次低域通過フィルタへ通す。Auto待機後は低運動とGPS停止を600 ms確認し、強発進は学習しきい値を100 ms、緩発進はその72%相当を350 ms継続した場合にSTARTする。確認区間の加速度は仮積分して現在速度へ引き継ぐ。")
     add_code_block(doc, "alpha = 1 - exp(-dt / 0.08)\na_lp = a_lp + alpha * (a_c - a_lp)\nvibration = a_c - a_lp")
     add_heading(doc, "車体座標", 2)
     add_code_block(doc, "a_h = a_c - dot(a_c, g_d) * g_d\ne_forward = normalize(a_h)\ne_lateral = normalize(cross(g_d, e_forward))\nlong_g = dot(a_c, e_forward)\nlat_g = dot(a_c, e_lateral)")

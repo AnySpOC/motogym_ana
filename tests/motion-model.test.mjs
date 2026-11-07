@@ -506,7 +506,8 @@ assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
 assert.match(csvLines[0], /bank_deg,gravity_bank_deg,yaw_rate/);
 assert.match(csvLines[0], /auto_stop_candidate/);
 assert.match(csvLines[0], /app_version,schema_version,phase,sensor_interval_ms/);
-assert.match(csvLines[0], /auto_start_ready,start_candidate_hold_ms,start_threshold_g/);
+assert.match(csvLines[0],
+  /auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g/);
 assert.match(csvLines[0], /gravity_error_g,turn_consistency_deg,imu_innovation_clipped/);
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
@@ -585,12 +586,13 @@ const invalidRun = api.buildRun({
 assert.equal(invalidRun.quality.status, "invalid");
 assert.ok(invalidRun.quality.reasons.includes("SAMPLE_RATE_CRITICAL"));
 assert.ok(invalidRun.quality.reasons.includes("GPS_COVERAGE_CRITICAL"));
-assert.match(api.runToCsv(goodRun).split("\n")[0], /data_quality_status,data_quality_score,data_quality_reasons/);
+assert.match(api.runToCsv(goodRun).split("\n")[0],
+  /data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh/);
 
 const backup = api.backupDocument([goodRun, goodRun]);
 assert.equal(backup.backupVersion, 1);
-assert.equal(backup.appVersion, "v39");
-assert.equal(backup.schemaVersion, 8);
+assert.equal(backup.appVersion, "v40");
+assert.equal(backup.schemaVersion, 9);
 const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
 assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");
 assert.equal(parsedBackup.skipped, 1);

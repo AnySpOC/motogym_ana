@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v39";
-const LOG_SCHEMA_VERSION = 8;
+const APP_VERSION = "v40";
+const LOG_SCHEMA_VERSION = 9;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -1126,7 +1126,11 @@ function buildRawSample(t, sampleIntervalSec, phase) {
     sensorIntervalMs: round(sampleIntervalSec * 1000, 2),
     autoStartReady: state.autoStartReady,
     startCandidateHoldMs: state.startCandidateAt ? Math.max(0, Math.round(t - state.startCandidateAt)) : 0,
+    strongStartCandidateHoldMs: state.strongStartCandidateAt
+      ? Math.max(0, Math.round(t - state.strongStartCandidateAt))
+      : 0,
     startThresholdG: round(profile.startG, 4),
+    gentleStartThresholdG: round(gentleStartThreshold(profile), 4),
     stationaryThresholdG: round(profile.stationaryG, 4),
     gpsFresh: hasFreshGps(),
     forwardAxisLocked: Boolean(state.forwardAxis),
@@ -2438,13 +2442,23 @@ function renderHistory() {
           ? "要確認"
           : (quality.status === "invalid" ? "解析不可" : "診断"));
       const qualityScore = Number.isFinite(quality.score) ? ` ${quality.score}点` : "";
+      const startModeLabel = quality.metrics?.startDetectionMode === "gentle"
+        ? "緩発進"
+        : (quality.metrics?.startDetectionMode === "strong"
+          ? "強発進"
+          : (quality.metrics?.startDetectionMode === "manual" ? "手動" : ""));
+      const startAudit = startModeLabel
+        ? ` / START ${startModeLabel}${Number.isFinite(quality.metrics?.startGpsSpeedKmh)
+          ? ` GPS ${quality.metrics.startGpsSpeedKmh.toFixed(1)} km/h`
+          : ""}`
+        : "";
       return `<article class="history-card">
         <label class="run-selector" aria-label="${escapeHtml(date)} を選択">
           <input type="checkbox" data-select-run="${escapeHtml(run.id)}"${state.selectedRunIds.has(run.id) ? " checked" : ""}>
         </label>
         <div>
           <strong>${formatTime(run.durationMs)} <span class="data-quality ${quality.status}" title="${escapeHtml(quality.reasons.join(", "))}">${qualityLabel}${qualityScore}</span></strong>
-          <small>${escapeHtml(date)} / ${runStatus} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
+          <small>${escapeHtml(date)} / ${runStatus}${startAudit} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
         </div>
         <div class="history-actions">
           <button type="button" data-action="csv" data-run="${escapeHtml(run.id)}">CSV</button>
@@ -2475,10 +2489,16 @@ function syncHistorySelectionControls() {
 
 function runToCsv(run, includeRunMetadata = false) {
   const quality = run.quality || assessRunQuality(run);
-  const qualityColumns = [quality.status, quality.score, quality.reasons.join("|")];
+  const qualityColumns = [
+    quality.status,
+    quality.score,
+    quality.reasons.join("|"),
+    quality.metrics?.startDetectionMode,
+    quality.metrics?.startGpsSpeedKmh,
+  ];
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -2488,6 +2508,8 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(event.longG, 3),
     fixed(event.latG, 3),
     fixed(event.speedKmh, 2),
+    "",
+    "",
     "",
     "",
     "",
@@ -2572,7 +2594,9 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.sensorIntervalMs, 2),
     sample.autoStartReady ? 1 : 0,
     fixed(sample.startCandidateHoldMs, 0),
+    fixed(sample.strongStartCandidateHoldMs, 0),
     fixed(sample.startThresholdG, 4),
+    fixed(sample.gentleStartThresholdG, 4),
     fixed(sample.stationaryThresholdG, 4),
     sample.gpsFresh ? 1 : 0,
     sample.forwardAxisLocked ? 1 : 0,

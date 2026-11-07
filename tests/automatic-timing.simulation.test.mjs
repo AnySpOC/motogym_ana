@@ -246,8 +246,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v39");
-  assert.equal(firstRun.schemaVersion, 8);
+  assert.equal(firstRun.appVersion, "v40");
+  assert.equal(firstRun.schemaVersion, 9);
   assert.ok(["good", "review"].includes(firstRun.quality.status));
   assert.ok(Number.isFinite(firstRun.quality.metrics.observedSampleRateHz));
   assert.equal(firstRun.diagnostics.preflight.storageAvailable, true);
@@ -255,6 +255,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.equal(firstRun.diagnostics.preStartSampleCount, preStartSamples.length);
   assert.ok(firstRun.diagnostics.observedSampleRateHz >= 59);
   assert.ok(preStartSamples.every((sample) => Number.isFinite(sample.startThresholdG)));
+  assert.ok(preStartSamples.every((sample) => Number.isFinite(sample.gentleStartThresholdG)));
+  assert.ok(preStartSamples.every((sample) => Number.isFinite(sample.strongStartCandidateHoldMs)));
   const stopEvent = firstRun.events.find((event) => event.type === "STOP");
   assert.ok(stopEvent, "the persisted run must contain STOP");
   assert.equal(firstRun.durationMs, stopEvent.timeMs, "run duration must use the backdated STOP onset");

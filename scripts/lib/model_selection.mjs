@@ -176,19 +176,25 @@ export function evaluateGeneralization({
   const overallImprovement = improvementRatio(baselineAggregate, finalAggregate);
   const nestedImprovement = improvementRatio(nestedBaseline, nestedTest);
   const temporalImprovement = improvementRatio(temporalBaseline, temporalTest);
+  const enoughDates = uniqueDates.length >= minimumDates;
+  const enoughRuns = dates.length >= minimumRuns;
+  const evaluable = enoughDates && enoughRuns;
   const gates = {
-    enoughDates: uniqueDates.length >= minimumDates,
-    enoughRuns: dates.length >= minimumRuns,
-    overallImprovement: overallImprovement >= minimumOverallImprovement,
-    finalCandidateNoDateWorse: finalByDate.every((item) => item.notWorse),
-    nestedImprovement: nestedImprovement >= minimumNestedImprovement,
-    nestedNoDateWorse: nestedFolds.every((fold) => fold.notWorse),
-    temporalHoldoutImproved: temporalImprovement > 0 && temporalByDate.every((item) => item.notWorse),
-    bootstrapLowerBoundPositive: bootstrap.lower95 > 0,
+    enoughDates,
+    enoughRuns,
+    overallImprovement: evaluable && overallImprovement >= minimumOverallImprovement,
+    finalCandidateNoDateWorse: evaluable && finalByDate.every((item) => item.notWorse),
+    nestedImprovement: evaluable && nestedImprovement >= minimumNestedImprovement,
+    nestedNoDateWorse: evaluable && nestedFolds.every((fold) => fold.notWorse),
+    temporalHoldoutImproved: evaluable
+      && temporalImprovement > 0
+      && temporalByDate.every((item) => item.notWorse),
+    bootstrapLowerBoundPositive: evaluable && bootstrap.lower95 > 0,
   };
 
   return {
     accepted: Object.values(gates).every(Boolean),
+    evaluable,
     gates,
     thresholds: {
       minimumDates,

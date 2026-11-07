@@ -83,7 +83,12 @@ const insufficient = evaluateGeneralization({
   bootstrapIterations: 100,
 });
 assert.equal(insufficient.accepted, false, "too few runs and dates must not authorize a product model change");
+assert.equal(insufficient.evaluable, false);
 assert.equal(insufficient.gates.enoughDates, false);
 assert.equal(insufficient.gates.enoughRuns, false);
+assert.ok(Object.entries(insufficient.gates)
+  .filter(([name]) => name !== "enoughDates" && name !== "enoughRuns")
+  .every(([, passed]) => passed === false),
+"insufficient evidence must not display any model-acceptance gate as passed");
 
 console.log("model selection tests: OK");

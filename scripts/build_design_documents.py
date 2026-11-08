@@ -184,7 +184,7 @@ def create_activity_diagram():
     for start, end in arrows:
         arrow(draw, start, end)
     # Decisions
-    for cy, text in [(720, "前後GがSTARTしきい値を超えたか"), (1190, "停止条件が950 ms続いたか")]:
+    for cy, text in [(720, "前後GがSTARTしきい値を超えたか"), (1190, "複数GPS観測で停止を確認したか")]:
         diamond = [(center, cy - 70), (center + 190, cy), (center, cy + 70), (center - 190, cy)]
         draw.polygon(diamond, fill=hex_rgb(PALE_GRAY), outline=hex_rgb(NAVY))
         draw_centered(draw, (center - 175, cy - 45, center + 175, cy + 45), text, font(22), fill=TEXT)
@@ -747,7 +747,7 @@ def build_design_doc():
         ["標準", "0.20", "0.26", "-0.30", "40", "20", "0.025"],
         ["高", "0.14", "0.19", "-0.22", "30", "15", "0.014"],
     ], widths=[0.75, 0.85, 0.85, 0.85, 1.15, 1.0, 1.05], font_size=8)
-    add_para(doc, "自動停止は低運動状態に加え、GPS停止または低速かつ直前の減速という停止根拠が950 ms続き、START後1.5秒以上経過した場合に成立する。")
+    add_para(doc, "自動停止は低運動状態に加え、複数GPS観測の停止根拠が成立し、START後1.5秒以上経過した場合に成立する。GPS停止根拠確定後の追加保持は行わず、GPSなしの推定停止だけ950 ms保持する。")
 
     add_heading(doc, "データ設計", 1)
     add_code_block(doc, "Run\n  id\n  startedAtIso  endedAtIso  durationMs\n  calibration\n  summary\n  events[]\n  samples[]")

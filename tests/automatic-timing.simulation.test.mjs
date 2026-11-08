@@ -166,7 +166,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.notEqual(detectedAt, null,
     "1 Hz GPS stop evidence must remain confirmed between position callbacks");
   const latencyMs = detectedAt - stoppedAt;
-  assert.ok(latencyMs >= 3900 && latencyMs <= 4300,
+  assert.ok(latencyMs >= 2900 && latencyMs <= 3300,
     `1 Hz GPS STOP latency ${latencyMs} ms must not wait for another evidence cycle`);
   record("one-hertz-gps-stop-evidence", {
     gpsIntervalsMs,
@@ -246,7 +246,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v41");
+  assert.equal(firstRun.appVersion, "v42");
   assert.equal(firstRun.schemaVersion, 10);
   assert.ok(firstRun.quality.metrics.startDecisionLatencyMs > 0);
   assert.ok(["good", "review"].includes(firstRun.quality.status));
@@ -262,7 +262,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(stopEvent, "the persisted run must contain STOP");
   assert.equal(firstRun.durationMs, stopEvent.timeMs, "run duration must use the backdated STOP onset");
   const stopConfirmationMs = stopDetectedAt - stopEvidenceAt;
-  assert.ok(stopConfirmationMs >= 2900 && stopConfirmationMs <= 3500,
+  assert.ok(stopConfirmationMs >= 900 && stopConfirmationMs <= 1400,
     `STOP confirmation ${stopConfirmationMs} ms must include multi-observation GPS evidence`);
 
   harness.runFor(800, () => ({}), { gpsEveryMs: 300, gpsSpeed: 0 });

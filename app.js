@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v41";
+const APP_VERSION = "v42";
 const LOG_SCHEMA_VERSION = 10;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -37,7 +37,7 @@ const GPS_STOP_SPEED_MS = 0.8;
 const GPS_STRICT_STOP_SPEED_MS = 0.15;
 const GPS_DWELL_MEAN_SPEED_MS = 0.4;
 const GPS_STOP_MAX_OBSERVATION_GAP_MS = 1600;
-const GPS_STRICT_STOP_HOLD_MS = 1800;
+const GPS_STRICT_STOP_HOLD_MS = 900;
 const GPS_DWELL_HOLD_MS = 2200;
 const GPS_STOP_HISTORY_MS = 3500;
 const GPS_STRICT_STOP_MAX_DISPLACEMENT_M = 1.5;
@@ -1085,13 +1085,20 @@ function detectEvents(t) {
     && state.measurementMode === "auto"
     && nowMs() - state.startedAt > 1500;
   if (nearStopped && canAutoStop) {
-    state.lastStopCandidateAt ||= t;
     if (!state.autoStopCandidate) {
       state.autoStopCandidate = true;
       setMode("running", text.stopCandidate);
     }
-    if (t - state.lastStopCandidateAt > STOP_HOLD_MS) {
-      stopRun(text.stopHold, state.lastStopCandidateAt);
+    if (gpsStopped) {
+      const strictOnsetAt = gpsStop.method === "strict" ? gpsStop.onsetAt : t;
+      const stoppedAt = Math.max(state.startedAt + 1500, strictOnsetAt || t);
+      state.lastStopCandidateAt = stoppedAt;
+      stopRun(text.stopHold, stoppedAt);
+    } else {
+      state.lastStopCandidateAt ||= t;
+      if (t - state.lastStopCandidateAt > STOP_HOLD_MS) {
+        stopRun(text.stopHold, state.lastStopCandidateAt);
+      }
     }
   } else {
     state.lastStopCandidateAt = 0;
@@ -1552,7 +1559,7 @@ function hasFreshGps() {
 }
 
 function gpsStopEvidence(t = nowMs()) {
-  const empty = { confirmed: false, onsetAt: 0, count: 0, dwellMs: 0, displacementM: null };
+  const empty = { confirmed: false, method: "", onsetAt: 0, count: 0, dwellMs: 0, displacementM: null };
   if (!hasFreshGps() || state.gpsSpeedMs >= GPS_STOP_SPEED_MS) {
     state.gpsStopLatch = null;
     return empty;
@@ -1577,6 +1584,7 @@ function gpsStopEvidence(t = nowMs()) {
     if (displacementM <= state.gpsStopLatch.maxDisplacementM) {
       return {
         confirmed: true,
+        method: state.gpsStopLatch.method,
         onsetAt: state.gpsStopLatch.onsetAt,
         count: lowSpeed.length,
         dwellMs: Math.max(0, t - state.gpsStopLatch.onsetAt),
@@ -1610,10 +1618,12 @@ function gpsStopEvidence(t = nowMs()) {
       maxDisplacementM: strictStop
         ? GPS_STRICT_STOP_MAX_DISPLACEMENT_M
         : GPS_DWELL_MAX_DISPLACEMENT_M,
+      method: strictStop ? "strict" : "dwell",
     };
   }
   return {
     confirmed: strictStop || positionDwell,
+    method: strictStop ? "strict" : (positionDwell ? "dwell" : ""),
     onsetAt: first.receivedAt,
     count: lowSpeed.length,
     dwellMs,

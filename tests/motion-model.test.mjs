@@ -394,7 +394,8 @@ api.onGpsPosition({
   },
 });
 
-let sawStopCandidate = false;
+const stopAttemptAt = clock;
+let rearmedAt = null;
 for (let i = 0; i < 180; i += 1) {
   if (i > 0 && i % 30 === 0) {
     api.onGpsPosition({
@@ -421,11 +422,12 @@ for (let i = 0; i < 180; i += 1) {
     bankDeg: 0,
   });
   if (api.state.autoStopCandidate) {
-    sawStopCandidate = true;
     assert.equal(elements.get("#rideState").textContent, "停止候補中");
   }
+  if (api.state.mode === "armed" && rearmedAt === null) rearmedAt = clock;
 }
-assert.equal(sawStopCandidate, true, "automatic timing must expose its stop-candidate phase");
+assert.notEqual(rearmedAt, null, "confirmed GPS stop must complete and rearm");
+assert.ok(rearmedAt - stopAttemptAt <= 1500, "strict zero-speed GPS must not add a redundant stop hold");
 assert.equal(api.state.speedMs, 0, "fresh zero GPS speed should clamp speed to zero");
 assert.equal(api.state.mode, "armed", "automatic timing must rearm after a completed run");
 assert.equal(api.state.measurementMode, "auto", "automatic timing mode must remain enabled between runs");
@@ -591,7 +593,7 @@ assert.match(api.runToCsv(goodRun).split("\n")[0],
 
 const backup = api.backupDocument([goodRun, goodRun]);
 assert.equal(backup.backupVersion, 1);
-assert.equal(backup.appVersion, "v41");
+assert.equal(backup.appVersion, "v42");
 assert.equal(backup.schemaVersion, 10);
 const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
 assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");

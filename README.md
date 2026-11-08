@@ -353,14 +353,14 @@ Open the generated `https://...ngrok-free.app` URL on iPhone Safari, then tap:
 5. Provide a fresh zero-speed GPS observation, or tap `計測停止`
 6. Export CSV or JSON after the run
 
-For the v41 field gate, select three automatic runs in the history and export
+For the v42 field gate, select three automatic runs in the history and export
 one `選択CSV`. Audit it with:
 
 ```powershell
 npm run audit:field -- --csv "C:\path\to\gym-ana-selected.csv"
 ```
 
-The audit checks v41/schema 10, START and STOP, pre-start and post-STOP samples,
+The audit checks v42/schema 10, START and STOP, pre-start and post-STOP samples,
 data quality, START GPS speed, START decision latency, and at least one gentle
 launch. `NO_START` diagnostics are reported separately and do not count as failed
 runs. It exits with code 1 and lists reasons when the field gate fails.

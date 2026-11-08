@@ -104,6 +104,19 @@ export function auditCsvText(text, options = {}) {
   }
 
   const auditedRuns = [...runs.values()].map((run) => {
+    const events = [...run.events];
+    const diagnostic = run.qualityStatus === "diagnostic"
+      || (events.includes("NO_START") && !events.includes("START"));
+    if (diagnostic) {
+      return {
+        ...run,
+        events,
+        eligible: false,
+        passed: null,
+        reasons: [],
+        excludedReason: "NO_START_DIAGNOSTIC",
+      };
+    }
     const reasons = [];
     const latencyLimitMs = run.startDetectionMode === "gentle" ? 750 : 400;
     if (run.appVersion !== expectedVersion) reasons.push("APP_VERSION_MISMATCH");
@@ -134,24 +147,29 @@ export function auditCsvText(text, options = {}) {
     if (["invalid", "diagnostic"].includes(run.qualityStatus)) reasons.push("DATA_QUALITY_FAILED");
     return {
       ...run,
-      events: [...run.events],
+      events,
+      eligible: true,
       latencyLimitMs,
       passed: reasons.length === 0,
       reasons: [...new Set(reasons)],
     };
   });
-  const gentleRuns = auditedRuns.filter((run) => run.startDetectionMode === "gentle").length;
+  const eligibleRuns = auditedRuns.filter((run) => run.eligible);
+  const diagnosticRuns = auditedRuns.filter((run) => !run.eligible);
+  const gentleRuns = eligibleRuns.filter((run) => run.startDetectionMode === "gentle").length;
   const summaryReasons = [];
-  if (auditedRuns.length < minimumRuns) summaryReasons.push("RUNS_TOO_FEW");
+  if (eligibleRuns.length < minimumRuns) summaryReasons.push("RUNS_TOO_FEW");
   if (gentleRuns < minimumGentleRuns) summaryReasons.push("GENTLE_RUNS_TOO_FEW");
-  if (auditedRuns.some((run) => !run.passed)) summaryReasons.push("RUN_AUDIT_FAILED");
+  if (eligibleRuns.some((run) => !run.passed)) summaryReasons.push("RUN_AUDIT_FAILED");
   return {
     passed: summaryReasons.length === 0,
     expectedVersion,
     expectedSchema,
     minimumRuns,
     minimumGentleRuns,
-    runCount: auditedRuns.length,
+    recordCount: auditedRuns.length,
+    runCount: eligibleRuns.length,
+    diagnosticCount: diagnosticRuns.length,
     gentleRuns,
     reasons: summaryReasons,
     runs: auditedRuns,

@@ -20,16 +20,27 @@ function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
   return rows;
 }
 
+function diagnosticRows(id) {
+  return [
+    [id, "event", "NO_START", "", "v41", "10", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0"],
+    [id, "sample", "", "prestart", "v41", "10", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0"],
+  ];
+}
+
 const validCsv = [
   headers,
   ...runRows("strong-1", "strong", "0.4", "190"),
   ...runRows("gentle-1", "gentle", "0.8", "620"),
   ...runRows("gentle-2", "gentle", "0.6", "610"),
+  ...diagnosticRows("no-start-1"),
 ].map((row) => row.join(",")).join("\n");
 const valid = auditCsvText(validCsv);
 assert.equal(valid.passed, true);
 assert.equal(valid.runCount, 3);
+assert.equal(valid.recordCount, 4);
+assert.equal(valid.diagnosticCount, 1);
 assert.equal(valid.gentleRuns, 2);
+assert.equal(valid.runs.find((run) => run.id === "no-start-1").passed, null);
 
 const movingStartCsv = [
   headers,

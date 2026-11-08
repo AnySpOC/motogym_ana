@@ -362,7 +362,8 @@ npm run audit:field -- --csv "C:\path\to\gym-ana-selected.csv"
 
 The audit checks v41/schema 10, START and STOP, pre-start and post-STOP samples,
 data quality, START GPS speed, START decision latency, and at least one gentle
-launch. It exits with code 1 and lists reasons when the field gate fails.
+launch. `NO_START` diagnostics are reported separately and do not count as failed
+runs. It exits with code 1 and lists reasons when the field gate fails.
 
 ## Safety
 

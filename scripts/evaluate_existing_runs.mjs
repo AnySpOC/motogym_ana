@@ -188,13 +188,15 @@ function loadGpx(file) {
     points.push(point);
   }
   points.sort((a, b) => a.t - b.t);
+  const pdopUnavailable = points.length > 0
+    && points.every((point) => point.pdop === null || point.pdop >= 99);
   const radius = 5;
   for (let i = 0; i < points.length; i += 1) {
     const left = points[Math.max(0, i - radius)];
     const right = points[Math.min(points.length - 1, i + radius)];
     const dt = (right.t - left.t) / 1000;
     const speedMs = dt > 0 ? haversineM(left, right) / dt : null;
-    points[i].speedKmh = (points[i].pdop === null || points[i].pdop <= 4)
+    points[i].speedKmh = (pdopUnavailable || points[i].pdop === null || points[i].pdop <= 4)
       && speedMs !== null && speedMs <= 60 ? speedMs * 3.6 : null;
   }
   return { file, name: path.basename(file), points, startMs: points[0]?.t, endMs: points.at(-1)?.t };

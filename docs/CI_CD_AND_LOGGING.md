@@ -1,7 +1,7 @@
 # CI/CD・ログ設計
 
 更新日: 2026-11-09
-対象: Moto Gym Ana v43 / ログ schema 11
+対象: Moto Gym Ana v44 / ログ schema 11
 
 ## 結論
 

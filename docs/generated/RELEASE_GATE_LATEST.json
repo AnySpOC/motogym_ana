@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-15T02:38:40.520Z",
-  "appVersion": "v43",
+  "generatedAt": "2026-11-15T13:14:01.913Z",
+  "appVersion": "v44",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -35,7 +35,7 @@
       "passed": true,
       "exitCode": 0,
       "metrics": {
-        "passed": 14,
+        "passed": 16,
         "failed": 0,
         "scenarios": [
           {
@@ -86,10 +86,20 @@
             "startLatencyMs": 183
           },
           {
+            "name": "zero-speed-position-drift-guard",
+            "passed": true,
+            "falseStarts": 0
+          },
+          {
             "name": "missing-gps-guard",
             "passed": true,
             "simulatedMs": 3200,
             "falseStarts": 0
+          },
+          {
+            "name": "long-run-start-context-retention",
+            "passed": true,
+            "retainedSamples": 20000
           },
           {
             "name": "two-run-auto-cycle",
@@ -255,7 +265,7 @@
     }
   ],
   "acceptance": {
-    "deterministicScenariosPassed": 14,
+    "deterministicScenariosPassed": 16,
     "deterministicScenariosFailed": 0,
     "robustnessTrials": 24,
     "robustnessFalseStarts": 0,
@@ -290,9 +300,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "one v43 field smoke run with START, STOP, separated decision timestamps, rearm, persistence, and finalized post-STOP diagnostics",
+      "one v44 field smoke run with stationary-position readiness, START, STOP, rearm, persistence, and finalized post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "the exported run reports appVersion v43, schemaVersion 11, START/STOP decision latency and method, GPS reliability, data quality, pre-start samples, and finalized post-STOP status"
+      "the exported run reports appVersion v44, schemaVersion 11, START-time GPS, START/STOP decision latency and method, GPS reliability, data quality, pre-start samples, and finalized post-STOP status"
     ]
   }
 }

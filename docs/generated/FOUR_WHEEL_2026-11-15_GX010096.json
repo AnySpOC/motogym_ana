@@ -1,0 +1,368 @@
+{
+  "file": "GX010096.MP4",
+  "fileSizeBytes": 314214710,
+  "videoDurationSec": 699.34865,
+  "videoFrameRateHz": 59.94005994005993,
+  "telemetryStart": "2026-11-14T21:26:46.000Z",
+  "embeddedGpsVideoStartUtc": "2026-11-15T06:26:46.257Z",
+  "gpxExport": null,
+  "gpmfPayloadCount": 699,
+  "availableStreams": [
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "ACCL",
+      "name": "Accelerometer"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "GYRO",
+      "name": "Gyroscope"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "SHUT",
+      "name": "Exposure time (shutter speed)"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "WBAL",
+      "name": "White Balance temperature (Kelvin)"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "WRGB",
+      "name": "White Balance RGB gains"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "ISOE",
+      "name": "Sensor ISO"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "YAVG",
+      "name": "Average luminance"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "UNIF",
+      "name": "Image uniformity"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "SCEN",
+      "name": "Scene classification (CLASSIFIER,prob)"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "HUES",
+      "name": "Predominant hue (hue,weight)"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "FACE",
+      "name": "Face Coordinates and details"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "GPS9",
+      "name": "GPS (Lat., Long., Alt., 2D, 3D, days, secs, DOP, fix)"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "CORI",
+      "name": "CameraOrientation"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "IORI",
+      "name": "ImageOrientation"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "GRAV",
+      "name": "Gravity Vector"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "WNDM",
+      "name": "Wind Processing[wind_enable, meter_value(0 - 100)]"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "MWET",
+      "name": "Microphone Wet[mic_wet, all_mics, confidence]"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "AALP",
+      "name": "AGC audio level[rms_level ,peak_level]"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "MSKP",
+      "name": "MRV Frame Skip"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "LSKP",
+      "name": "LRV Frame Skip"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "CSCM",
+      "name": "Compression Score Main"
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "LOGS",
+      "name": "health logs"
+    }
+  ],
+  "streams": [
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "ACCL",
+      "name": "Accelerometer",
+      "units": "m/s²",
+      "sampleCount": 139532,
+      "firstCtsMs": 22.102,
+      "lastCtsMs": 699363.3053007522,
+      "sampleRateHz": 199.51777378687436,
+      "vectorLength": 3,
+      "axes": [
+        {
+          "count": 139532,
+          "mean": -0.15084603475090486,
+          "stddev": 0.9127319774604208,
+          "rms": 0.9251130681591847,
+          "min": -8.215827338129497,
+          "max": 8.685851318944843
+        },
+        {
+          "count": 139532,
+          "mean": 1.7703447481959367,
+          "stddev": 0.90508109974243,
+          "rms": 1.9882887930519144,
+          "min": -6.489208633093525,
+          "max": 8.80335731414868
+        },
+        {
+          "count": 139532,
+          "mean": 9.530490998652763,
+          "stddev": 0.6986865395189488,
+          "rms": 9.556067264094395,
+          "min": 0.4292565947242206,
+          "max": 22.20863309352518
+        }
+      ]
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "GYRO",
+      "name": "Gyroscope",
+      "units": "rad/s",
+      "sampleCount": 139532,
+      "firstCtsMs": 22.102,
+      "lastCtsMs": 699363.3053007522,
+      "sampleRateHz": 199.51777378687436,
+      "vectorLength": 3,
+      "axes": [
+        {
+          "count": 139532,
+          "mean": -0.0047572614335272025,
+          "stddev": 0.04604712958749377,
+          "rms": 0.04629222050835362,
+          "min": -2.660276890308839,
+          "max": 1.6496272630457933
+        },
+        {
+          "count": 139532,
+          "mean": -0.002951819435223217,
+          "stddev": 0.03902231370081063,
+          "rms": 0.03913379874918851,
+          "min": -1.6240681576144835,
+          "max": 1.6879659211927582
+        },
+        {
+          "count": 139532,
+          "mean": 0.004049402998986056,
+          "stddev": 0.07188294921744458,
+          "rms": 0.071996916967642,
+          "min": -1.2523961661341854,
+          "max": 2.169329073482428
+        }
+      ]
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "GPS9",
+      "name": "GPS (Lat., Long., Alt., 2D, 3D, days, secs, DOP, fix)",
+      "units": [
+        "deg",
+        "deg",
+        "m",
+        "m/s",
+        "m/s",
+        "",
+        "s",
+        "",
+        ""
+      ],
+      "sampleCount": 6993,
+      "firstCtsMs": 82.251,
+      "lastCtsMs": 699306.6573333332,
+      "sampleRateHz": 9.999650951352498,
+      "vectorLength": 9,
+      "axes": null
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "CORI",
+      "name": "CameraOrientation",
+      "units": null,
+      "sampleCount": 41919,
+      "firstCtsMs": 22.541,
+      "lastCtsMs": 699352.899974358,
+      "sampleRateHz": 59.94019773641342,
+      "vectorLength": 4,
+      "axes": [
+        {
+          "count": 41919,
+          "mean": 0.3320597346832985,
+          "stddev": 0.48500207480032154,
+          "rms": 0.5877845523306604,
+          "min": -0.6161381878109073,
+          "max": 1
+        },
+        {
+          "count": 41919,
+          "mean": 0.12099513480764099,
+          "stddev": 0.1748890097135586,
+          "rms": 0.21266402696673528,
+          "min": -0.2587969603564562,
+          "max": 0.4045228431043428
+        },
+        {
+          "count": 41919,
+          "mean": 0.07397026369013542,
+          "stddev": 0.33270031356640617,
+          "rms": 0.34082414608940753,
+          "min": -0.3239844965971862,
+          "max": 0.8390148625141148
+        },
+        {
+          "count": 41919,
+          "mean": 0.551101950398929,
+          "stddev": 0.4351552834128536,
+          "rms": 0.7021919113857826,
+          "min": -0.5646534623249001,
+          "max": 0.9732657856990264
+        }
+      ]
+    },
+    {
+      "deviceId": "1",
+      "deviceName": "HERO13 Black",
+      "key": "GRAV",
+      "name": "Gravity Vector",
+      "units": null,
+      "sampleCount": 41919,
+      "firstCtsMs": 22.541,
+      "lastCtsMs": 699352.899974358,
+      "sampleRateHz": 59.94019773641342,
+      "vectorLength": 3,
+      "axes": [
+        {
+          "count": 41919,
+          "mean": 0.17802098969733016,
+          "stddev": 0.0636211091579235,
+          "rms": 0.18904792594287176,
+          "min": -0.003173924985503708,
+          "max": 0.49739066743980226
+        },
+        {
+          "count": 41919,
+          "mean": -0.012789312170012649,
+          "stddev": 0.05824612520672871,
+          "rms": 0.05963369523499253,
+          "min": -0.20288705099642934,
+          "max": 0.12195196386608478
+        },
+        {
+          "count": 41919,
+          "mean": 0.9800262612942544,
+          "stddev": 0.01472072127606008,
+          "rms": 0.9801368131344128,
+          "min": 0.8673665578173162,
+          "max": 0.9990844447157201
+        }
+      ]
+    }
+  ],
+  "iphoneComparison": {
+    "csvStartUtc": "2026-11-15T06:31:15.897Z",
+    "videoStartUtc": "2026-11-15T06:26:46.257Z",
+    "csvZeroAtVideoSec": 269.6394560546875,
+    "timingSource": "embedded-gps",
+    "phoneSampleCount": 391,
+    "events": [
+      {
+        "type": "START",
+        "detail": "発進を検出",
+        "appSpeedKmh": 0,
+        "videoTimeSec": 269.6394560546875,
+        "goproGpsSpeedKmh": 20.26572346295798,
+        "goproGpsSpeedAlignedKmh": 20.26572346295798
+      },
+      {
+        "type": "STOP",
+        "detail": "停止保持を検出",
+        "appSpeedKmh": 1.08,
+        "videoTimeSec": 271.1394560546875,
+        "goproGpsSpeedKmh": 20.249812114048982,
+        "goproGpsSpeedAlignedKmh": 20.249812114048982
+      }
+    ],
+    "imuShiftSec": 0,
+    "longitudinalG": null,
+    "lateralG": null,
+    "yawRateDps": null,
+    "yawRateProjectedDps": null,
+    "rollRateDps": null,
+    "bankDegFromGravity": null,
+    "bankDegVsGoproPitch": null,
+    "bankTuningCandidates": [],
+    "appSpeedKmh": null,
+    "iphoneGpsSpeedKmh": null,
+    "speedTuningCandidates": [],
+    "note": "axis is zero-based in the interpreted GoPro vector; shiftSec is added to mapped video time; centeredRmse excludes the constant sensor/mounting bias."
+  },
+  "privacy": "GPS coordinates and full sensor samples are intentionally omitted."
+}

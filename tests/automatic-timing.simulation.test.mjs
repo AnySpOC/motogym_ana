@@ -193,6 +193,23 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
+  harness.gps(0, { latitude: 35, longitude: 139 });
+  harness.api.enableAutoMeasurement();
+  for (let index = 0; index < 180; index += 1) {
+    if (index % 24 === 0) {
+      harness.gps(0, { latitude: 35 + index / 24 * 0.00005, longitude: 139 });
+    }
+    harness.step({ rawY: 0.3, gravityZ: 1 });
+  }
+  assert.equal(harness.api.state.mode, "armed",
+    "moving GPS positions must block START even when the reported GPS speed is stuck at zero");
+  assert.equal(harness.api.state.autoStartReady, false);
+  record("zero-speed-position-drift-guard", { falseStarts: 0 });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
   harness.api.enableAutoMeasurement();
   harness.runFor(3200);
   assert.equal(harness.api.state.autoStartReady, false, "missing GPS must keep automatic timing unarmed");
@@ -206,6 +223,26 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(diagnosticRuns[0].samples.every((sample) => sample.timeMs <= 0));
   assert.ok(diagnosticRuns[0].samples.every((sample) => sample.latitude === null && sample.longitude === null));
   record("missing-gps-guard", { simulatedMs: 3200, falseStarts: 0 });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
+  armAtStandstill(harness);
+  launch(harness);
+  const startEvent = harness.api.state.events.find((event) => event.type === "START");
+  assert.equal(startEvent.gpsSpeedKmh, 0, "START must snapshot its own GPS speed");
+  assert.equal(startEvent.gpsReliability, "high");
+  harness.runFor(340_000);
+  assert.equal(harness.api.state.rawSamples.length, 20_000);
+  assert.ok(harness.api.state.rawSamples.filter((sample) => sample.phase === "prestart").length >= 40,
+    "long runs must retain the pre-START evidence");
+  assert.ok(harness.api.state.rawSamples.some((sample) =>
+    sample.phase === "running" && sample.timeMs <= 3000),
+    "long runs must retain the first three seconds");
+  assert.ok(harness.api.state.rawSamples.at(-1).timeMs > 300_000,
+    "long runs must also retain the latest samples");
+  record("long-run-start-context-retention", { retainedSamples: harness.api.state.rawSamples.length });
 }
 
 {
@@ -248,7 +285,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v43");
+  assert.equal(firstRun.appVersion, "v44");
   assert.equal(firstRun.schemaVersion, 11);
   assert.ok(firstRun.quality.metrics.startDecisionLatencyMs > 0);
   assert.ok(["good", "review"].includes(firstRun.quality.status));

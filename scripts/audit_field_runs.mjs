@@ -32,7 +32,7 @@ function parseArgs(argv) {
   const options = {
     csv: "",
     json: "",
-    expectedVersion: "v43",
+    expectedVersion: "v44",
     expectedSchema: 11,
     minimumRuns: 3,
     minimumGentleRuns: 1,
@@ -54,7 +54,7 @@ function parseArgs(argv) {
 }
 
 export function auditCsvText(text, options = {}) {
-  const expectedVersion = options.expectedVersion || "v43";
+  const expectedVersion = options.expectedVersion || "v44";
   const expectedSchema = options.expectedSchema || 11;
   const minimumRuns = options.minimumRuns || 3;
   const minimumGentleRuns = options.minimumGentleRuns ?? 1;

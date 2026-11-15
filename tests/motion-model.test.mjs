@@ -507,7 +507,7 @@ const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
 assert.match(csvLines[0], /gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps/);
 assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
-  assert.match(csvLines[0], /gps_source,gps_reliability,latitude/);
+assert.match(csvLines[0], /gps_source,gps_reliability,latitude/);
 assert.match(csvLines[0], /bank_deg,gravity_bank_deg,yaw_rate/);
 assert.match(csvLines[0], /auto_stop_candidate/);
 assert.match(csvLines[0], /app_version,schema_version,phase,sensor_interval_ms/);
@@ -517,6 +517,15 @@ assert.match(csvLines[0], /gravity_error_g,turn_consistency_deg,imu_innovation_c
 for (const line of csvLines.slice(1)) {
   assert.equal(line.split(",").length, headerColumns, "CSV rows must match the header width");
 }
+const csvHeaders = csvLines[0].split(",");
+const eventCells = csvLines[1].split(",");
+const eventValue = (name) => eventCells[csvHeaders.indexOf(name)];
+assert.equal(eventValue("gps_speed_kmh"), "28.800", "START GPS speed must be in the GPS column");
+assert.equal(eventValue("gps_accuracy_m"), "5.0");
+assert.equal(eventValue("gps_source"), "sensor");
+assert.equal(eventValue("bank_deg"), Number(api.state.events[0].bankDeg).toFixed(1));
+assert.equal(eventValue("yaw_rate"), Number(api.state.events[0].yawRate).toFixed(1));
+assert.equal(eventValue("gyro_x_dps"), "", "event bank must not shift into the gyro columns");
 
 const currentRun = {
   id: "run-current",
@@ -596,7 +605,7 @@ assert.match(api.runToCsv(goodRun).split("\n")[0],
 
 const backup = api.backupDocument([goodRun, goodRun]);
 assert.equal(backup.backupVersion, 1);
-assert.equal(backup.appVersion, "v43");
+assert.equal(backup.appVersion, "v44");
 assert.equal(backup.schemaVersion, 11);
 const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
 assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");

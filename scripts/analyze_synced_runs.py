@@ -76,13 +76,16 @@ def load_gpx(path: Path) -> list[dict]:
             "pdop": float(pdop_node.text) if pdop_node is not None and pdop_node.text else None,
         })
 
+    pdop_unavailable = bool(points) and all(
+        point["pdop"] is None or point["pdop"] >= 99.0 for point in points
+    )
     radius = 5
     for index, point in enumerate(points):
         left = points[max(0, index - radius)]
         right = points[min(len(points) - 1, index + radius)]
         dt = right["t"] - left["t"]
         speed = haversine_m(left, right) / dt if dt > 0 else None
-        quality_ok = point["pdop"] is None or point["pdop"] <= 4.0
+        quality_ok = pdop_unavailable or point["pdop"] is None or point["pdop"] <= 4.0
         point["speed_ms"] = speed if quality_ok and speed is not None and speed <= 60 else None
 
     for index, point in enumerate(points):

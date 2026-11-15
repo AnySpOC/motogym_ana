@@ -11,7 +11,7 @@ const headers = [
 
 function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
   const common = [
-    id, "", "", "", "v43", "11", quality, reasons, mode, gpsSpeed, latency,
+    id, "", "", "", "v44", "11", quality, reasons, mode, gpsSpeed, latency,
     "1000", "gps-strict", "high", "complete", "sensor-window",
   ];
   const rows = [
@@ -27,8 +27,8 @@ function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
 
 function diagnosticRows(id) {
   return [
-    [id, "event", "NO_START", "", "v43", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
-    [id, "sample", "", "prestart", "v43", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
+    [id, "event", "NO_START", "", "v44", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
+    [id, "sample", "", "prestart", "v44", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
   ];
 }
 

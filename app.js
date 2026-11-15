@@ -1,5 +1,5 @@
 const G = 9.80665;
-const APP_VERSION = "v43";
+const APP_VERSION = "v44";
 const LOG_SCHEMA_VERSION = 11;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
@@ -8,6 +8,7 @@ const RUN_STORE = "runs";
 const RAW_SAMPLE_LIMIT = 20000;
 const PRESTART_BUFFER_MS = 5000;
 const PRESTART_SAMPLE_LIMIT = 600;
+const START_CONTEXT_RETENTION_MS = 3000;
 const VARIANCE_WINDOW = 90;
 const RAD_TO_DEG = 180 / Math.PI;
 const DRAG_COEFF = 0;
@@ -27,7 +28,7 @@ const GENTLE_START_CONFIRM_MS = 350;
 const GENTLE_START_RATIO = 0.72;
 const GENTLE_START_MIN_G = 0.12;
 const PRESTART_RETENTION_MS = PRESTART_BUFFER_MS + AXIS_LOCK_HOLD_MS + START_CONFIRM_MS + 250;
-const AUTO_READY_HOLD_MS = 600;
+const AUTO_READY_HOLD_MS = 150;
 const CHECKPOINT_INTERVAL_MS = 15000;
 const POST_STOP_CAPTURE_MS = 5000;
 const POST_STOP_SAMPLE_LIMIT = 600;
@@ -38,6 +39,9 @@ const GPS_STOP_SPEED_MS = 0.8;
 const GPS_STRICT_STOP_SPEED_MS = 0.15;
 const GPS_DWELL_MEAN_SPEED_MS = 0.4;
 const GPS_STOP_MAX_OBSERVATION_GAP_MS = 1600;
+const GPS_READY_EVIDENCE_MS = 500;
+const GPS_READY_MAX_OBSERVATION_GAP_MS = 2000;
+const GPS_READY_MAX_DISPLACEMENT_M = 3;
 const GPS_STRICT_STOP_HOLD_MS = 900;
 const GPS_DWELL_HOLD_MS = 2200;
 const GPS_STOP_HISTORY_MS = 3500;
@@ -552,6 +556,11 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
     detectionMethod: mode === "auto"
       ? (detail.includes("緩発進") ? "gentle" : "strong")
       : "manual",
+    gpsSpeedKmh: Number.isFinite(state.gpsSpeedMs) ? round(state.gpsSpeedMs * 3.6, 3) : null,
+    gpsAccuracyM: Number.isFinite(state.gpsAccuracyM) ? round(state.gpsAccuracyM, 1) : null,
+    gpsSource: state.gpsSource,
+    gpsTimestampMs: Number.isFinite(state.gpsTimestampMs) ? Math.round(state.gpsTimestampMs) : null,
+    gpsAgeMs: Number.isFinite(state.gpsAgeMs) ? Math.round(state.gpsAgeMs) : null,
     gpsReliability: gpsReliability(),
   });
   if (mode === "auto") state.events[0].speedKmh = 0;
@@ -1051,7 +1060,7 @@ function detectEvents(t) {
       && Math.abs(state.latG) < profile.stationaryG
       && Math.abs(state.yawRate) < profile.stationaryYawRate;
     const gpsFresh = hasFreshGps();
-    const gpsStopped = gpsFresh && state.gpsSpeedMs < GPS_STOP_SPEED_MS;
+    const gpsStopped = gpsFresh && gpsReadyEvidence(t).confirmed;
     if (!state.autoStartReady) {
       if (lowDynamics && gpsStopped) {
         state.autoReadyCandidateAt ||= t;
@@ -1263,7 +1272,11 @@ function storeRawSample(t, sampleIntervalSec) {
     ...buildRawSample(t, sampleIntervalSec, "running"),
     timeMs: Math.round(t - state.startedAt),
   });
-  if (state.rawSamples.length > RAW_SAMPLE_LIMIT) state.rawSamples.shift();
+  if (state.rawSamples.length > RAW_SAMPLE_LIMIT) {
+    const removableIndex = state.rawSamples.findIndex((sample) =>
+      sample.phase === "running" && sample.timeMs > START_CONTEXT_RETENTION_MS);
+    state.rawSamples.splice(removableIndex >= 0 ? removableIndex : 0, 1);
+  }
   if (t - state.lastCheckpointAt >= CHECKPOINT_INTERVAL_MS) {
     state.lastCheckpointAt = t;
     checkpointCurrentRun();
@@ -1626,6 +1639,33 @@ function gpsReliability() {
     && !state.gpsInnovationClipped) return "high";
   if (state.gpsAccuracyM <= 30 && !state.gpsInnovationClipped) return "medium";
   return "low";
+}
+
+function gpsReadyEvidence(t = nowMs()) {
+  const empty = { confirmed: false, count: 0, dwellMs: 0, displacementM: null };
+  if (!hasFreshGps() || state.gpsSpeedMs >= GPS_STOP_SPEED_MS) return empty;
+  const recent = state.gpsObservations.filter((observation) =>
+    t - observation.receivedAt <= GPS_STOP_HISTORY_MS);
+  const lowSpeed = [];
+  for (let index = recent.length - 1; index >= 0; index -= 1) {
+    if (recent[index].speedMs >= GPS_STOP_SPEED_MS) break;
+    lowSpeed.unshift(recent[index]);
+  }
+  if (lowSpeed.length < 2) return { ...empty, count: lowSpeed.length };
+  const first = lowSpeed[0];
+  const last = lowSpeed.at(-1);
+  const dwellMs = Math.max(0, last.receivedAt - first.receivedAt);
+  const displacementM = haversineMeters(first.latitude, first.longitude, last.latitude, last.longitude);
+  const continuous = lowSpeed.every((observation, index) => index === 0
+    || observation.receivedAt - lowSpeed[index - 1].receivedAt <= GPS_READY_MAX_OBSERVATION_GAP_MS);
+  return {
+    confirmed: dwellMs >= GPS_READY_EVIDENCE_MS
+      && continuous
+      && displacementM <= GPS_READY_MAX_DISPLACEMENT_M,
+    count: lowSpeed.length,
+    dwellMs,
+    displacementM,
+  };
 }
 
 function gpsStopEvidence(t = nowMs()) {
@@ -2245,7 +2285,9 @@ function assessRunQuality(run) {
       .filter((sample) => sample.gpsInnovationClipped).length), 3),
     imuInnovationClippedRatio: round(ratio(measurementSamples
       .filter((sample) => sample.imuInnovationClipped).length), 3),
-    startGpsSpeedKmh: startGpsSample ? round(startGpsSample.gpsSpeedKmh, 3) : null,
+    startGpsSpeedKmh: Number.isFinite(startEvent?.gpsSpeedKmh)
+      ? round(startEvent.gpsSpeedKmh, 3)
+      : (startGpsSample ? round(startGpsSample.gpsSpeedKmh, 3) : null),
     startDetectionMode: autoStart
       ? (String(startEvent.detail).includes("緩発進") ? "gentle" : "strong")
       : (manualStart ? "manual" : null),
@@ -2653,18 +2695,15 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(event.longG, 3),
     fixed(event.latG, 3),
     fixed(event.speedKmh, 2),
+    fixed(event.gpsSpeedKmh, 3),
+    fixed(event.gpsAccuracyM, 1),
+    event.gpsSource || "",
+    event.gpsReliability || "",
     "",
     "",
     "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
+    Number.isFinite(event.gpsTimestampMs) ? Math.round(event.gpsTimestampMs) : "",
+    Number.isFinite(event.gpsAgeMs) ? Math.round(event.gpsAgeMs) : "",
     fixed(event.bankDeg, 1),
     "",
     fixed(event.yawRate, 1),
@@ -2683,6 +2722,9 @@ function runToCsv(run, includeRunMetadata = false) {
     "",
     run.appVersion || "legacy",
     run.schemaVersion || 1,
+    "",
+    "",
+    "",
     "",
     "",
     "",

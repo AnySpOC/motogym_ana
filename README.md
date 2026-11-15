@@ -26,9 +26,15 @@ stop, acceleration, braking, banking, and turning events.
 - `tests/recorded-log-regression.test.mjs` - anonymized October 18 motorcycle log gate
 - `docs/SIMULATION_TESTS.md` - simulation matrix, acceptance criteria, and limitations
 - `scripts/release_gate.mjs` - combined software release gate and report generator
+- `.github/workflows/ci.yml` - GitHub push / pull-request regression gate
+- `.github/workflows/pages.yml` - release-gated GitHub Pages deployment
+- `docs/CI_CD_AND_LOGGING.md` - CI/CD, run logging, retention, and monitoring boundaries
+- `docs/architecture_explorer.html` - local visual source and algorithm walkthrough
+- `notebooks/gym_ana_architecture.ipynb` - executable source, EKF, timing, and log walkthrough
 - `docs/GOPRO_MP4_ANALYSIS_2026-10-03.md` - three-run GoPro MP4 evaluation
 - `docs/DATA_ANALYSIS_2026-10-04.md` - analysis and tuning from the latest field logs
 - `docs/DATA_ANALYSIS_2026-10-12.md` - gymkhana-like GoPro, GPS, IMU, and timing validation
+- `docs/DATA_ANALYSIS_2026-11-14.md` - v42 final three-run gate and corrected GoPro comparison
 
 ## Local check on PC
 
@@ -66,6 +72,29 @@ Markdown reports in `docs/generated/`.
 Use `npm run test:soak` before an iPhone release candidate. It runs 200 seeded
 conditions and stores the compact evidence in
 `docs/generated/ROBUSTNESS_SOAK_LATEST.json`.
+
+GitHub Actions runs the regression suite and product release gate on every push
+and pull request. A separate Pages workflow deploys the six PWA shell files only
+after the gate passes on `main`. Repository Settings > Pages must use **GitHub
+Actions** as its source. See
+[`docs/CI_CD_AND_LOGGING.md`](docs/CI_CD_AND_LOGGING.md).
+
+## Local architecture walkthrough
+
+Start the local documentation server:
+
+```powershell
+pnpm run docs:serve
+```
+
+Open `http://127.0.0.1:4173/docs/architecture_explorer.html`. It explains the
+source layout, vehicle-axis calibration, vibration filtering, EKF, automatic
+START/STOP, structured logs, and release gates without requiring Jupyter.
+
+For an executable version, open
+`notebooks/gym_ana_architecture.ipynb` in VS Code or Jupyter. The notebook reads
+the current source and release report instead of embedding field CSV, GPX, MP4,
+or location data.
 
 ## iPhone check
 
@@ -353,17 +382,18 @@ Open the generated `https://...ngrok-free.app` URL on iPhone Safari, then tap:
 5. Provide a fresh zero-speed GPS observation, or tap `計測停止`
 6. Export CSV or JSON after the run
 
-For the v42 field gate, select three automatic runs in the history and export
+For the v43 field smoke gate, select one automatic run in the history and export
 one `選択CSV`. Audit it with:
 
 ```powershell
 npm run audit:field -- --csv "C:\path\to\gym-ana-selected.csv"
 ```
 
-The audit checks v42/schema 10, START and STOP, pre-start and post-STOP samples,
-data quality, START GPS speed, START decision latency, and at least one gentle
-launch. `NO_START` diagnostics are reported separately and do not count as failed
-runs. It exits with code 1 and lists reasons when the field gate fails.
+The audit checks v43/schema 11, START and STOP, pre-start and finalized post-STOP
+samples, data quality, START/STOP decision latency and method, GPS reliability,
+and at least one gentle launch for a normal multi-run gate. For the single v43
+logging smoke run, pass `--minimum-runs 1 --minimum-gentle-runs 0`. `NO_START`
+diagnostics are reported separately and do not count as failed runs.
 
 ## Safety
 

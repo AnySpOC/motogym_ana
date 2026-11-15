@@ -5,10 +5,15 @@ const headers = [
   "run_id", "section", "type", "phase", "app_version", "schema_version",
   "data_quality_status", "data_quality_reasons", "start_detection_mode",
   "start_gps_speed_kmh", "start_decision_latency_ms",
+  "stop_decision_latency_ms", "stop_detection_method", "stop_gps_reliability",
+  "post_stop_capture_status", "post_stop_finalized_by",
 ];
 
 function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
-  const common = [id, "", "", "", "v42", "10", quality, reasons, mode, gpsSpeed, latency];
+  const common = [
+    id, "", "", "", "v43", "11", quality, reasons, mode, gpsSpeed, latency,
+    "1000", "gps-strict", "high", "complete", "sensor-window",
+  ];
   const rows = [
     [id, "event", "START", "", ...common.slice(4)],
     [id, "event", "STOP", "", ...common.slice(4)],
@@ -22,8 +27,8 @@ function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
 
 function diagnosticRows(id) {
   return [
-    [id, "event", "NO_START", "", "v42", "10", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0"],
-    [id, "sample", "", "prestart", "v42", "10", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0"],
+    [id, "event", "NO_START", "", "v43", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
+    [id, "sample", "", "prestart", "v43", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
   ];
 }
 

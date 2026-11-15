@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moto Gym Ana 構造・アルゴリズム解説</title>
+  <style>
+    :root { color-scheme: light; --ink:#182026; --muted:#58636c; --line:#cbd3d8; --paper:#f7f8f6; --green:#087f5b; --blue:#1769aa; --amber:#a85d00; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; line-height:1.65; }
+    header { background:#182026; color:#fff; padding:32px max(20px,calc((100vw - 1080px)/2)); border-bottom:5px solid #2f9e77; }
+    header h1 { margin:0; font-size:clamp(28px,5vw,48px); letter-spacing:0; }
+    header p { max-width:760px; margin:8px 0 0; color:#dbe4e8; }
+    nav { position:sticky; top:0; z-index:2; display:flex; gap:4px; overflow:auto; padding:8px max(12px,calc((100vw - 1080px)/2)); background:#fff; border-bottom:1px solid var(--line); }
+    nav a { color:var(--ink); text-decoration:none; padding:8px 12px; white-space:nowrap; border-bottom:3px solid transparent; }
+    nav a:hover,nav a:focus { border-color:var(--green); }
+    main { max-width:1080px; margin:auto; padding:20px; }
+    section { padding:28px 0; border-bottom:1px solid var(--line); }
+    h2 { font-size:28px; margin:0 0 14px; letter-spacing:0; }
+    h3 { margin:24px 0 8px; letter-spacing:0; }
+    .status { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); border:1px solid var(--line); background:#fff; }
+    .status div { padding:16px; border-right:1px solid var(--line); }
+    .status strong { display:block; font-size:20px; color:var(--green); }
+    .flow { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; align-items:stretch; }
+    .flow div { min-height:96px; padding:12px; background:#fff; border:1px solid var(--line); border-top:4px solid var(--blue); }
+    .flow b { display:block; }
+    table { width:100%; border-collapse:collapse; background:#fff; }
+    th,td { padding:10px; text-align:left; vertical-align:top; border:1px solid var(--line); }
+    th { background:#e9eef0; }
+    pre { overflow:auto; padding:16px; color:#e7edf0; background:#20292f; border-left:5px solid #2f9e77; }
+    code { font-family:"Cascadia Code",Consolas,monospace; }
+    .equation { padding:18px; font:18px "Cambria Math",serif; background:#fff; border-left:5px solid var(--amber); }
+    .diagram { display:block; width:min(100%,900px); margin:16px auto; border:1px solid var(--line); background:#fff; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1px; background:var(--line); border:1px solid var(--line); }
+    .metric { padding:14px; background:#fff; }
+    .metric b { display:block; font-size:24px; color:var(--blue); }
+    .warning { padding:14px; background:#fff4d6; border-left:5px solid var(--amber); }
+    @media(max-width:760px){ .flow{grid-template-columns:1fr 1fr;} table{font-size:14px;} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Moto Gym Ana v43</h1>
+    <p>iPhoneのIMUとGPSから、取付角度とエンジン振動を補正し、速度・バンク・旋回とジムカーナのSTART/STOPを推定するPWAの構造解説。</p>
+  </header>
+  <nav aria-label="章">
+    <a href="#overview">全体</a><a href="#source">ソース</a><a href="#model">モデル</a><a href="#timing">自動計測</a><a href="#logging">ログ</a><a href="#quality">品質</a><a href="#cicd">CI/CD</a>
+  </nav>
+  <main>
+    <section id="overview">
+      <h2>全体構造</h2>
+      <div class="status">
+        <div><strong>v43</strong>アプリ版</div><div><strong>schema 11</strong>走行ログ</div><div><strong>EKF 5状態</strong>速度・G・旋回・バンク</div><div><strong>Offline PWA</strong>通信なしで計測</div>
+      </div>
+      <div class="flow" aria-label="データ処理の流れ">
+        <div><b>1. Sensors</b>加速度、重力、ジャイロ、GPS</div>
+        <div><b>2. Calibration</b>bias、重力軸、振動profile</div>
+        <div><b>3. Projection</b>端末軸から車体の前後・左右・鉛直へ</div>
+        <div><b>4. Filtering</b>低域通過、外れ値gate、EKF</div>
+        <div><b>5. Detection</b>START、STOP、加減速、旋回</div>
+        <div><b>6. Storage</b>IndexedDB、CSV、JSON、品質判定</div>
+      </div>
+      <img class="diagram" src="assets/architecture_diagram.png" alt="システム構成図">
+    </section>
+    <section id="source">
+      <h2>ソース構造</h2>
+      <table><thead><tr><th>ファイル</th><th>責務</th></tr></thead><tbody>
+        <tr><td><code>app.js</code></td><td>センサー取得、較正、EKF、自動計測、保存、出力、画面状態</td></tr>
+        <tr><td><code>index.html / styles.css</code></td><td>計測操作、preflight、ライブ値、履歴画面</td></tr>
+        <tr><td><code>sw.js / manifest.webmanifest</code></td><td>ホーム画面導入とオフラインcache</td></tr>
+        <tr><td><code>tests/</code></td><td>モデル単体、決定論、乱数耐性、STOP、耐久、実走回帰</td></tr>
+        <tr><td><code>scripts/release_gate.mjs</code></td><td>製品判定を集約しJSON/Markdown証跡を生成</td></tr>
+      </tbody></table>
+      <h3>中心となる状態</h3>
+      <pre><code>x = [speed_mps, longitudinal_g, lateral_g, yaw_rate_dps, bank_deg]
+mode = idle | sensor-on | calibrating | armed | running | stopped
+measurementMode = none | auto | manual</code></pre>
+      <img class="diagram" src="assets/class_diagram.png" alt="クラス図">
+    </section>
+    <section id="model">
+      <h2>物理・観測・誤差モデル</h2>
+      <h3>予測</h3>
+      <div class="equation">vₖ = max(0, vₖ₋₁ + (0.75 a measured + 0.25 a filtered) g Δt)</div>
+      <p>加速度計は空気抵抗などを含む実際の正味加速度を観測するため、別の人工dragは加えません。G、yawは減衰random walk、bankはgyroのroll rateで時間更新します。</p>
+      <h3>IMU観測</h3>
+      <div class="equation">z IMU = [longitudinal G, lateral G, yaw rate, gravity bank]</div>
+      <p>innovationを6σで制限し、衝撃や一時的なセンサースパイクが状態全体を壊さないようにします。共分散はJoseph形式で更新し、対称性と正の対角を維持します。</p>
+      <h3>GPS観測</h3>
+      <div class="equation">z GPS = speed, σ = f(horizontal accuracy, native / derived speed)</div>
+      <p>GPSはIMUより低速・遅延して届くため、速度だけを別のscalar updateで補正します。異常な差は8σまたは3 m/sの大きい方で制限します。</p>
+      <h3>取付角度と振動</h3>
+      <p>4秒較正で重力方向と3軸gyro biasを推定し、最初の明確な発進ベクトルを水平面へ射影して車体前方を決めます。加速度の低域通過時定数は0.08秒で、除去された高周波成分を振動量として別に記録します。</p>
+    </section>
+    <section id="timing">
+      <h2>自動計測</h2>
+      <img class="diagram" src="assets/state_transition_diagram.png" alt="自動計測状態遷移図">
+      <table><thead><tr><th>段階</th><th>主条件</th><th>狙い</th></tr></thead><tbody>
+        <tr><td>準備</td><td>センサー、較正、保存、GPS静止を確認</td><td>走行中や未較正での誤START防止</td></tr>
+        <tr><td>START</td><td>前向きGを100 ms、緩発進は350 ms継続</td><td>反応性と振動耐性の両立</td></tr>
+        <tr><td>STOP strict</td><td>GPS 0.15 m/s以下を900 ms、位置移動1.5 m以下</td><td>通常の停止を約1〜2秒で確定</td></tr>
+        <tr><td>STOP dwell</td><td>平均0.4 m/s以下を2.2秒、移動0.75 m以下</td><td>低頻度・揺れるGPSのfallback</td></tr>
+        <tr><td>IMU fallback</td><td>GPSなし、直前減速、推定速度0.35 m/s以下、950 ms</td><td>GPS欠測時だけ慎重に停止</td></tr>
+      </tbody></table>
+    </section>
+    <section id="logging">
+      <h2>ログと保存</h2>
+      <p>走行ログと診断ログは構築済みです。各走行はIndexedDBへ保存され、15秒checkpoint、発進前5秒、STOP後5秒、GAP/SYNC、外れ値gate、品質理由まで追跡できます。</p>
+      <pre><code>run
+├─ id, startedAtIso, endedAtIso, durationMs
+├─ appVersion, schemaVersion
+├─ calibration { gravityVector, forwardVector, gyroBias, bikeProfile, quality }
+├─ diagnostics { preflight, startDecisionLatencyMs, postStopCaptureStatus }
+├─ quality { status, score, reasons, metrics }
+├─ events[]
+└─ samples[]</code></pre>
+      <p class="warning">未構築なのは遠隔クラッシュ監視と集中サーバーログです。現在はプライバシーと屋外オフライン動作を優先し、位置・rawセンサーを外部送信しません。</p>
+    </section>
+    <section id="quality">
+      <h2>現在の品質ゲート</h2>
+      <div class="metrics" id="metrics"><div class="metric"><b>読込中</b>release gate</div></div>
+      <p>自動試験合格だけでは製品リリース可になりません。iOSバックグラウンド停止、実GPSマルチパス、車種・取付部の共振は閉鎖コース実機試験で確認します。</p>
+    </section>
+    <section id="cicd">
+      <h2>CI/CD</h2>
+      <p><code>.github/workflows/ci.yml</code>がpush/PRごとに回帰試験と製品ゲートを実行します。<code>pages.yml</code>はmainのゲート合格後だけPWAをGitHub Pagesへ配信します。</p>
+      <pre><code>git push / pull request
+        ↓
+pnpm install --frozen-lockfile
+        ↓
+pnpm test → pnpm run test:product
+        ↓ pass
+release evidence artifact / GitHub Pages deploy</code></pre>
+      <p>詳細は <a href="CI_CD_AND_LOGGING.md">CI/CD・ログ設計</a> と <a href="CODE_DESIGN.md">コード設計</a> を参照してください。</p>
+    </section>
+  </main>
+  <script>
+    fetch("generated/RELEASE_GATE_LATEST.json")
+      .then((response) => response.json())
+      .then((report) => {
+        const a = report.acceptance || {};
+        const values = [
+          [report.softwareGatePassed ? "合格" : "不合格", "software gate"],
+          [a.deterministicScenariosPassed ?? "-", "決定論scenario"],
+          [a.robustnessTrials ?? "-", "START耐性条件"],
+          [a.stopSoakTrials ?? "-", "STOP長時間条件"],
+          [`${a.stopSoakLatencyP95Ms ?? "-"} ms`, "STOP遅延P95"],
+          [report.releaseStatus || "-", "release status"]
+        ];
+        document.querySelector("#metrics").innerHTML = values.map(([value,label]) =>
+          `<div class="metric"><b>${value}</b>${label}</div>`).join("");
+      })
+      .catch(() => { document.querySelector("#metrics").innerHTML = '<div class="metric"><b>未取得</b>node server.mjsで開いてください</div>'; });
+  </script>
+</body>
+</html>

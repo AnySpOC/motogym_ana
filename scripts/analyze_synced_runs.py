@@ -235,6 +235,24 @@ def best_yaw_alignment(samples: list[dict], points: list[dict]) -> tuple[float, 
     return offset, metrics
 
 
+def event_reference(events: list[dict], points: list[dict], offset_sec: float | None) -> list[dict]:
+    if offset_sec is None:
+        return []
+    times = [point["t"] for point in points]
+    result = []
+    for event in events:
+        reference = interpolate(points, times, event["t"] + offset_sec, "speed_ms")
+        result.append({
+            "type": event.get("type"),
+            "detail": event.get("detail"),
+            "time_ms": event.get("time_ms"),
+            "app_speed_kmh": event.get("app_speed_ms", 0) * 3.6,
+            "gpx_speed_kmh": reference * 3.6 if reference is not None else None,
+            "reference_shift_sec": offset_sec,
+        })
+    return result
+
+
 def iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -297,6 +315,7 @@ def main() -> None:
             "app_shift_sec": app_offset,
             "app_vs_gpx": app_metrics,
         },
+        "events_at_best_app_offset": event_reference(events, points, app_offset),
         "yaw_alignment": {
             "app_yaw_shift_sec": yaw_offset,
             "app_yaw_vs_gpx": yaw_metrics,

@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-08T09:22:28.346Z",
-  "appVersion": "v42",
+  "generatedAt": "2026-11-15T02:38:40.520Z",
+  "appVersion": "v43",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -290,9 +290,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "three consecutive v42 closed-course runs with START, STOP, rearm, persistence, post-STOP diagnostics, and data-quality classification",
+      "one v43 field smoke run with START, STOP, separated decision timestamps, rearm, persistence, and finalized post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "each exported run reports appVersion v42, schemaVersion 10, START decision latency, data quality, pre-start samples, and post-STOP samples"
+      "the exported run reports appVersion v43, schemaVersion 11, START/STOP decision latency and method, GPS reliability, data quality, pre-start samples, and finalized post-STOP status"
     ]
   }
 }

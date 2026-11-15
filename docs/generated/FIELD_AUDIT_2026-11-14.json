@@ -1,0 +1,281 @@
+{
+  "generatedAt": "2026-11-14T10:41:13.163Z",
+  "csv": "gym-ana-selected-2026-11-14T09-24-07-567Z.csv",
+  "passed": false,
+  "expectedVersion": "v42",
+  "expectedSchema": 10,
+  "minimumRuns": 3,
+  "minimumGentleRuns": 1,
+  "recordCount": 11,
+  "runCount": 9,
+  "diagnosticCount": 2,
+  "gentleRuns": 3,
+  "reasons": [
+    "RUN_AUDIT_FAILED"
+  ],
+  "runs": [
+    {
+      "id": "2026-11-14T09-16-59-176Z",
+      "events": [
+        "NO_START"
+      ],
+      "sampleCount": 291,
+      "preStartSamples": 291,
+      "postStopSamples": 0,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "diagnostic",
+      "qualityReasons": "NO_START_DIAGNOSTIC",
+      "startDetectionMode": "",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 0,
+      "eligible": false,
+      "passed": null,
+      "reasons": [],
+      "excludedReason": "NO_START_DIAGNOSTIC"
+    },
+    {
+      "id": "2026-11-14T09-16-03-733Z",
+      "events": [
+        "ARM",
+        "START",
+        "BANK",
+        "ACCEL",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2799,
+      "preStartSamples": 313,
+      "postStopSamples": 301,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 1.619,
+      "startDecisionLatencyMs": 201,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-13-34-604Z",
+      "events": [
+        "ARM",
+        "START",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2272,
+      "preStartSamples": 319,
+      "postStopSamples": 300,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 306,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-11-27-878Z",
+      "events": [
+        "ARM",
+        "START",
+        "GAP",
+        "SYNC",
+        "BRAKE",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2820,
+      "preStartSamples": 162,
+      "postStopSamples": 301,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "SENSOR_GAP",
+      "startDetectionMode": "gentle",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 366,
+      "eligible": true,
+      "latencyLimitMs": 750,
+      "passed": false,
+      "reasons": [
+        "SENSOR_GAP"
+      ]
+    },
+    {
+      "id": "2026-11-14T09-10-59-964Z",
+      "events": [
+        "ARM",
+        "START",
+        "BANK",
+        "ACCEL",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2134,
+      "preStartSamples": 321,
+      "postStopSamples": 301,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0.687,
+      "startDecisionLatencyMs": 352,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-09-52-445Z",
+      "events": [
+        "ARM",
+        "START",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 1205,
+      "preStartSamples": 322,
+      "postStopSamples": 300,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "gentle",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 351,
+      "eligible": true,
+      "latencyLimitMs": 750,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-08-50-915Z",
+      "events": [
+        "ARM",
+        "START",
+        "ACCEL",
+        "BRAKE",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 1231,
+      "preStartSamples": 313,
+      "postStopSamples": 303,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0.465,
+      "startDecisionLatencyMs": 219,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-07-19-766Z",
+      "events": [
+        "ARM",
+        "START",
+        "ACCEL",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 4902,
+      "preStartSamples": 318,
+      "postStopSamples": 300,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "review",
+      "qualityReasons": "GPS_ACCURACY_CRITICAL",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 284,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T08-09-36-433Z",
+      "events": [
+        "NO_START"
+      ],
+      "sampleCount": 297,
+      "preStartSamples": 297,
+      "postStopSamples": 0,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "diagnostic",
+      "qualityReasons": "NO_START_DIAGNOSTIC",
+      "startDetectionMode": "",
+      "startGpsSpeedKmh": 0.374,
+      "startDecisionLatencyMs": 0,
+      "eligible": false,
+      "passed": null,
+      "reasons": [],
+      "excludedReason": "NO_START_DIAGNOSTIC"
+    },
+    {
+      "id": "2026-11-14T04-00-45-082Z",
+      "events": [
+        "ARM",
+        "START",
+        "ACCEL",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2369,
+      "preStartSamples": 322,
+      "postStopSamples": 0,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "IMU_OUTLIERS",
+      "startDetectionMode": "gentle",
+      "startGpsSpeedKmh": 0.431,
+      "startDecisionLatencyMs": 351,
+      "eligible": true,
+      "latencyLimitMs": 750,
+      "passed": false,
+      "reasons": [
+        "POSTSTOP_MISSING"
+      ]
+    },
+    {
+      "id": "2026-11-14T03-58-12-056Z",
+      "events": [
+        "ARM",
+        "START",
+        "BRAKE",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 6477,
+      "preStartSamples": 319,
+      "postStopSamples": 301,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "IMU_OUTLIERS",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 302,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    }
+  ]
+}

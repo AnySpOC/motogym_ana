@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v42";
-const LOG_SCHEMA_VERSION = 10;
+const APP_VERSION = "v43";
+const LOG_SCHEMA_VERSION = 11;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -31,6 +31,7 @@ const AUTO_READY_HOLD_MS = 600;
 const CHECKPOINT_INTERVAL_MS = 15000;
 const POST_STOP_CAPTURE_MS = 5000;
 const POST_STOP_SAMPLE_LIMIT = 600;
+const POST_STOP_FINALIZE_GRACE_MS = 100;
 const ZERO_SPEED_HOLD_MS = 450;
 const GPS_FRESH_MS = 2500;
 const GPS_STOP_SPEED_MS = 0.8;
@@ -208,6 +209,13 @@ const state = {
   startCandidateLastAt: 0,
   startCandidateVelocityMs: 0,
   startDecisionLatencyMs: 0,
+  stopEvidenceOnsetAt: 0,
+  stopConfirmedAt: 0,
+  stopDecisionLatencyMs: 0,
+  stopDetectionMethod: "",
+  stopGpsReliability: "none",
+  stopGpsSpeedKmh: null,
+  stopGpsAccuracyM: null,
   autoReadyCandidateAt: 0,
   autoStartReady: false,
   autoStopCandidate: false,
@@ -484,6 +492,13 @@ function armTimer() {
   state.gpsStopDisplacementM = null;
   state.gpsStopLatch = null;
   state.gpsFilterTimestampMs = null;
+  state.stopEvidenceOnsetAt = 0;
+  state.stopConfirmedAt = 0;
+  state.stopDecisionLatencyMs = 0;
+  state.stopDetectionMethod = "";
+  state.stopGpsReliability = "none";
+  state.stopGpsSpeedKmh = null;
+  state.stopGpsAccuracyM = null;
   setMode("armed", text.autoPreparing);
   addEvent("ARM", text.armDetail);
 }
@@ -516,30 +531,67 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.gpsStopDisplacementM = null;
   state.gpsStopLatch = null;
   state.gpsFilterTimestampMs = null;
+  state.stopEvidenceOnsetAt = 0;
+  state.stopConfirmedAt = 0;
+  state.stopDecisionLatencyMs = 0;
+  state.stopDetectionMethod = "";
+  state.stopGpsReliability = "none";
+  state.stopGpsSpeedKmh = null;
+  state.stopGpsAccuracyM = null;
   state.lastCheckpointAt = onsetAt;
   state.speedMs = Math.max(0, initialSpeedMs);
   motionModel.zeroSpeed();
   motionModel.setSpeed(state.speedMs);
   setMode("running", text.running);
   addEvent("START", detail);
-  state.events[0].timeMs = 0;
+  Object.assign(state.events[0], {
+    timeMs: 0,
+    estimatedTimeMs: 0,
+    confirmedTimeMs: Math.round(detectedAt - onsetAt),
+    decisionLatencyMs: state.startDecisionLatencyMs,
+    detectionMethod: mode === "auto"
+      ? (detail.includes("緩発進") ? "gentle" : "strong")
+      : "manual",
+    gpsReliability: gpsReliability(),
+  });
   if (mode === "auto") state.events[0].speedKmh = 0;
   render();
   startTimerRenderLoop();
 }
 
-function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STOP") {
+function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STOP", decision = {}) {
   if (state.mode !== "running") return;
+  const confirmedAt = nowMs();
   const shouldRearmAuto = eventType === "STOP"
     && reason === text.stopHold
     && state.autoMeasurementEnabled
     && state.measurementMode === "auto"
     && state.sensorEnabled;
-  state.stoppedAt = Math.max(state.startedAt, Math.min(stoppedAt, nowMs()));
+  state.stoppedAt = Math.max(state.startedAt, Math.min(stoppedAt, confirmedAt));
+  state.stopEvidenceOnsetAt = Math.max(
+    state.startedAt,
+    Math.min(decision.evidenceOnsetAt ?? state.stoppedAt, confirmedAt),
+  );
+  state.stopConfirmedAt = confirmedAt;
+  state.stopDecisionLatencyMs = Math.max(0, Math.round(confirmedAt - state.stopEvidenceOnsetAt));
+  state.stopDetectionMethod = decision.method || (eventType === "INTERRUPT" ? "interrupt" : "manual");
+  state.stopGpsReliability = gpsReliability();
+  state.stopGpsSpeedKmh = Number.isFinite(state.gpsSpeedMs) ? round(state.gpsSpeedMs * 3.6, 3) : null;
+  state.stopGpsAccuracyM = Number.isFinite(state.gpsAccuracyM) ? round(state.gpsAccuracyM, 1) : null;
   state.autoStopCandidate = false;
   setMode("stopped", text.stopped);
   addEvent(eventType, reason);
-  state.events[0].timeMs = Math.round(state.stoppedAt - state.startedAt);
+  Object.assign(state.events[0], {
+    timeMs: Math.round(state.stoppedAt - state.startedAt),
+    estimatedTimeMs: Math.round(state.stoppedAt - state.startedAt),
+    evidenceOnsetTimeMs: Math.round(state.stopEvidenceOnsetAt - state.startedAt),
+    confirmedTimeMs: Math.round(confirmedAt - state.startedAt),
+    decisionLatencyMs: state.stopDecisionLatencyMs,
+    detectionMethod: state.stopDetectionMethod,
+    gpsSpeedKmh: state.stopGpsSpeedKmh,
+    gpsAccuracyM: state.stopGpsAccuracyM,
+    gpsReliability: state.stopGpsReliability,
+  });
   elements.timer.textContent = formatTime(state.stoppedAt - state.startedAt);
   saveCurrentRun(shouldRearmAuto);
   if (shouldRearmAuto) {
@@ -1093,11 +1145,17 @@ function detectEvents(t) {
       const strictOnsetAt = gpsStop.method === "strict" ? gpsStop.onsetAt : t;
       const stoppedAt = Math.max(state.startedAt + 1500, strictOnsetAt || t);
       state.lastStopCandidateAt = stoppedAt;
-      stopRun(text.stopHold, stoppedAt);
+      stopRun(text.stopHold, stoppedAt, "STOP", {
+        method: `gps-${gpsStop.method}`,
+        evidenceOnsetAt: gpsStop.onsetAt,
+      });
     } else {
       state.lastStopCandidateAt ||= t;
       if (t - state.lastStopCandidateAt > STOP_HOLD_MS) {
-        stopRun(text.stopHold, state.lastStopCandidateAt);
+        stopRun(text.stopHold, state.lastStopCandidateAt, "STOP", {
+          method: "imu-fallback",
+          evidenceOnsetAt: state.lastStopCandidateAt,
+        });
       }
     }
   } else {
@@ -1142,6 +1200,7 @@ function buildRawSample(t, sampleIntervalSec, phase) {
     gentleStartThresholdG: round(gentleStartThreshold(profile), 4),
     stationaryThresholdG: round(profile.stationaryG, 4),
     gpsFresh: hasFreshGps(),
+    gpsReliability: gpsReliability(),
     forwardAxisLocked: Boolean(state.forwardAxis),
     longG: round(state.longG, 4),
     latG: round(state.latG, 4),
@@ -1211,7 +1270,7 @@ function storeRawSample(t, sampleIntervalSec) {
   }
 }
 
-function postStopRun(capture, status) {
+function postStopRun(capture, status, finalizedBy = "pending") {
   return buildRun({
     ...capture.run,
     diagnostics: {
@@ -1219,19 +1278,21 @@ function postStopRun(capture, status) {
       postStopBufferMs: POST_STOP_CAPTURE_MS,
       postStopCaptureStatus: status,
       postStopSampleCount: capture.postStopSampleCount,
+      postStopFinalizedBy: finalizedBy,
     },
   });
 }
 
-function finalizePostStopCaptures(t = nowMs(), force = false) {
+function finalizePostStopCaptures(t = nowMs(), force = false, finalizedBy = force ? "forced" : "elapsed") {
   const completed = [];
   state.postStopCaptures = state.postStopCaptures.filter((capture) => {
     if (!force && t < capture.captureUntilAt) return true;
+    if (capture.finalizeTimerId !== null) clearTimeout(capture.finalizeTimerId);
     completed.push(capture);
     return false;
   });
   return Promise.all(completed.map((capture) =>
-    queueRunSave(postStopRun(capture, force ? "interrupted" : "complete"))))
+    queueRunSave(postStopRun(capture, force ? "interrupted" : "complete", finalizedBy))))
     .then(() => completed.length ? loadRuns() : undefined)
     .catch(() => {
       state.storageAvailable = false;
@@ -1251,7 +1312,7 @@ function capturePostStopSamples(t, sampleIntervalSec) {
     capture.postStopSampleCount += 1;
   }
   if (state.postStopCaptures.some((capture) => t >= capture.captureUntilAt)) {
-    finalizePostStopCaptures(t);
+    finalizePostStopCaptures(t, false, "sensor-window");
   }
 }
 
@@ -1353,11 +1414,11 @@ function enableSensors() {
 
 function disableSensors() {
   if (state.mode === "running") {
-    stopRun(text.sensorDisabled);
+    stopRun(text.sensorDisabled, nowMs(), "STOP", { method: "sensor-off" });
   } else if (state.mode === "armed") {
     saveArmedDiagnostic(text.sensorDisabled);
   }
-  finalizePostStopCaptures(nowMs(), true);
+  finalizePostStopCaptures(nowMs(), true, "sensor-off");
   if (state.sensorListenersAttached) {
     window.removeEventListener("devicemotion", onDeviceMotion);
     window.removeEventListener("deviceorientation", onDeviceOrientation);
@@ -1456,7 +1517,7 @@ function startManualMeasurement() {
 }
 
 function stopManualMeasurement() {
-  stopRun(text.manualStop);
+  stopRun(text.manualStop, nowMs(), "STOP", { method: "manual" });
 }
 
 function resetLiveSensorValues(preserveMotionFilter = false) {
@@ -1556,6 +1617,15 @@ function hasFreshGps() {
     && state.gpsReceivedAt > 0
     && nowMs() - state.gpsReceivedAt <= GPS_FRESH_MS
     && (state.gpsAgeMs === null || state.gpsAgeMs <= GPS_FRESH_MS);
+}
+
+function gpsReliability() {
+  if (!hasFreshGps()) return "none";
+  if (state.gpsSource === "sensor"
+    && state.gpsAccuracyM <= 15
+    && !state.gpsInnovationClipped) return "high";
+  if (state.gpsAccuracyM <= 30 && !state.gpsInnovationClipped) return "medium";
+  return "low";
 }
 
 function gpsStopEvidence(t = nowMs()) {
@@ -2113,6 +2183,17 @@ function buildCurrentRun() {
       startThresholdG: round(currentProfile().startG, 4),
       gentleStartThresholdG: round(gentleStartThreshold(), 4),
       startDecisionLatencyMs: state.startDecisionLatencyMs,
+      stopEvidenceOnsetTimeMs: state.stopEvidenceOnsetAt
+        ? Math.round(state.stopEvidenceOnsetAt - state.startedAt)
+        : null,
+      stopConfirmedTimeMs: state.stopConfirmedAt
+        ? Math.round(state.stopConfirmedAt - state.startedAt)
+        : null,
+      stopDecisionLatencyMs: state.stopDecisionLatencyMs,
+      stopDetectionMethod: state.stopDetectionMethod,
+      stopGpsReliability: state.stopGpsReliability,
+      stopGpsSpeedKmh: state.stopGpsSpeedKmh,
+      stopGpsAccuracyM: state.stopGpsAccuracyM,
       stationaryThresholdG: round(currentProfile().stationaryG, 4),
       stationaryYawRateDps: round(currentProfile().stationaryYawRate, 2),
       preflight: preflightSnapshot(),
@@ -2171,6 +2252,15 @@ function assessRunQuality(run) {
     startDecisionLatencyMs: Number.isFinite(run.diagnostics?.startDecisionLatencyMs)
       ? run.diagnostics.startDecisionLatencyMs
       : inferredDecisionLatencyMs,
+    stopEvidenceOnsetTimeMs: run.diagnostics?.stopEvidenceOnsetTimeMs ?? null,
+    stopConfirmedTimeMs: run.diagnostics?.stopConfirmedTimeMs ?? null,
+    stopDecisionLatencyMs: run.diagnostics?.stopDecisionLatencyMs ?? null,
+    stopDetectionMethod: run.diagnostics?.stopDetectionMethod || null,
+    stopGpsReliability: run.diagnostics?.stopGpsReliability || null,
+    stopGpsSpeedKmh: run.diagnostics?.stopGpsSpeedKmh ?? null,
+    stopGpsAccuracyM: run.diagnostics?.stopGpsAccuracyM ?? null,
+    postStopCaptureStatus: run.diagnostics?.postStopCaptureStatus || null,
+    postStopFinalizedBy: run.diagnostics?.postStopFinalizedBy || null,
   };
 
   if (run.diagnostics?.noStartAttempt) {
@@ -2300,9 +2390,15 @@ function saveCurrentRun(capturePostStop = false) {
       runStartedAt: state.startedAt,
       captureUntilAt: nowMs() + POST_STOP_CAPTURE_MS,
       postStopSampleCount: 0,
+      finalizeTimerId: null,
     };
+    capture.finalizeTimerId = setTimeout(
+      () => finalizePostStopCaptures(nowMs(), false, "timer"),
+      POST_STOP_CAPTURE_MS + POST_STOP_FINALIZE_GRACE_MS,
+    );
+    capture.finalizeTimerId?.unref?.();
     state.postStopCaptures.push(capture);
-    run = postStopRun(capture, "pending");
+    run = postStopRun(capture, "pending", "pending");
   }
   queueRunSave(run)
     .then(() => {
@@ -2367,9 +2463,9 @@ function saveArmedDiagnostic(reason) {
 
 function handleAppBackground(event) {
   if (event?.type !== "pagehide" && document.visibilityState && document.visibilityState !== "hidden") return;
-  finalizePostStopCaptures(nowMs(), true);
+  finalizePostStopCaptures(nowMs(), true, event?.type === "pagehide" ? "pagehide" : "background");
   if (state.mode === "running") {
-    stopRun(text.backgroundStop, nowMs(), "INTERRUPT");
+    stopRun(text.backgroundStop, nowMs(), "INTERRUPT", { method: "background" });
     return;
   }
   if (state.mode === "armed") {
@@ -2474,13 +2570,30 @@ function renderHistory() {
           ? ` GPS ${quality.metrics.startGpsSpeedKmh.toFixed(1)} km/h`
           : ""}`
         : "";
+      const stopMethodLabels = {
+        "gps-strict": "GPS厳格",
+        "gps-dwell": "GPS滞留",
+        "imu-fallback": "IMU",
+        manual: "手動",
+        "sensor-off": "Sensor OFF",
+        background: "画面中断",
+      };
+      const gpsReliabilityLabels = { high: "高", medium: "中", low: "低", none: "なし" };
+      const stopMethodLabel = stopMethodLabels[quality.metrics?.stopDetectionMethod] || "";
+      const stopAudit = stopMethodLabel
+        ? ` / STOP ${stopMethodLabel}${Number.isFinite(quality.metrics?.stopDecisionLatencyMs)
+          ? ` ${Math.round(quality.metrics.stopDecisionLatencyMs)} ms`
+          : ""}${quality.metrics?.stopGpsReliability
+          ? ` GPS信頼 ${gpsReliabilityLabels[quality.metrics.stopGpsReliability] || quality.metrics.stopGpsReliability}`
+          : ""}`
+        : "";
       return `<article class="history-card">
         <label class="run-selector" aria-label="${escapeHtml(date)} を選択">
           <input type="checkbox" data-select-run="${escapeHtml(run.id)}"${state.selectedRunIds.has(run.id) ? " checked" : ""}>
         </label>
         <div>
           <strong>${formatTime(run.durationMs)} <span class="data-quality ${quality.status}" title="${escapeHtml(quality.reasons.join(", "))}">${qualityLabel}${qualityScore}</span></strong>
-          <small>${escapeHtml(date)} / ${runStatus}${startAudit} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
+          <small>${escapeHtml(date)} / ${runStatus}${startAudit}${stopAudit} / max ${run.summary.maxSpeedKmh.toFixed(1)} km/h / bank ${run.summary.maxBankDegAbs.toFixed(0)} deg / ${run.summary.sampleCount} samples</small>
         </div>
         <div class="history-actions">
           <button type="button" data-action="csv" data-run="${escapeHtml(run.id)}">CSV</button>
@@ -2518,10 +2631,19 @@ function runToCsv(run, includeRunMetadata = false) {
     quality.metrics?.startDetectionMode,
     quality.metrics?.startGpsSpeedKmh,
     quality.metrics?.startDecisionLatencyMs,
+    quality.metrics?.stopEvidenceOnsetTimeMs,
+    quality.metrics?.stopConfirmedTimeMs,
+    quality.metrics?.stopDecisionLatencyMs,
+    quality.metrics?.stopDetectionMethod,
+    quality.metrics?.stopGpsReliability,
+    quality.metrics?.stopGpsSpeedKmh,
+    quality.metrics?.stopGpsAccuracyM,
+    quality.metrics?.postStopCaptureStatus,
+    quality.metrics?.postStopFinalizedBy,
   ];
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,gps_reliability,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms,stop_evidence_onset_time_ms,stop_confirmed_time_ms,stop_decision_latency_ms,stop_detection_method,stop_gps_reliability,stop_gps_speed_kmh,stop_gps_accuracy_m,post_stop_capture_status,post_stop_finalized_by\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",
@@ -2531,6 +2653,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(event.longG, 3),
     fixed(event.latG, 3),
     fixed(event.speedKmh, 2),
+    "",
     "",
     "",
     "",
@@ -2590,6 +2713,7 @@ function runToCsv(run, includeRunMetadata = false) {
     fixed(sample.gpsSpeedKmh, 3),
     fixed(sample.gpsAccuracyM, 1),
     sample.gpsSource || "",
+    sample.gpsReliability || "none",
     fixed(sample.latitude, 7),
     fixed(sample.longitude, 7),
     fixed(sample.gpsHeadingDeg, 1),

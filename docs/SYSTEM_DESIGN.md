@@ -5,7 +5,7 @@
 | 項目 | 内容 |
 | --- | --- |
 | 対象システム | iPhoneセンサーによるモトジムカーナ走行計測PWA |
-| 対象版 | v42（GPS STOP確定高速化版） |
+| 対象版 | v43（判定時刻分離・STOP後保存保証版） |
 | 作成日 | 2026-09-20 |
 | 公開先 | `https://anyspoc.github.io/motogym_ana/` |
 | 主対象 | iPhone Safariおよびホーム画面へ追加したPWA |
@@ -413,7 +413,7 @@ run
 - ログschema v7はGPS観測通番を追加し、重複・逆行した測位がフィルタへ再投入されていないことを監査可能にする。
 - ログschema v9は`strong_start_candidate_hold_ms`、`gentle_start_threshold_g`、`start_detection_mode`、`start_gps_speed_kmh`を追加し、GoProがない実走でもSTART判定を監査可能にする。
 - ログschema v10は候補開始からSTART確定までの`start_decision_latency_ms`を追加する。強発進と緩発進で異なる確認時間を、イベント時刻のバックデート量と分離して監査する。
-- Service Workerは`moto-gym-ana-v42`としてアプリシェルをキャッシュする。オンライン時はネットワークから最新版を取得し、失敗時だけキャッシュへフォールバックする。新しいService Workerが有効になった場合は画面を1回再読込する。
+- Service Workerは`moto-gym-ana-v43`としてアプリシェルをキャッシュする。オンライン時はネットワークから最新版を取得し、失敗時だけキャッシュへフォールバックする。新しいService Workerが有効になった場合は画面を1回再読込する。
 - 計測開始ボタンは前提条件不足でも押下できる。センサーまたは補正が不足する場合はイベントログへ理由を表示し、端末保存が一時的に利用不可の場合はIndexedDB接続を破棄して1回再接続する。履歴には手動の「保存を再確認」ボタンも表示する。
 - 画面上部に実行中のアプリ版を常時表示し、実走前に解析対象の版を確認できるようにする。
 - 走行準備パネルはセンサー、キャリブレーション、GPS鮮度、端末保存、自動待機を個別表示する。端末保存DBが利用できない場合は計測開始を禁止する。
@@ -447,6 +447,8 @@ run
 `tests/automatic-timing.simulation.test.mjs`は本番の`app.js`を仮想iPhone環境で動かし、エンジン振動中の誤START、走行中Auto ON、GPS未取得、START検出遅延、短時間停止、正式STOP、保存、再待機、連続2走、Sensor OFF、3種類の取付方向を検証する。外部データを使わず決定論的に再実行できる。詳細な入力と合格基準は`docs/SIMULATION_TESTS.md`に定義する。
 
 v35では同一GPS時刻10回と逆行GPS時刻1回を注入し、速度状態と観測通番が変化せず、次の新しいGPS時刻だけが観測更新されることも決定論的に検証する。v42では1 Hz GPSと約1秒の更新揺らぎを入力し、位置滞留の停止根拠が更新間で消失せず、約3.1秒でSTOPすることを検証する。
+
+v43のログschema 11は、`stopEvidenceOnsetTimeMs`、`stopConfirmedTimeMs`、`stopDecisionLatencyMs`、`stopDetectionMethod`、`stopGpsReliability`を追加する。推定された計測終了時刻と、画面・保存が確定した時刻を分離する。STOP後診断は5.1秒の独立タイマーでも最終化し、完了方式を`postStopFinalizedBy`へ保存する。
 
 v36の停止根拠ラッチは、確定時の先頭位置をアンカーとし、再移動、GPS速度0.8 m/s以上、GPS非鮮度で解除する。位置滞留には平均速度0.4 m/s以下、隣接GPS間隔1.6秒以内を要求し、徐行とGPS欠測前後の根拠結合を防ぐ。
 

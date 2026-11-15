@@ -32,8 +32,8 @@ function parseArgs(argv) {
   const options = {
     csv: "",
     json: "",
-    expectedVersion: "v42",
-    expectedSchema: 10,
+    expectedVersion: "v43",
+    expectedSchema: 11,
     minimumRuns: 3,
     minimumGentleRuns: 1,
   };
@@ -54,8 +54,8 @@ function parseArgs(argv) {
 }
 
 export function auditCsvText(text, options = {}) {
-  const expectedVersion = options.expectedVersion || "v42";
-  const expectedSchema = options.expectedSchema || 10;
+  const expectedVersion = options.expectedVersion || "v43";
+  const expectedSchema = options.expectedSchema || 11;
   const minimumRuns = options.minimumRuns || 3;
   const minimumGentleRuns = options.minimumGentleRuns ?? 1;
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
@@ -85,6 +85,11 @@ export function auditCsvText(text, options = {}) {
         startDetectionMode: "",
         startGpsSpeedKmh: null,
         startDecisionLatencyMs: null,
+        stopDecisionLatencyMs: null,
+        stopDetectionMethod: "",
+        stopGpsReliability: "",
+        postStopCaptureStatus: "",
+        postStopFinalizedBy: "",
       });
     }
     const run = runs.get(runId);
@@ -95,6 +100,11 @@ export function auditCsvText(text, options = {}) {
     run.startDetectionMode ||= value(cells, "start_detection_mode");
     run.startGpsSpeedKmh ??= finiteNumber(value(cells, "start_gps_speed_kmh"));
     run.startDecisionLatencyMs ??= finiteNumber(value(cells, "start_decision_latency_ms"));
+    run.stopDecisionLatencyMs ??= finiteNumber(value(cells, "stop_decision_latency_ms"));
+    run.stopDetectionMethod ||= value(cells, "stop_detection_method");
+    run.stopGpsReliability ||= value(cells, "stop_gps_reliability");
+    run.postStopCaptureStatus ||= value(cells, "post_stop_capture_status");
+    run.postStopFinalizedBy ||= value(cells, "post_stop_finalized_by");
     if (value(cells, "section") === "event") run.events.add(value(cells, "type"));
     if (value(cells, "section") === "sample") {
       run.sampleCount += 1;
@@ -129,6 +139,17 @@ export function auditCsvText(text, options = {}) {
     if (!['strong', 'gentle'].includes(run.startDetectionMode)) reasons.push("AUTO_START_MODE_MISSING");
     if (!Number.isFinite(run.startDecisionLatencyMs)) reasons.push("START_LATENCY_MISSING");
     else if (run.startDecisionLatencyMs > latencyLimitMs) reasons.push("START_DECISION_SLOW");
+    if (!Number.isFinite(run.stopDecisionLatencyMs)) reasons.push("STOP_LATENCY_MISSING");
+    else if (run.stopDecisionLatencyMs > 3500) reasons.push("STOP_DECISION_SLOW");
+    if (!['gps-strict', 'gps-dwell', 'imu-fallback'].includes(run.stopDetectionMethod)) {
+      reasons.push("STOP_METHOD_MISSING");
+    }
+    if (run.stopDetectionMethod.startsWith("gps-")
+      && !['high', 'medium', 'low'].includes(run.stopGpsReliability)) {
+      reasons.push("STOP_GPS_RELIABILITY_MISSING");
+    }
+    if (run.postStopCaptureStatus !== "complete") reasons.push("POSTSTOP_NOT_COMPLETE");
+    if (!run.postStopFinalizedBy) reasons.push("POSTSTOP_FINALIZER_MISSING");
     if (run.startGpsSpeedKmh > 2 || run.qualityReasons.split("|").includes("AUTO_START_GPS_MOVING")) {
       reasons.push("AUTO_START_GPS_MOVING");
     }

@@ -2,3 +2,4 @@
 node_modules/
 __pycache__/
 *.pyc
+notebooks/gym_ana_architecture.ipynb

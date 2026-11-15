@@ -1,0 +1,89 @@
+{
+  "generatedAt": "2026-11-14T10:58:26.792Z",
+  "csv": "gym-ana-v42-final3.csv",
+  "passed": true,
+  "expectedVersion": "v42",
+  "expectedSchema": 10,
+  "minimumRuns": 3,
+  "minimumGentleRuns": 0,
+  "recordCount": 3,
+  "runCount": 3,
+  "diagnosticCount": 0,
+  "gentleRuns": 0,
+  "reasons": [],
+  "runs": [
+    {
+      "id": "2026-11-14T09-16-03-733Z",
+      "events": [
+        "ARM",
+        "START",
+        "BANK",
+        "ACCEL",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2799,
+      "preStartSamples": 313,
+      "postStopSamples": 301,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 1.619,
+      "startDecisionLatencyMs": 201,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-13-34-604Z",
+      "events": [
+        "ARM",
+        "START",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2272,
+      "preStartSamples": 319,
+      "postStopSamples": 300,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0,
+      "startDecisionLatencyMs": 306,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    },
+    {
+      "id": "2026-11-14T09-10-59-964Z",
+      "events": [
+        "ARM",
+        "START",
+        "BANK",
+        "ACCEL",
+        "STOP",
+        "SAVE"
+      ],
+      "sampleCount": 2134,
+      "preStartSamples": 321,
+      "postStopSamples": 301,
+      "appVersion": "v42",
+      "schemaVersion": 10,
+      "qualityStatus": "good",
+      "qualityReasons": "",
+      "startDetectionMode": "strong",
+      "startGpsSpeedKmh": 0.687,
+      "startDecisionLatencyMs": 352,
+      "eligible": true,
+      "latencyLimitMs": 400,
+      "passed": true,
+      "reasons": []
+    }
+  ]
+}

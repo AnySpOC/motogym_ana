@@ -43,6 +43,8 @@ const sandbox = {
   },
   performance: { now: () => clock },
   requestAnimationFrame: () => 1,
+  setTimeout,
+  clearTimeout,
   Blob: class {},
   URL: { createObjectURL: () => "blob:test", revokeObjectURL() {} },
 };
@@ -505,6 +507,7 @@ const csvLines = csv.trim().split("\n");
 const headerColumns = csvLines[0].split(",").length;
 assert.match(csvLines[0], /gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps/);
 assert.match(csvLines[0], /gps_timestamp_ms,gps_age_ms/);
+  assert.match(csvLines[0], /gps_source,gps_reliability,latitude/);
 assert.match(csvLines[0], /bank_deg,gravity_bank_deg,yaw_rate/);
 assert.match(csvLines[0], /auto_stop_candidate/);
 assert.match(csvLines[0], /app_version,schema_version,phase,sensor_interval_ms/);
@@ -589,12 +592,12 @@ assert.equal(invalidRun.quality.status, "invalid");
 assert.ok(invalidRun.quality.reasons.includes("SAMPLE_RATE_CRITICAL"));
 assert.ok(invalidRun.quality.reasons.includes("GPS_COVERAGE_CRITICAL"));
 assert.match(api.runToCsv(goodRun).split("\n")[0],
-  /data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms/);
+  /start_decision_latency_ms,stop_evidence_onset_time_ms,stop_confirmed_time_ms,stop_decision_latency_ms,stop_detection_method,stop_gps_reliability/);
 
 const backup = api.backupDocument([goodRun, goodRun]);
 assert.equal(backup.backupVersion, 1);
-assert.equal(backup.appVersion, "v42");
-assert.equal(backup.schemaVersion, 10);
+assert.equal(backup.appVersion, "v43");
+assert.equal(backup.schemaVersion, 11);
 const parsedBackup = api.parseRunBackup(JSON.stringify(backup));
 assert.equal(parsedBackup.runs.length, 1, "duplicate IDs inside one backup must not overwrite twice");
 assert.equal(parsedBackup.skipped, 1);

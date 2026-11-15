@@ -237,6 +237,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.notEqual(stopDetectedAt, null, "sustained stop evidence must trigger STOP");
   assert.equal(harness.api.state.mode, "armed", "confirmed STOP must rearm automatic timing");
   assert.equal(harness.api.state.measurementMode, "auto");
+  assert.ok(harness.api.state.postStopCaptures[0]?.finalizeTimerId,
+    "post-STOP persistence must have an independent finalization timer");
   await harness.flushStorage();
 
   const saved = harness.savedRuns();
@@ -246,8 +248,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v42");
-  assert.equal(firstRun.schemaVersion, 10);
+  assert.equal(firstRun.appVersion, "v43");
+  assert.equal(firstRun.schemaVersion, 11);
   assert.ok(firstRun.quality.metrics.startDecisionLatencyMs > 0);
   assert.ok(["good", "review"].includes(firstRun.quality.status));
   assert.ok(Number.isFinite(firstRun.quality.metrics.observedSampleRateHz));
@@ -261,6 +263,11 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   const stopEvent = firstRun.events.find((event) => event.type === "STOP");
   assert.ok(stopEvent, "the persisted run must contain STOP");
   assert.equal(firstRun.durationMs, stopEvent.timeMs, "run duration must use the backdated STOP onset");
+  assert.equal(firstRun.diagnostics.stopDetectionMethod, "gps-strict");
+  assert.equal(firstRun.diagnostics.stopGpsReliability, "high");
+  assert.ok(firstRun.diagnostics.stopDecisionLatencyMs >= 900);
+  assert.equal(stopEvent.decisionLatencyMs, firstRun.diagnostics.stopDecisionLatencyMs);
+  assert.ok(stopEvent.confirmedTimeMs >= stopEvent.estimatedTimeMs);
   const stopConfirmationMs = stopDetectedAt - stopEvidenceAt;
   assert.ok(stopConfirmationMs >= 900 && stopConfirmationMs <= 1400,
     `STOP confirmation ${stopConfirmationMs} ms must include multi-observation GPS evidence`);
@@ -311,6 +318,7 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(postStopSamples.length >= 290, "about five seconds of post-STOP IMU data must be persisted");
   assert.ok(postStopSamples.at(-1).timeMs - postStopSamples[0].timeMs >= 4900);
   assert.equal(savedRun.diagnostics.postStopCaptureStatus, "complete");
+  assert.ok(["sensor-window", "timer"].includes(savedRun.diagnostics.postStopFinalizedBy));
   assert.equal(savedRun.diagnostics.postStopSampleCount, postStopSamples.length);
   assert.equal(savedRun.summary.postStopSampleCount, postStopSamples.length);
   assert.equal(savedRun.summary.sampleCount + savedRun.summary.postStopSampleCount,

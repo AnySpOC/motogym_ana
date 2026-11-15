@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "docs:serve": "node server.mjs",
     "test": "npm run test:unit && npm run test:simulation && npm run test:recorded",
     "test:unit": "node tests/motion-model.test.mjs && node tests/speed-filters.test.mjs && node tests/model-selection.test.mjs && node tests/field-audit.test.mjs",
     "test:simulation": "node tests/automatic-timing.simulation.test.mjs",

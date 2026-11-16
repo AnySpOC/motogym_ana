@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-15T13:14:01.913Z",
-  "appVersion": "v44",
+  "generatedAt": "2026-11-16T00:50:17.826Z",
+  "appVersion": "v45",
   "softwareGatePassed": true,
   "releaseStatus": "FIELD_VALIDATION_REQUIRED",
   "checks": [
@@ -35,7 +35,7 @@
       "passed": true,
       "exitCode": 0,
       "metrics": {
-        "passed": 16,
+        "passed": 17,
         "failed": 0,
         "scenarios": [
           {
@@ -79,6 +79,11 @@
               4060
             ],
             "stopLatencyMs": 3067
+          },
+          {
+            "name": "brake-aware-stop-timing",
+            "passed": true,
+            "confirmationDelayMs": 916
           },
           {
             "name": "moving-auto-enable-guard",
@@ -265,7 +270,7 @@
     }
   ],
   "acceptance": {
-    "deterministicScenariosPassed": 16,
+    "deterministicScenariosPassed": 17,
     "deterministicScenariosFailed": 0,
     "robustnessTrials": 24,
     "robustnessFalseStarts": 0,
@@ -300,9 +305,9 @@
     "reason": "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     "required": [
       "30 seconds stationary with zero false STARTs",
-      "one v44 field smoke run with stationary-position readiness, START, STOP, rearm, persistence, and finalized post-STOP diagnostics",
+      "one v45 field smoke run with stationary-position readiness, brake-aware STOP timing, rearm, persistence, and finalized post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "the exported run reports appVersion v44, schemaVersion 11, START-time GPS, START/STOP decision latency and method, GPS reliability, data quality, pre-start samples, and finalized post-STOP status"
+      "the exported run reports appVersion v45, schemaVersion 12, START-time GPS, STOP IMU evidence and timing adjustment, GPS reliability, data quality, pre-start samples, and finalized post-STOP status"
     ]
   }
 }

@@ -64,7 +64,7 @@ const stopSoakEvidence = fs.existsSync("docs/generated/STOP_ROBUSTNESS_SOAK_LATE
 const softwareGatePassed = checks.every((check) => check.passed);
 const report = {
   generatedAt: new Date().toISOString(),
-  appVersion: "v44",
+  appVersion: "v45",
   softwareGatePassed,
   releaseStatus: softwareGatePassed ? "FIELD_VALIDATION_REQUIRED" : "SOFTWARE_GATE_FAILED",
   checks: checks.map((check) => ({
@@ -112,9 +112,9 @@ const report = {
     reason: "Automated tests cannot reproduce iOS suspension, real GPS multipath, or mount resonance.",
     required: [
       "30 seconds stationary with zero false STARTs",
-      "one v44 field smoke run with stationary-position readiness, START, STOP, rearm, persistence, and finalized post-STOP diagnostics",
+      "one v45 field smoke run with stationary-position readiness, brake-aware STOP timing, rearm, persistence, and finalized post-STOP diagnostics",
       "START latency within 300 ms against video or an observer reference",
-      "the exported run reports appVersion v44, schemaVersion 11, START-time GPS, START/STOP decision latency and method, GPS reliability, data quality, pre-start samples, and finalized post-STOP status",
+      "the exported run reports appVersion v45, schemaVersion 12, START-time GPS, STOP IMU evidence and timing adjustment, GPS reliability, data quality, pre-start samples, and finalized post-STOP status",
     ],
   },
 };
@@ -155,9 +155,9 @@ const markdown = `# リリース判定レポート
 自動試験は${softwareGatePassed ? "合格" : "不合格"}。製品リリースには次の実機確認が残る。
 
 1. 実車静止30秒で誤START 0件。
-2. v44の短い実機1走でGPS位置滞留後のSTART、STOP、再待機、保存、STOP後最終化が成立。
+2. v45の短い実機1走でGPS位置滞留後のSTART、減速IMU補正STOP、再待機、保存、STOP後最終化が成立。
 3. 動画または観測基準に対するSTART遅延300 ms以内。
-4. 出力がappVersion v44、schemaVersion 11、START時GPS、START/STOP確定待ち時間・方式、GPS信頼度、品質判定、発進前、STOP後最終化状態を含む。
+4. 出力がappVersion v45、schemaVersion 12、START時GPS、STOP IMU根拠・時刻補正、GPS信頼度、品質判定、発進前、STOP後最終化状態を含む。
 
 合成試験はiOSのバックグラウンド停止、実GPSマルチパス、取付部の共振を再現しないため、自動試験合格だけで製品リリース可とは判定しない。
 `;

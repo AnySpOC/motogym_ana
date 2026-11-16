@@ -1,6 +1,6 @@
 const G = 9.80665;
-const APP_VERSION = "v44";
-const LOG_SCHEMA_VERSION = 11;
+const APP_VERSION = "v45";
+const LOG_SCHEMA_VERSION = 12;
 const STOP_HOLD_MS = 950;
 const DB_NAME = "moto-gym-ana";
 const DB_VERSION = 1;
@@ -49,6 +49,9 @@ const GPS_STRICT_STOP_MAX_DISPLACEMENT_M = 1.5;
 const GPS_DWELL_MAX_DISPLACEMENT_M = 0.75;
 const IMU_STOP_SPEED_MS = 0.35;
 const RECENT_BRAKE_MS = 3500;
+const BRAKE_STOP_CONTEXT_MS = 8000;
+const IMU_STOP_CANDIDATE_GPS_SPEED_MS = 0.35;
+const IMU_STOP_MAX_BACKDATE_MS = 2000;
 const SENSOR_GAP_SEC = 0.5;
 const GPS_MAX_ACCURACY_M = 50;
 const GPS_MAX_SPEED_MS = 90;
@@ -217,6 +220,9 @@ const state = {
   stopConfirmedAt: 0,
   stopDecisionLatencyMs: 0,
   stopDetectionMethod: "",
+  stopImuEvidenceOnsetAt: 0,
+  stopTimingAdjustmentMs: 0,
+  stopBrakeContextMs: null,
   stopGpsReliability: "none",
   stopGpsSpeedKmh: null,
   stopGpsAccuracyM: null,
@@ -272,6 +278,7 @@ const state = {
   postStopCaptures: [],
   currentRunId: "",
   lastBrakeAt: 0,
+  imuStopCandidateAt: 0,
   gpsResyncPending: false,
   lastSensorGapSec: 0,
   lastCheckpointAt: 0,
@@ -500,6 +507,9 @@ function armTimer() {
   state.stopConfirmedAt = 0;
   state.stopDecisionLatencyMs = 0;
   state.stopDetectionMethod = "";
+  state.stopImuEvidenceOnsetAt = 0;
+  state.stopTimingAdjustmentMs = 0;
+  state.stopBrakeContextMs = null;
   state.stopGpsReliability = "none";
   state.stopGpsSpeedKmh = null;
   state.stopGpsAccuracyM = null;
@@ -527,6 +537,7 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
   state.startCandidateVelocityMs = 0;
+  state.imuStopCandidateAt = 0;
   state.autoStopCandidate = false;
   state.gpsObservations = [];
   state.gpsStopEvidence = false;
@@ -539,6 +550,9 @@ function startRun(mode = "auto", detail = text.startDetail, onsetAt = nowMs(), i
   state.stopConfirmedAt = 0;
   state.stopDecisionLatencyMs = 0;
   state.stopDetectionMethod = "";
+  state.stopImuEvidenceOnsetAt = 0;
+  state.stopTimingAdjustmentMs = 0;
+  state.stopBrakeContextMs = null;
   state.stopGpsReliability = "none";
   state.stopGpsSpeedKmh = null;
   state.stopGpsAccuracyM = null;
@@ -584,6 +598,13 @@ function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STO
   state.stopConfirmedAt = confirmedAt;
   state.stopDecisionLatencyMs = Math.max(0, Math.round(confirmedAt - state.stopEvidenceOnsetAt));
   state.stopDetectionMethod = decision.method || (eventType === "INTERRUPT" ? "interrupt" : "manual");
+  state.stopImuEvidenceOnsetAt = Number.isFinite(decision.imuEvidenceOnsetAt)
+    ? Math.max(state.startedAt, Math.min(decision.imuEvidenceOnsetAt, confirmedAt))
+    : 0;
+  state.stopTimingAdjustmentMs = Math.round(decision.timingAdjustmentMs || 0);
+  state.stopBrakeContextMs = Number.isFinite(decision.brakeContextMs)
+    ? Math.max(0, Math.round(decision.brakeContextMs))
+    : null;
   state.stopGpsReliability = gpsReliability();
   state.stopGpsSpeedKmh = Number.isFinite(state.gpsSpeedMs) ? round(state.gpsSpeedMs * 3.6, 3) : null;
   state.stopGpsAccuracyM = Number.isFinite(state.gpsAccuracyM) ? round(state.gpsAccuracyM, 1) : null;
@@ -597,6 +618,11 @@ function stopRun(reason = text.stopDetail, stoppedAt = nowMs(), eventType = "STO
     confirmedTimeMs: Math.round(confirmedAt - state.startedAt),
     decisionLatencyMs: state.stopDecisionLatencyMs,
     detectionMethod: state.stopDetectionMethod,
+    imuEvidenceOnsetTimeMs: state.stopImuEvidenceOnsetAt
+      ? Math.round(state.stopImuEvidenceOnsetAt - state.startedAt)
+      : null,
+    timingAdjustmentMs: state.stopTimingAdjustmentMs,
+    brakeContextMs: state.stopBrakeContextMs,
     gpsSpeedKmh: state.stopGpsSpeedKmh,
     gpsAccuracyM: state.stopGpsAccuracyM,
     gpsReliability: state.stopGpsReliability,
@@ -1140,6 +1166,16 @@ function detectEvents(t) {
   state.gpsStopDwellMs = gpsStop.dwellMs;
   state.gpsStopDisplacementM = gpsStop.displacementM;
   const recentlyBraked = state.lastBrakeAt > 0 && t - state.lastBrakeAt < RECENT_BRAKE_MS;
+  const brakeContextMs = state.lastBrakeAt > 0 ? t - state.lastBrakeAt : null;
+  const hasBrakeContext = Number.isFinite(brakeContextMs) && brakeContextMs <= BRAKE_STOP_CONTEXT_MS;
+  const candidateSpeedLow = gpsFresh
+    ? state.gpsSpeedMs <= IMU_STOP_CANDIDATE_GPS_SPEED_MS
+    : state.speedMs <= IMU_STOP_SPEED_MS;
+  if (lowDynamics && hasBrakeContext && candidateSpeedLow) {
+    state.imuStopCandidateAt ||= t;
+  } else if (!lowDynamics || !hasBrakeContext || !candidateSpeedLow) {
+    state.imuStopCandidateAt = 0;
+  }
   const imuStopped = !gpsFresh && state.speedMs < IMU_STOP_SPEED_MS && recentlyBraked;
   const nearStopped = lowDynamics && (gpsStopped || imuStopped);
   const canAutoStop = state.autoMeasurementEnabled
@@ -1151,12 +1187,20 @@ function detectEvents(t) {
       setMode("running", text.stopCandidate);
     }
     if (gpsStopped) {
-      const strictOnsetAt = gpsStop.method === "strict" ? gpsStop.onsetAt : t;
-      const stoppedAt = Math.max(state.startedAt + 1500, strictOnsetAt || t);
+      const gpsEstimatedAt = gpsStop.method === "strict" ? gpsStop.onsetAt : t;
+      const imuCandidateUsable = state.imuStopCandidateAt > 0
+        && state.imuStopCandidateAt >= state.startedAt + 1500
+        && state.imuStopCandidateAt <= t
+        && Math.abs(state.imuStopCandidateAt - gpsEstimatedAt) <= IMU_STOP_MAX_BACKDATE_MS;
+      const estimatedAt = imuCandidateUsable ? state.imuStopCandidateAt : gpsEstimatedAt;
+      const stoppedAt = Math.max(state.startedAt + 1500, estimatedAt || t);
       state.lastStopCandidateAt = stoppedAt;
       stopRun(text.stopHold, stoppedAt, "STOP", {
-        method: `gps-${gpsStop.method}`,
+        method: `gps-${gpsStop.method}${imuCandidateUsable ? "+imu-brake" : ""}`,
         evidenceOnsetAt: gpsStop.onsetAt,
+        imuEvidenceOnsetAt: imuCandidateUsable ? state.imuStopCandidateAt : null,
+        timingAdjustmentMs: imuCandidateUsable ? state.imuStopCandidateAt - gpsEstimatedAt : 0,
+        brakeContextMs: hasBrakeContext ? brakeContextMs : null,
       });
     } else {
       state.lastStopCandidateAt ||= t;
@@ -1537,6 +1581,7 @@ function resetLiveSensorValues(preserveMotionFilter = false) {
   state.lastSampleAt = 0;
   state.lastStopCandidateAt = 0;
   state.lastBrakeAt = 0;
+  state.imuStopCandidateAt = 0;
   state.startCandidateAt = 0;
   state.strongStartCandidateAt = 0;
   state.startCandidateLastAt = 0;
@@ -2231,6 +2276,11 @@ function buildCurrentRun() {
         : null,
       stopDecisionLatencyMs: state.stopDecisionLatencyMs,
       stopDetectionMethod: state.stopDetectionMethod,
+      stopImuEvidenceOnsetTimeMs: state.stopImuEvidenceOnsetAt
+        ? Math.round(state.stopImuEvidenceOnsetAt - state.startedAt)
+        : null,
+      stopTimingAdjustmentMs: state.stopTimingAdjustmentMs,
+      stopBrakeContextMs: state.stopBrakeContextMs,
       stopGpsReliability: state.stopGpsReliability,
       stopGpsSpeedKmh: state.stopGpsSpeedKmh,
       stopGpsAccuracyM: state.stopGpsAccuracyM,
@@ -2298,6 +2348,9 @@ function assessRunQuality(run) {
     stopConfirmedTimeMs: run.diagnostics?.stopConfirmedTimeMs ?? null,
     stopDecisionLatencyMs: run.diagnostics?.stopDecisionLatencyMs ?? null,
     stopDetectionMethod: run.diagnostics?.stopDetectionMethod || null,
+    stopImuEvidenceOnsetTimeMs: run.diagnostics?.stopImuEvidenceOnsetTimeMs ?? null,
+    stopTimingAdjustmentMs: run.diagnostics?.stopTimingAdjustmentMs ?? null,
+    stopBrakeContextMs: run.diagnostics?.stopBrakeContextMs ?? null,
     stopGpsReliability: run.diagnostics?.stopGpsReliability || null,
     stopGpsSpeedKmh: run.diagnostics?.stopGpsSpeedKmh ?? null,
     stopGpsAccuracyM: run.diagnostics?.stopGpsAccuracyM ?? null,
@@ -2615,6 +2668,8 @@ function renderHistory() {
       const stopMethodLabels = {
         "gps-strict": "GPS厳格",
         "gps-dwell": "GPS滞留",
+        "gps-strict+imu-brake": "GPS厳格+減速IMU",
+        "gps-dwell+imu-brake": "GPS滞留+減速IMU",
         "imu-fallback": "IMU",
         manual: "手動",
         "sensor-off": "Sensor OFF",
@@ -2625,6 +2680,9 @@ function renderHistory() {
       const stopAudit = stopMethodLabel
         ? ` / STOP ${stopMethodLabel}${Number.isFinite(quality.metrics?.stopDecisionLatencyMs)
           ? ` ${Math.round(quality.metrics.stopDecisionLatencyMs)} ms`
+          : ""}${Number.isFinite(quality.metrics?.stopTimingAdjustmentMs)
+            && quality.metrics.stopTimingAdjustmentMs !== 0
+          ? ` 補正 ${Math.round(quality.metrics.stopTimingAdjustmentMs)} ms`
           : ""}${quality.metrics?.stopGpsReliability
           ? ` GPS信頼 ${gpsReliabilityLabels[quality.metrics.stopGpsReliability] || quality.metrics.stopGpsReliability}`
           : ""}`
@@ -2677,6 +2735,9 @@ function runToCsv(run, includeRunMetadata = false) {
     quality.metrics?.stopConfirmedTimeMs,
     quality.metrics?.stopDecisionLatencyMs,
     quality.metrics?.stopDetectionMethod,
+    quality.metrics?.stopImuEvidenceOnsetTimeMs,
+    quality.metrics?.stopTimingAdjustmentMs,
+    quality.metrics?.stopBrakeContextMs,
     quality.metrics?.stopGpsReliability,
     quality.metrics?.stopGpsSpeedKmh,
     quality.metrics?.stopGpsAccuracyM,
@@ -2685,7 +2746,7 @@ function runToCsv(run, includeRunMetadata = false) {
   ];
   const metadataHeader = includeRunMetadata ? "run_id,started_at_iso," : "";
   const metadata = includeRunMetadata ? [run.id, run.startedAtIso] : [];
-  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,gps_reliability,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms,stop_evidence_onset_time_ms,stop_confirmed_time_ms,stop_decision_latency_ms,stop_detection_method,stop_gps_reliability,stop_gps_speed_kmh,stop_gps_accuracy_m,post_stop_capture_status,post_stop_finalized_by\n`;
+  const eventHeader = `${metadataHeader}section,time_ms,type,detail,long_g,lat_g,speed_kmh,gps_speed_kmh,gps_accuracy_m,gps_source,gps_reliability,latitude,longitude,gps_heading_deg,gps_timestamp_ms,gps_age_ms,bank_deg,gravity_bank_deg,yaw_rate,gyro_x_dps,gyro_y_dps,gyro_z_dps,roll_rate_dps,vibration_g,long_g_variance,lat_g_variance,kalman_variance,long_bias,lat_bias,yaw_bias,confidence,auto_stop_candidate,app_version,schema_version,phase,sensor_interval_ms,auto_start_ready,start_candidate_hold_ms,strong_start_candidate_hold_ms,start_threshold_g,gentle_start_threshold_g,stationary_threshold_g,gps_fresh,forward_axis_locked,gps_innovation_clipped,gravity_error_g,turn_consistency_deg,imu_innovation_clipped,gps_stop_evidence,gps_stop_observation_count,gps_stop_dwell_ms,gps_stop_displacement_m,gps_observation_sequence,data_quality_status,data_quality_score,data_quality_reasons,start_detection_mode,start_gps_speed_kmh,start_decision_latency_ms,stop_evidence_onset_time_ms,stop_confirmed_time_ms,stop_decision_latency_ms,stop_detection_method,stop_imu_evidence_onset_time_ms,stop_timing_adjustment_ms,stop_brake_context_ms,stop_gps_reliability,stop_gps_speed_kmh,stop_gps_accuracy_m,post_stop_capture_status,post_stop_finalized_by\n`;
   const eventRows = run.events.map((event) => [
     ...metadata,
     "event",

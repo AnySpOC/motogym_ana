@@ -32,8 +32,8 @@ function parseArgs(argv) {
   const options = {
     csv: "",
     json: "",
-    expectedVersion: "v44",
-    expectedSchema: 11,
+    expectedVersion: "v45",
+    expectedSchema: 12,
     minimumRuns: 3,
     minimumGentleRuns: 1,
   };
@@ -54,8 +54,8 @@ function parseArgs(argv) {
 }
 
 export function auditCsvText(text, options = {}) {
-  const expectedVersion = options.expectedVersion || "v44";
-  const expectedSchema = options.expectedSchema || 11;
+  const expectedVersion = options.expectedVersion || "v45";
+  const expectedSchema = options.expectedSchema || 12;
   const minimumRuns = options.minimumRuns || 3;
   const minimumGentleRuns = options.minimumGentleRuns ?? 1;
   const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
@@ -87,6 +87,9 @@ export function auditCsvText(text, options = {}) {
         startDecisionLatencyMs: null,
         stopDecisionLatencyMs: null,
         stopDetectionMethod: "",
+        stopImuEvidenceOnsetTimeMs: null,
+        stopTimingAdjustmentMs: null,
+        stopBrakeContextMs: null,
         stopGpsReliability: "",
         postStopCaptureStatus: "",
         postStopFinalizedBy: "",
@@ -102,6 +105,9 @@ export function auditCsvText(text, options = {}) {
     run.startDecisionLatencyMs ??= finiteNumber(value(cells, "start_decision_latency_ms"));
     run.stopDecisionLatencyMs ??= finiteNumber(value(cells, "stop_decision_latency_ms"));
     run.stopDetectionMethod ||= value(cells, "stop_detection_method");
+    run.stopImuEvidenceOnsetTimeMs ??= finiteNumber(value(cells, "stop_imu_evidence_onset_time_ms"));
+    run.stopTimingAdjustmentMs ??= finiteNumber(value(cells, "stop_timing_adjustment_ms"));
+    run.stopBrakeContextMs ??= finiteNumber(value(cells, "stop_brake_context_ms"));
     run.stopGpsReliability ||= value(cells, "stop_gps_reliability");
     run.postStopCaptureStatus ||= value(cells, "post_stop_capture_status");
     run.postStopFinalizedBy ||= value(cells, "post_stop_finalized_by");
@@ -141,8 +147,16 @@ export function auditCsvText(text, options = {}) {
     else if (run.startDecisionLatencyMs > latencyLimitMs) reasons.push("START_DECISION_SLOW");
     if (!Number.isFinite(run.stopDecisionLatencyMs)) reasons.push("STOP_LATENCY_MISSING");
     else if (run.stopDecisionLatencyMs > 3500) reasons.push("STOP_DECISION_SLOW");
-    if (!['gps-strict', 'gps-dwell', 'imu-fallback'].includes(run.stopDetectionMethod)) {
+    if (!['gps-strict', 'gps-dwell', 'gps-strict+imu-brake', 'gps-dwell+imu-brake', 'imu-fallback']
+      .includes(run.stopDetectionMethod)) {
       reasons.push("STOP_METHOD_MISSING");
+    }
+    if (run.stopDetectionMethod.includes("+imu-brake")) {
+      if (!Number.isFinite(run.stopImuEvidenceOnsetTimeMs)) reasons.push("STOP_IMU_TIME_MISSING");
+      if (!Number.isFinite(run.stopTimingAdjustmentMs)
+        || Math.abs(run.stopTimingAdjustmentMs) > 2000) reasons.push("STOP_IMU_ADJUSTMENT_INVALID");
+      if (!Number.isFinite(run.stopBrakeContextMs)
+        || run.stopBrakeContextMs > 8000) reasons.push("STOP_BRAKE_CONTEXT_INVALID");
     }
     if (run.stopDetectionMethod.startsWith("gps-")
       && !['high', 'medium', 'low'].includes(run.stopGpsReliability)) {

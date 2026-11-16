@@ -5,14 +5,16 @@ const headers = [
   "run_id", "section", "type", "phase", "app_version", "schema_version",
   "data_quality_status", "data_quality_reasons", "start_detection_mode",
   "start_gps_speed_kmh", "start_decision_latency_ms",
-  "stop_decision_latency_ms", "stop_detection_method", "stop_gps_reliability",
+  "stop_decision_latency_ms", "stop_detection_method", "stop_imu_evidence_onset_time_ms",
+  "stop_timing_adjustment_ms", "stop_brake_context_ms", "stop_gps_reliability",
   "post_stop_capture_status", "post_stop_finalized_by",
 ];
 
-function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
+function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "", stop = {}) {
   const common = [
-    id, "", "", "", "v44", "11", quality, reasons, mode, gpsSpeed, latency,
-    "1000", "gps-strict", "high", "complete", "sensor-window",
+    id, "", "", "", "v45", "12", quality, reasons, mode, gpsSpeed, latency,
+    "1000", stop.method || "gps-strict", stop.imuTime || "", stop.adjustment || "0",
+    stop.brakeContext || "", "high", "complete", "sensor-window",
   ];
   const rows = [
     [id, "event", "START", "", ...common.slice(4)],
@@ -27,8 +29,8 @@ function runRows(id, mode, gpsSpeed, latency, quality = "good", reasons = "") {
 
 function diagnosticRows(id) {
   return [
-    [id, "event", "NO_START", "", "v44", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
-    [id, "sample", "", "prestart", "v44", "11", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", ""],
+    [id, "event", "NO_START", "", "v45", "12", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", "", "", "", ""],
+    [id, "sample", "", "prestart", "v45", "12", "diagnostic", "NO_START_DIAGNOSTIC", "", "", "0", "", "", "", "", "", "", "", ""],
   ];
 }
 
@@ -36,7 +38,12 @@ const validCsv = [
   headers,
   ...runRows("strong-1", "strong", "0.4", "190"),
   ...runRows("gentle-1", "gentle", "0.8", "620"),
-  ...runRows("gentle-2", "gentle", "0.6", "610"),
+  ...runRows("gentle-2", "gentle", "0.6", "610", "good", "", {
+    method: "gps-strict+imu-brake",
+    imuTime: "12000",
+    adjustment: "-450",
+    brakeContext: "900",
+  }),
   ...diagnosticRows("no-start-1"),
 ].map((row) => row.join(",")).join("\n");
 const valid = auditCsvText(validCsv);

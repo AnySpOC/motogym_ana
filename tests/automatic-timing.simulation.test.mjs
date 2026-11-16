@@ -177,6 +177,40 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
 {
   const harness = createSimulationHarness();
   calibrateStationary(harness);
+  armAtStandstill(harness);
+  launch(harness);
+  harness.runFor(1200, () => ({}), { gpsEveryMs: 400, gpsSpeed: 5 });
+  harness.runFor(500, () => ({ rawY: -0.18, gravityZ: 1 }), {
+    gpsEveryMs: 250,
+    gpsSpeed: 1.5,
+  });
+  harness.gps(0.1);
+  harness.runFor(200);
+  const imuCandidateAt = harness.api.state.imuStopCandidateAt;
+  assert.ok(imuCandidateAt > 0, "low dynamics after braking must create an IMU STOP candidate");
+  while (harness.api.state.mode === "running" && harness.clock - imuCandidateAt < 1600) {
+    if (Math.round(harness.clock - imuCandidateAt) % 300 < harness.dtMs) harness.gps(0.1);
+    harness.step();
+  }
+  assert.equal(harness.api.state.mode, "armed", "GPS must confirm the brake-aware STOP candidate");
+  await harness.flushStorage();
+  const run = harness.savedRuns()[0];
+  const stopEvent = run.events.find((event) => event.type === "STOP");
+  assert.equal(run.diagnostics.stopDetectionMethod, "gps-strict+imu-brake");
+  assert.ok(Number.isFinite(run.diagnostics.stopImuEvidenceOnsetTimeMs));
+  assert.ok(Math.abs(run.diagnostics.stopTimingAdjustmentMs) <= 2000);
+  assert.ok(run.diagnostics.stopBrakeContextMs <= 8000);
+  assert.equal(stopEvent.estimatedTimeMs, run.diagnostics.stopImuEvidenceOnsetTimeMs);
+  assert.ok(stopEvent.confirmedTimeMs - stopEvent.estimatedTimeMs >= 800,
+    "GPS confirmation must preserve the earlier IMU timing estimate");
+  record("brake-aware-stop-timing", {
+    confirmationDelayMs: stopEvent.confirmedTimeMs - stopEvent.estimatedTimeMs,
+  });
+}
+
+{
+  const harness = createSimulationHarness();
+  calibrateStationary(harness);
   harness.gps(6);
   harness.api.enableAutoMeasurement();
   harness.runFor(2500, () => ({ rawY: 0.3 }), { gpsEveryMs: 400, gpsSpeed: 6 });
@@ -285,8 +319,8 @@ function launch(harness, vector = [0, 0.28, 0], gravity = [0, 0, 1]) {
   assert.ok(preStartSamples.length >= 250, "the saved run must include about five seconds before START");
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) <= -4900);
   assert.ok(Math.min(...preStartSamples.map((sample) => sample.timeMs)) >= -5050);
-  assert.equal(firstRun.appVersion, "v44");
-  assert.equal(firstRun.schemaVersion, 11);
+  assert.equal(firstRun.appVersion, "v45");
+  assert.equal(firstRun.schemaVersion, 12);
   assert.ok(firstRun.quality.metrics.startDecisionLatencyMs > 0);
   assert.ok(["good", "review"].includes(firstRun.quality.status));
   assert.ok(Number.isFinite(firstRun.quality.metrics.observedSampleRateHz));

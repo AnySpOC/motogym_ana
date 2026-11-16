@@ -382,16 +382,16 @@ Open the generated `https://...ngrok-free.app` URL on iPhone Safari, then tap:
 5. Provide a fresh zero-speed GPS observation, or tap `計測停止`
 6. Export CSV or JSON after the run
 
-For the v44 field smoke gate, select one automatic run in the history and export
+For the v45 field smoke gate, select one automatic run in the history and export
 one `選択CSV`. Audit it with:
 
 ```powershell
 npm run audit:field -- --csv "C:\path\to\gym-ana-selected.csv"
 ```
 
-The audit checks v44/schema 11, START and STOP, pre-start and finalized post-STOP
+The audit checks v45/schema 12, START and STOP, pre-start and finalized post-STOP
 samples, data quality, START/STOP decision latency and method, GPS reliability,
-and at least one gentle launch for a normal multi-run gate. For the single v44
+and at least one gentle launch for a normal multi-run gate. For the single v45
 logging smoke run, pass `--minimum-runs 1 --minimum-gentle-runs 0`. `NO_START`
 diagnostics are reported separately and do not count as failed runs.
 
